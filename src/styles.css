@@ -2354,11 +2354,29 @@ input:focus-visible {
 }
 
 .pixel-garden-map--cozy .pixel-garden-map__decor--bench {
-  width: 15%;
+  width: 11%;
   height: auto;
   aspect-ratio: 1;
-  inset: 12% 14% auto auto;
-  animation-delay: 120ms;
+  inset: 16% 14% auto auto;
+  animation: none;
+}
+
+.pixel-garden-map--cozy .pixel-garden-map__decor--bench::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  width: 72%;
+  height: 11%;
+  inset: auto 14% 4% auto;
+  background: rgba(75, 84, 52, 0.24);
+  border-radius: 50%;
+  filter: blur(0.18rem);
+  pointer-events: none;
+}
+
+.pixel-garden-map--cozy .pixel-garden-map__decor--bench img {
+  position: relative;
+  z-index: 1;
 }
 
 .pixel-garden-map--cozy .pixel-garden-map__decor--lamp {
@@ -2366,7 +2384,7 @@ input:focus-visible {
   height: auto;
   aspect-ratio: 1;
   inset: 39% 8% auto auto;
-  animation-delay: 220ms;
+  animation: none;
 }
 
 .pixel-garden-map--cozy .pixel-garden-map__decor--cat {
@@ -2374,7 +2392,7 @@ input:focus-visible {
   height: auto;
   aspect-ratio: 1;
   inset: 65% 9% auto auto;
-  animation-delay: 320ms;
+  animation: none;
 }
 
 .pixel-garden-map--cozy .pixel-garden-map__grass {
