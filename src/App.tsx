@@ -92,6 +92,9 @@ export default function App() {
   const dailyAvatar = getDailyAvatar(gameState.profile.avatarSeed, todayKey);
   const moodAvatarSeed = `${dailyAvatar.seed}:${todayMood}`;
   const installPrompt = useInstallPrompt();
+  const showInstallPrompt = !installDismissed
+    && !installPrompt.isInstalled
+    && (installPrompt.canInstall || installPrompt.isIos || installPrompt.isMobile);
   const isDrawerOpen = guideOpen || settingsOpen || taskManagerOpen;
   const resolvedTheme = gameState.profile.theme === "system"
     ? (systemPrefersDark ? "dark" : "light")
@@ -326,7 +329,7 @@ export default function App() {
       <SkyBackdrop phase={skyPhase} />
       <div className="background-orb background-orb--one" aria-hidden="true" />
       <div className="background-orb background-orb--two" aria-hidden="true" />
-      <main className="page-shell">
+      <main className={`page-shell${showInstallPrompt ? " page-shell--with-install-prompt" : ""}`}>
         <GardenHeader
           displayName={gameState.profile.displayName}
           greeting={greeting}
@@ -408,7 +411,7 @@ export default function App() {
         </footer>
       </main>
 
-      {!installDismissed && !installPrompt.isInstalled && (
+      {showInstallPrompt && (
         <InstallPrompt
           canInstall={installPrompt.canInstall}
           isIos={installPrompt.isIos}

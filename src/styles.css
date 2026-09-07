@@ -437,6 +437,10 @@ input:focus-visible {
   padding: 2.25rem 0 1.5rem;
 }
 
+.page-shell--with-install-prompt {
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+}
+
 .page-content {
   display: grid;
   gap: 1.1rem;
@@ -2354,20 +2358,26 @@ input:focus-visible {
 }
 
 .pixel-garden-map--cozy .pixel-garden-map__decor--bench {
+  width: 15%;
+  height: auto;
+  aspect-ratio: 1;
   inset: 29% 14% auto auto;
-  font-size: clamp(1.1rem, 4vw, 2rem);
   animation-delay: 120ms;
 }
 
 .pixel-garden-map--cozy .pixel-garden-map__decor--lamp {
+  width: 9%;
+  height: auto;
+  aspect-ratio: 1;
   inset: 39% 8% auto auto;
-  font-size: clamp(1rem, 3.2vw, 1.6rem);
   animation-delay: 220ms;
 }
 
 .pixel-garden-map--cozy .pixel-garden-map__decor--cat {
+  width: 10%;
+  height: auto;
+  aspect-ratio: 1;
   inset: 65% 9% auto auto;
-  font-size: clamp(1.2rem, 4vw, 2rem);
   animation-delay: 320ms;
 }
 
@@ -3003,6 +3013,16 @@ input:focus-visible {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.decor-card__item-sprite {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-image: var(--decor-sprite);
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-size: 600% 100%;
 }
 
 .garden-seed-option--peach .garden-seed-option__emoji {
@@ -3660,7 +3680,7 @@ input:focus-visible {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  width: min(100% - 2rem, 31rem);
+  width: min(calc(100% - 2rem), 31rem);
   margin-inline: auto;
   padding: 0.7rem 0.75rem;
   color: var(--ink-strong);

@@ -1,5 +1,5 @@
 import { Lock, MapPin, Move, Sparkles, Trash2, X } from "lucide-react";
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type Ref } from "react";
 import { GARDEN_DECOR, getNextDecor, getUnlockedDecor } from "../data/decor";
 import { GARDEN_SEEDS, GARDEN_TREE_VARIANTS, getSeedDefinition, getTreeVariantDefinition } from "../data/garden";
 import {
@@ -10,7 +10,7 @@ import {
   isGardenSeedUnlocked,
 } from "../lib/game";
 import { toPersianDigits } from "../lib/format";
-import { getGardenAssetPath, getGardenDecorAssetPath, getGardenTreeAssetPath } from "../lib/assets";
+import { getGardenAssetPath, getGardenDecorAsset, getGardenTreeAssetPath } from "../lib/assets";
 import type { GardenSeedKind, GardenTreeVariant, PlantedGardenItem } from "../types/game";
 import { PixelGardenMap } from "./PixelGardenMap";
 
@@ -290,12 +290,18 @@ export function GardenDecor({
       <div className="decor-card__collection" aria-label="مجموعه‌ی دکورهای باغ">
         {GARDEN_DECOR.map((decor) => {
           const unlocked = lifetimeWins >= decor.unlockAt;
+          const asset = getGardenDecorAsset(decor.id);
           return (
             <div className={`decor-card__item${unlocked ? " is-unlocked" : ""}`} key={decor.id}>
               <span className="decor-card__item-icon" aria-hidden="true">
                 {unlocked
-                  ? (getGardenDecorAssetPath(decor.id)
-                    ? <img src={getGardenDecorAssetPath(decor.id)} alt="" draggable="false" />
+                  ? (asset?.animated
+                    ? <span
+                        className="decor-card__item-sprite"
+                        style={{ "--decor-sprite": `url(${asset.path})` } as CSSProperties}
+                      />
+                    : asset?.path
+                    ? <img src={asset.path} alt="" draggable="false" />
                     : decor.emoji)
                   : <Lock size={14} />}
               </span>
