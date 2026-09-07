@@ -3,6 +3,7 @@ import type { GardenSeedKind, GardenTreeVariant } from "../types/game";
 
 interface GardenDecorAsset {
   path: string;
+  previewPath?: string;
   animated?: boolean;
   frameCount?: number;
 }
@@ -21,7 +22,12 @@ const GARDEN_ASSETS: Record<Exclude<GardenSeedKind, "tree">, string> = {
 
 const DECOR_ASSETS: Partial<Record<GardenDecorId, GardenDecorAsset>> = {
   flower: { path: "apricity-flower.webp" },
-  butterfly: { path: "apricity-butterfly-sprite.webp", animated: true, frameCount: 6 },
+  butterfly: {
+    path: "apricity-butterfly-sprite.webp",
+    previewPath: "apricity-butterfly.webp",
+    animated: true,
+    frameCount: 6,
+  },
   bench: { path: "apricity-bench.webp" },
   lamp: { path: "apricity-lamp.webp" },
   cat: { path: "apricity-cat.webp" },
@@ -39,7 +45,13 @@ export function getGardenAssetPath(kind: GardenSeedKind, treeVariant: GardenTree
 
 export function getGardenDecorAsset(id: GardenDecorId): GardenDecorAsset | undefined {
   const asset = DECOR_ASSETS[id];
-  return asset ? { ...asset, path: `${import.meta.env.BASE_URL}${asset.path}` } : undefined;
+  return asset
+    ? {
+        ...asset,
+        path: `${import.meta.env.BASE_URL}${asset.path}`,
+        previewPath: asset.previewPath ? `${import.meta.env.BASE_URL}${asset.previewPath}` : undefined,
+      }
+    : undefined;
 }
 
 export function getGardenDecorAssetPath(id: GardenDecorId): string | undefined {

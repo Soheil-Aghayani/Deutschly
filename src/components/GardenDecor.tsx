@@ -295,7 +295,9 @@ export function GardenDecor({
             <div className={`decor-card__item${unlocked ? " is-unlocked" : ""}`} key={decor.id}>
               <span className="decor-card__item-icon" aria-hidden="true">
                 {unlocked
-                  ? (asset?.animated
+                  ? (asset?.previewPath
+                    ? <img src={asset.previewPath} alt="" draggable="false" />
+                    : asset?.animated
                     ? <span
                         className="decor-card__item-sprite"
                         style={{ "--decor-sprite": `url(${asset.path})` } as CSSProperties}
