@@ -20,7 +20,8 @@ html {
   min-height: 100%;
   background: #fff8f0;
   overscroll-behavior: none;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: auto;
 }
 
 html[data-theme="dark"],
@@ -32,13 +33,18 @@ html[data-theme="dark"] body {
   box-sizing: border-box;
 }
 
+#root {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100dvh;
   overscroll-behavior-y: none;
-  overflow-x: hidden;
-  touch-action: manipulation;
+  overflow-x: clip;
+  overflow-y: visible;
+  touch-action: auto;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -92,7 +98,7 @@ input:focus-visible {
   isolation: isolate;
   min-height: 100dvh;
   padding-bottom: env(safe-area-inset-bottom);
-  overflow: hidden;
+  overflow: visible;
   user-select: none;
   color: var(--ink);
   background:
