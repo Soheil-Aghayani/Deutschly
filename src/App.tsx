@@ -329,7 +329,7 @@ export default function App() {
       <SkyBackdrop phase={skyPhase} />
       <div className="background-orb background-orb--one" aria-hidden="true" />
       <div className="background-orb background-orb--two" aria-hidden="true" />
-      <main className={`page-shell${showInstallPrompt ? " page-shell--with-install-prompt" : ""}`}>
+      <main className="page-shell">
         <GardenHeader
           displayName={gameState.profile.displayName}
           greeting={greeting}
@@ -345,6 +345,16 @@ export default function App() {
           onGuide={() => setGuideOpen(true)}
           onSettings={() => setSettingsOpen(true)}
         />
+
+        {showInstallPrompt && (
+          <InstallPrompt
+            canInstall={installPrompt.canInstall}
+            isIos={installPrompt.isIos}
+            isMobile={installPrompt.isMobile}
+            onInstall={handleInstall}
+            onDismiss={() => setInstallDismissed(true)}
+          />
+        )}
 
         <div className="page-content">
           <EnergyPicker
@@ -410,16 +420,6 @@ export default function App() {
           <span>Apricity؛ گرمای کوچکی برای روزهای سرد.</span>
         </footer>
       </main>
-
-      {showInstallPrompt && (
-        <InstallPrompt
-          canInstall={installPrompt.canInstall}
-          isIos={installPrompt.isIos}
-          isMobile={installPrompt.isMobile}
-          onInstall={handleInstall}
-          onDismiss={() => setInstallDismissed(true)}
-        />
-      )}
 
       <GuideDrawer open={guideOpen} onClose={handleGuideClose} />
       <SettingsDrawer
