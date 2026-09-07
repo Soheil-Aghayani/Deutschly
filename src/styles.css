@@ -2357,7 +2357,7 @@ input:focus-visible {
   width: 15%;
   height: auto;
   aspect-ratio: 1;
-  inset: 29% 14% auto auto;
+  inset: 12% 14% auto auto;
   animation-delay: 120ms;
 }
 
