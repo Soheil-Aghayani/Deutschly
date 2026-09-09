@@ -1,4 +1,4 @@
-import type { GermanWordArticle, GermanWordRecord } from "../data/germanWords";
+import type { GermanWordArticle, GermanWordRecord, GermanWordSource } from "../data/germanWords";
 
 export type GeminiArticle = "der" | "die" | "das" | "plural" | "none";
 export type GeminiConfidence = "high" | "medium" | "low";
@@ -168,6 +168,24 @@ function readOptionalText(value: unknown, field: string, maxLength: number): str
   return value === undefined || value === null ? "" : readText(value, field, maxLength);
 }
 
+function readWordSource(value: unknown): GermanWordSource | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) throw new GeminiRequestError("Gemini returned an invalid word source.");
+
+  const page = value.page;
+  if (typeof page !== "number" || !Number.isInteger(page) || page < 1) {
+    throw new GeminiRequestError("Gemini returned an invalid source page.");
+  }
+
+  const context = readOptionalText(value.context, "source context", 240);
+  return {
+    book: readText(value.book, "source book", 120),
+    lesson: readText(value.lesson, "source lesson", 80),
+    page,
+    ...(context ? { context } : {}),
+  };
+}
+
 function parseGermanWordRecord(value: unknown): GermanWordRecord {
   if (!isRecord(value)) throw new GeminiRequestError("Gemini returned an invalid German word.");
   const article = readEnum(value.article, "article", GERMAN_WORD_ARTICLES);
@@ -178,6 +196,7 @@ function parseGermanWordRecord(value: unknown): GermanWordRecord {
       .filter((item): item is Extract<GermanWordArticle, "der" | "die" | "das"> => ["der", "die", "das"].includes(item) && item !== article);
   const plural = readOptionalText(value.plural, "plural", 120);
   const partOfSpeech = readOptionalText(value.partOfSpeech, "part of speech", 40);
+  const source = readWordSource(value.source);
   return {
     id: readText(value.id, "word id", 120),
     german: readText(value.german, "German word", 120),
@@ -189,6 +208,7 @@ function parseGermanWordRecord(value: unknown): GermanWordRecord {
     ...(partOfSpeech ? { partOfSpeech } : {}),
     ...(value.examples === undefined ? {} : { examples: readStringArray(value.examples, "examples", 2, 220) }),
     tags: readStringArray(value.tags, "tags", 8, 32),
+    ...(source ? { source } : {}),
   };
 }
 

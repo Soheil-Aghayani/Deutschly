@@ -3466,6 +3466,17 @@ kbd {
   overflow-wrap: anywhere;
 }
 
+.library-row__lesson {
+  display: grid;
+  gap: 2px;
+}
+
+.library-row__lesson small {
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 600;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -4066,6 +4077,12 @@ kbd {
   font-size: 9px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.word-suggestion__copy .word-suggestion__source,
+.word-bank-suggestion__copy .word-bank-suggestion__source {
+  color: var(--primary);
+  font-weight: 600;
 }
 
 .word-suggestion__meta,

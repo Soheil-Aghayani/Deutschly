@@ -1019,6 +1019,10 @@ function normalizeGermanTerm(value: string): string {
 }
 
 function germanWordToCardDraft(word: GermanWordRecord): Partial<CardDraft> {
+  const sourceLabel = word.source
+    ? `${word.source.book} · ${word.source.lesson}`
+    : `Word bank · ${word.level}`;
+
   return {
     german: word.german,
     translation: word.englishMeanings.join(" / "),
@@ -1026,7 +1030,11 @@ function germanWordToCardDraft(word: GermanWordRecord): Partial<CardDraft> {
     plural: word.plural ?? "",
     example: word.examples?.[0] ?? "",
     tags: word.tags.join(", "),
-    lesson: `Word bank · ${word.level}`,
+    note: word.source
+      ? `Found in ${word.source.book}, ${word.source.lesson}, page ${word.source.page}.`
+      : "",
+    lesson: sourceLabel,
+    sourcePage: word.source?.page,
     kind: "word",
     referenceChecked: false,
   };
@@ -1569,7 +1577,7 @@ function StudyPage({
         <div className="study-main">
           <article className={`study-card${showAnswer ? " study-card--answered" : ""}`}>
             <div className="study-card__meta">
-              <div className="study-card__source"><BookOpen size={15} aria-hidden="true" /> {card.deck} <span>·</span> {card.lesson}</div>
+              <div className="study-card__source"><BookOpen size={15} aria-hidden="true" /> {card.deck} <span>·</span> {card.lesson}{card.sourcePage && <span> · p. {card.sourcePage}</span>}</div>
               <ArticleBadge article={card.article} />
             </div>
             <div className="study-card__prompt">{showAnswer ? "Can you remember it?" : "What is the meaning of this word?"}</div>
@@ -2096,7 +2104,7 @@ function LibraryPage({
               {wordBankSuggestions.map((word) => (
                 <button type="button" className="word-bank-suggestion" role="option" aria-label={`Add ${word.german}`} key={word.id} onClick={() => { onAddDatabaseWord(word); setWordBankQuery(""); }}>
                   <ArticleBadge article={word.article} compact />
-                  <span className="word-bank-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}</span>
+                  <span className="word-bank-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}{word.source && <small className="word-bank-suggestion__source">{word.source.lesson} · p. {word.source.page}</small>}</span>
                   <span className="word-bank-suggestion__meta"><span>{word.level}</span><Plus size={15} aria-hidden="true" /></span>
                 </button>
               ))}
@@ -2142,7 +2150,7 @@ function LibraryPage({
             <div className="library-row" role="row" key={card.id}>
               <div className="library-row__word"><ArticleBadge article={card.article} compact /><strong>{card.german}</strong>{card.plural && <small>plural: {card.plural}</small>}{card.tags && card.tags.length > 0 && <small className="library-row__tags">{card.tags.join(" · ")}</small>}{card.verification === "unverified" && <small className="verification-note">needs reference check</small>}</div>
               <span className="library-row__translation">{card.translation}</span>
-              <span className="library-row__lesson">{card.lesson}</span>
+              <span className="library-row__lesson">{card.lesson}{card.sourcePage && <small>p. {card.sourcePage}</small>}</span>
               <span className={`status-pill status-pill--${card.status}`}>{card.status === "review" ? "Review" : card.status === "learning" ? "Learning" : "New"}</span>
               <button type="button" className="icon-button icon-button--small" onClick={() => onEditCard(card)} aria-label={`Edit ${card.german}`} title={`Edit ${card.german}`}><Pencil size={15} aria-hidden="true" /></button>
             </div>
@@ -2773,7 +2781,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
             <div className="form-field-with-suggestions">
               <label className="form-field" htmlFor="card-german"><span>German *</span><input id="card-german" ref={germanInputRef} value={draft.german} onChange={(event) => update("german", event.target.value)} placeholder="e.g. gemütlich or Das Eis" required aria-autocomplete="list" aria-controls={wordSuggestions.length > 0 ? "card-word-suggestions" : undefined} aria-expanded={wordSuggestions.length > 0} /></label>
               {wordSuggestions.length > 0 && <div id="card-word-suggestions" className="word-suggestion-list" role="listbox" aria-label="German word bank suggestions">
-                {wordSuggestions.map((word) => <button type="button" className="word-suggestion" role="option" aria-label={`Use ${word.german}`} key={word.id} onClick={() => applyWordSuggestion(word)}><ArticleBadge article={word.article} compact /><span className="word-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}</span><span className="word-suggestion__meta"><span>{word.level}</span><Check size={14} aria-hidden="true" /></span></button>)}
+                {wordSuggestions.map((word) => <button type="button" className="word-suggestion" role="option" aria-label={`Use ${word.german}`} key={word.id} onClick={() => applyWordSuggestion(word)}><ArticleBadge article={word.article} compact /><span className="word-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}{word.source && <small className="word-suggestion__source">{word.source.lesson} · p. {word.source.page}</small>}</span><span className="word-suggestion__meta"><span>{word.level}</span><Check size={14} aria-hidden="true" /></span></button>)}
               </div>}
             </div>
             <label className="form-field" htmlFor="card-translation"><span>Translation *</span><input id="card-translation" value={draft.translation} onChange={(event) => update("translation", event.target.value)} placeholder="e.g. cozy or ice cream" required /></label>

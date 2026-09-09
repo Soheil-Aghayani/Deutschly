@@ -23,7 +23,18 @@ describe("German word database", () => {
   });
 
   it("ranks exact and prefix word-bank matches first", () => {
-    expect(searchGermanWords("arbeit", 2).map((word) => word.german)).toEqual(["arbeiten"]);
+    const matches = searchGermanWords("arbeit", 2).map((word) => word.german);
+    expect(matches[0]).toBe("arbeiten");
+    expect(matches).toContain("Arbeitsplatz");
     expect(searchGermanWords("", 5)).toEqual([]);
+  });
+
+  it("keeps Menschen lesson and page metadata on sourced records", () => {
+    const sourcedWord = GERMAN_WORD_DATABASE.find((word) => word.german === "Lied");
+    expect(sourcedWord?.source).toMatchObject({
+      book: "Menschen A1.1 Kursbuch",
+      lesson: "Lesson 1",
+      page: 9,
+    });
   });
 });

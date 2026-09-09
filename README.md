@@ -69,7 +69,7 @@ npm run sync-server -- --host 0.0.0.0
 
 If the sync URL is configured in Deutschly, the app uses the same private server for card review. On the phone, use the PC LAN address in the sync settings. Stop the server when you are finished, and keep it on a trusted Wi-Fi network; this starter bridge is intentionally not a public production service.
 
-The same private bridge exposes `POST /api/gemini/word-batch` for an A1 or A2 curation pass. It validates the level, removes duplicate headwords, and returns structured records without sources or URLs. Generated words are written only after the agent validates their shape and deduplicates them against the local database.
+The same private bridge exposes `POST /api/gemini/word-batch` for an A1 or A2 curation pass. It validates the level, removes duplicate headwords, and returns structured records without external sources or URLs. Generated words are written only after the agent validates their shape and deduplicates them against the local database.
 
 To add reviewed Gemini batches to the local database, run the bounded word agent from the project folder. It reads the key from the file, compares every batch with existing headwords, and writes only new records to `src/data/germanWords.generated.json`:
 
@@ -86,6 +86,14 @@ npm run words:agent -- --server-url 'http://127.0.0.1:8787' --levels A1,A2 --cou
 The `--legacy-review-fallback` option is available for an already-running older bridge that has card review but not the word-batch endpoint. It verifies a small built-in learner list through the existing review route, then stores the validated records. Restart the bridge from the current project version before using larger generated batches.
 
 Use a small, explicit batch count when adding more words. The agent never runs an unbounded loop, never stores the API key, and keeps the local database as the source of truth.
+
+To enrich the local word bank from the attached Menschen A1.1 Kursbuch, run the source-aware importer with the PDF path. It verifies each selected word on its declared PDF page, asks the private Gemini bridge to check the article, plural, meaning, and example, and stores the lesson and page with the record:
+
+```powershell
+npm run menschen:agent -- --pdf 'C:\path\to\Menschen A1.1 Kursbuch OCR neu.pdf' --server-url 'http://127.0.0.1:8787' --limit 16
+```
+
+The source-aware importer is intentionally bounded. It skips words already in the database and does not add an OCR fragment that cannot be found on the declared page.
 
 ## GitHub Pages
 

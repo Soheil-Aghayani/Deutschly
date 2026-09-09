@@ -3,6 +3,13 @@ import generatedWords from "./germanWords.generated.json";
 export type GermanWordArticle = "der" | "die" | "das" | "plural" | "none";
 export type GermanWordLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | "unknown";
 
+export interface GermanWordSource {
+  book: string;
+  lesson: string;
+  page: number;
+  context?: string;
+}
+
 export interface GermanWordRecord {
   id: string;
   german: string;
@@ -14,6 +21,7 @@ export interface GermanWordRecord {
   partOfSpeech?: string;
   examples?: string[];
   tags: string[];
+  source?: GermanWordSource;
 }
 
 const germanWordArticles = new Set<GermanWordArticle>(["der", "die", "das", "plural", "none"]);
@@ -22,6 +30,19 @@ const germanWordLevels = new Set<GermanWordLevel>(["A1", "A2", "B1", "B2", "C1",
 function isGermanWordRecord(value: unknown): value is GermanWordRecord {
   if (!value || typeof value !== "object") return false;
   const word = value as Partial<GermanWordRecord>;
+  const source = word.source;
+  const hasValidSource = source === undefined || (
+    typeof source === "object" &&
+    source !== null &&
+    typeof source.book === "string" &&
+    source.book.length > 0 &&
+    typeof source.lesson === "string" &&
+    source.lesson.length > 0 &&
+    typeof source.page === "number" &&
+    Number.isInteger(source.page) &&
+    source.page > 0 &&
+    (source.context === undefined || typeof source.context === "string")
+  );
   return (
     typeof word.id === "string" &&
     typeof word.german === "string" &&
@@ -30,7 +51,8 @@ function isGermanWordRecord(value: unknown): value is GermanWordRecord {
     germanWordArticles.has(word.article as GermanWordArticle) &&
     germanWordLevels.has(word.level as GermanWordLevel) &&
     Array.isArray(word.tags) &&
-    word.tags.every((tag) => typeof tag === "string")
+    word.tags.every((tag) => typeof tag === "string") &&
+    hasValidSource
   );
 }
 

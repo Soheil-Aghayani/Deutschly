@@ -103,6 +103,22 @@ describe("Gemini German word agent bridge", () => {
     });
   });
 
+  it("preserves an optional course source on a generated word", () => {
+    const result = parseGermanWordBatch({
+      level: "A1",
+      words: [{
+        ...word,
+        source: { book: "Menschen A1.1 Kursbuch", lesson: "Lesson 1", page: 9 },
+      }],
+    });
+
+    expect(result.words[0]?.source).toEqual({
+      book: "Menschen A1.1 Kursbuch",
+      lesson: "Lesson 1",
+      page: 9,
+    });
+  });
+
   it("posts the word batch request without exposing a Gemini key", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ level: "A2", words: [{ ...word, level: "A2" }], requestedCount: 1, returnedCount: 1 }), { status: 200 }));
     const result = await generateGermanWordBatch("/api/sync", { level: "A2", count: 1, existingWords: ["Eis"] });

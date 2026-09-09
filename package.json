@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "words:agent": "node scripts/german-word-agent.mjs"
+    "words:agent": "node scripts/german-word-agent.mjs",
+    "menschen:agent": "node scripts/menschen-word-agent.mjs"
   },
   "dependencies": {
     "@fontsource-variable/vazirmatn": "^5.3.0",
