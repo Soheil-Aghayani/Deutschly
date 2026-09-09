@@ -1973,13 +1973,47 @@ function ResetProgressModal({ onClose, onConfirm }: { onClose: () => void; onCon
   );
 }
 
+interface ProgressBreakdownStats {
+  total: number;
+  due: number;
+  inReview: number;
+  mastery: number;
+}
+
+const progressArticleOrder: Article[] = ["der", "die", "das", "plural", "none"];
+
+function compareLessonLabels(first: string, second: string): number {
+  const firstNumber = Number(first.match(/\d+/)?.[0]);
+  const secondNumber = Number(second.match(/\d+/)?.[0]);
+  if (Number.isFinite(firstNumber) && Number.isFinite(secondNumber) && firstNumber !== secondNumber) return firstNumber - secondNumber;
+  if (Number.isFinite(firstNumber) !== Number.isFinite(secondNumber)) return Number.isFinite(firstNumber) ? -1 : 1;
+  return first.localeCompare(second);
+}
+
+function getProgressBreakdownStats(cards: Flashcard[], todayKey: string): ProgressBreakdownStats {
+  if (cards.length === 0) return { total: 0, due: 0, inReview: 0, mastery: 0 };
+  return {
+    total: cards.length,
+    due: cards.filter((card) => card.due <= todayKey).length,
+    inReview: cards.filter((card) => card.status === "review").length,
+    mastery: Math.round(cards.reduce((sum, card) => sum + getCardMastery(card), 0) / cards.length),
+  };
+}
+
 function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgress }: { state: AppState; onViewWeakCards: () => void; onAdjustReminder: () => void; onResetProgress: () => void }) {
+  const todayKey = getDayKey();
   const maxValue = Math.max(...state.weeklyReviews, 1);
   const average = Math.round(state.weeklyReviews.reduce((sum, value) => sum + value, 0) / state.weeklyReviews.length);
   const level = getLevelProgress(state.xp);
   const accuracy = state.totalReviews > 0 ? Math.round((state.correctReviews / state.totalReviews) * 100) : 0;
   const mastery = Math.round(state.cards.reduce((sum, card) => sum + getCardMastery(card), 0) / Math.max(state.cards.length, 1));
   const weakCards = state.cards.filter((card) => card.status !== "review" || (card.difficulty ?? 5) >= 6).length;
+  const lessonStats = [...new Set(state.cards.map((card) => card.lesson).filter(Boolean))]
+    .sort(compareLessonLabels)
+    .map((lesson) => ({ lesson, stats: getProgressBreakdownStats(state.cards.filter((card) => card.lesson === lesson), todayKey) }));
+  const articleStats = progressArticleOrder
+    .map((article) => ({ article, stats: getProgressBreakdownStats(state.cards.filter((card) => card.article === article), todayKey) }))
+    .filter(({ stats }) => stats.total > 0);
   const achievementLabels: Record<string, { title: string; detail: string }> = {
     "first-review": { title: "First recall", detail: "Started your memory loop" },
     "week-streak": { title: "One gentle week", detail: "Kept a 7-day study streak" },
@@ -2005,6 +2039,34 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgres
         <article className="mastery-card">
           <div className="mastery-card__ring" aria-hidden="true"><div><strong>{mastery}%</strong><span>mastery</span></div></div>
           <div><span className="section-eyebrow">COURSE MASTERY</span><h2>Strong foundations</h2><p>{weakCards} card{weakCards === 1 ? "" : "s"} could use another gentle pass.</p><button type="button" className="text-button" onClick={onViewWeakCards}>See weak cards <ChevronRight size={16} aria-hidden="true" /></button></div>
+        </article>
+      </section>
+      <section className="progress-breakdown-grid" aria-label="Progress by lesson and article">
+        <article className="progress-breakdown-card">
+          <div className="progress-breakdown-card__heading"><div><span className="section-eyebrow">COURSE MAP</span><h2>Progress by lesson</h2></div><BookText size={19} aria-hidden="true" /></div>
+          <p className="progress-breakdown-card__intro">See which Menschen lessons are becoming reliable and which still need another pass.</p>
+          <div className="progress-breakdown-list">
+            {lessonStats.length > 0 ? lessonStats.map(({ lesson, stats }) => (
+              <div className="progress-breakdown-row" key={lesson}>
+                <div className="progress-breakdown-row__label"><strong>{lesson}</strong><span>{stats.total} cards · {stats.inReview} in review · {stats.due} due</span></div>
+                <div className="progress-breakdown-row__value"><strong>{stats.mastery}%</strong><span>mastery</span></div>
+                <div className="progress-breakdown-row__bar" role="progressbar" aria-label={`${lesson} mastery`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={stats.mastery}><span style={{ width: `${stats.mastery}%` }} /></div>
+              </div>
+            )) : <div className="progress-breakdown-empty"><Info size={17} aria-hidden="true" /><span>Add cards to see lesson progress.</span></div>}
+          </div>
+        </article>
+        <article className="progress-breakdown-card">
+          <div className="progress-breakdown-card__heading"><div><span className="section-eyebrow">ARTICLE COLORS</span><h2>Progress by article</h2></div><Languages size={19} aria-hidden="true" /></div>
+          <p className="progress-breakdown-card__intro">Your recall balance across der, die, das, plural, and phrases.</p>
+          <div className="progress-breakdown-list">
+            {articleStats.length > 0 ? articleStats.map(({ article, stats }) => (
+              <div className="progress-breakdown-row" key={article}>
+                <div className="progress-breakdown-row__label"><div className="progress-breakdown-row__title"><ArticleBadge article={article} compact /><strong>{article === "plural" ? "Plural" : article === "none" ? "Phrases" : article}</strong></div><span>{stats.total} cards · {stats.inReview} in review · {stats.due} due</span></div>
+                <div className="progress-breakdown-row__value"><strong>{stats.mastery}%</strong><span>mastery</span></div>
+                <div className="progress-breakdown-row__bar" role="progressbar" aria-label={`${article === "none" ? "Phrases" : article} mastery`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={stats.mastery}><span style={{ width: `${stats.mastery}%` }} /></div>
+              </div>
+            )) : <div className="progress-breakdown-empty"><Info size={17} aria-hidden="true" /><span>Add cards to see article progress.</span></div>}
+          </div>
         </article>
       </section>
       <section className="progress-metrics">
