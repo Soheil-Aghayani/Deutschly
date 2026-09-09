@@ -9,7 +9,7 @@ Live site: <https://soheil-aghayani.github.io/Deutschly/>
 - Adaptive review scheduling: recall first, reveal the answer, then rate it as Again, Hard, Good, or Easy.
 - Menschen A1.1 starter cards plus personal cards for vocabulary, phrases, and grammar.
 - German article colors: `der` blue, `die` feminine red, `das` green, and plural orange.
-- Add-card verification that normalizes entries such as `Das Eis`, blocks exact duplicates, flags possible duplicates, and keeps reference links beside the check.
+- Add-card verification that normalizes entries such as `Das Eis`, blocks exact duplicates, flags possible duplicates, and keeps reference links beside the check. The Gemini word bank is searchable in Library and can prefill a checked card with its meaning, article, plural, example, and tags.
 - Practice Lab drills for articles, plurals, translations, and sentence gaps, with German text-to-speech and optional self-recording.
 - Lesson map, tags, weak-card filtering, editable cards, XP, levels, achievements, recall accuracy, and a seven-day activity view.
 - Local Menschen PDF extraction. Selectable text is read in the browser and suggestions keep their source page and context. The PDF itself is never committed to this repository.

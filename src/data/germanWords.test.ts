@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GERMAN_WORD_DATABASE, findGermanWord, normalizeGermanWord } from "./germanWords";
+import { GERMAN_WORD_DATABASE, findGermanWord, normalizeGermanWord, searchGermanWords } from "./germanWords";
 
 describe("German word database", () => {
   it("loads generated records with the typed shape", () => {
@@ -20,5 +20,10 @@ describe("German word database", () => {
 
   it("normalizes article prefixes for future lookups", () => {
     expect(normalizeGermanWord("  Die   Wohnung ")).toBe("wohnung");
+  });
+
+  it("ranks exact and prefix word-bank matches first", () => {
+    expect(searchGermanWords("arbeit", 2).map((word) => word.german)).toEqual(["arbeiten"]);
+    expect(searchGermanWords("", 5)).toEqual([]);
   });
 });

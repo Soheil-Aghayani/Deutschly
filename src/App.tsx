@@ -64,6 +64,8 @@ import { useInstallPrompt } from "./hooks/useInstallPrompt";
 import { getDailyAvatar } from "./lib/avatar";
 import { reviewCardWithGemini } from "./lib/gemini";
 import type { GeminiCardReview, GeminiCardReviewInput } from "./lib/gemini";
+import { GERMAN_WORD_DATABASE, searchGermanWords } from "./data/germanWords";
+import type { GermanWordRecord } from "./data/germanWords";
 import { assessPdfCandidate, extractMenschenPdf, getMenschenLesson, normalizePdfCandidateStatuses } from "./lib/pdfImport";
 import type { PdfCandidate, PdfCandidateStatus } from "./lib/pdfImport";
 import { checkSyncHealth, createSyncRoom, normalizeSyncRoom, pullSync, pushSync } from "./lib/sync";
@@ -1014,6 +1016,20 @@ function normalizeLookup(value: string): string {
 
 function normalizeGermanTerm(value: string): string {
   return normalizeLookup(value).replace(/^(der|die|das)\s+/, "").trim();
+}
+
+function germanWordToCardDraft(word: GermanWordRecord): Partial<CardDraft> {
+  return {
+    german: word.german,
+    translation: word.englishMeanings.join(" / "),
+    article: word.article,
+    plural: word.plural ?? "",
+    example: word.examples?.[0] ?? "",
+    tags: word.tags.join(", "),
+    lesson: `Word bank · ${word.level}`,
+    kind: "word",
+    referenceChecked: false,
+  };
 }
 
 function prepareCardDraft(draft: CardDraft): CardDraft {
@@ -1978,6 +1994,7 @@ function LibraryPage({
   pdfError,
   onSearch,
   onAddCard,
+  onAddDatabaseWord,
   onEditCard,
   weakCardsOnly,
   onWeakCardsOnlyChange,
@@ -1999,6 +2016,7 @@ function LibraryPage({
   pdfError: string | null;
   onSearch: (value: string) => void;
   onAddCard: () => void;
+  onAddDatabaseWord: (word: GermanWordRecord) => void;
   onEditCard: (card: Flashcard) => void;
   weakCardsOnly: boolean;
   onWeakCardsOnlyChange: (value: boolean) => void;
@@ -2013,9 +2031,11 @@ function LibraryPage({
   const [lessonFilter, setLessonFilter] = useState("all");
   const [articleFilter, setArticleFilter] = useState<"all" | Article>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | CardStatus>("all");
+  const [wordBankQuery, setWordBankQuery] = useState("");
   const [needsCheckOnly, setNeedsCheckOnly] = useState(false);
   const lessons = [...new Set(cards.map((card) => card.lesson).filter(Boolean))].sort();
   const tags = [...new Set(cards.flatMap((card) => card.tags ?? []))].sort();
+  const wordBankSuggestions = useMemo(() => searchGermanWords(wordBankQuery, 6), [wordBankQuery]);
   const filteredCards = cards.filter((card) => {
     const term = searchQuery.toLowerCase().trim();
     const matchesSearch = !term || [card.german, card.translation, card.example, card.lesson, card.deck, ...(card.tags ?? [])].filter(Boolean).some((value) => value?.toLowerCase().includes(term));
@@ -2051,6 +2071,38 @@ function LibraryPage({
           <input ref={backupInputRef} type="file" accept=".json,application/json" className="visually-hidden" onChange={onImportBackup} aria-hidden="true" tabIndex={-1} />
           <button type="button" className="button button--ghost" onClick={() => backupInputRef.current?.click()}><Upload size={16} aria-hidden="true" /> Import backup</button>
         </div>
+      </section>
+
+      <section className="word-bank-card" aria-labelledby="word-bank-title">
+        <div className="word-bank-card__header">
+          <div className="word-bank-card__heading">
+            <span className="word-bank-card__icon" aria-hidden="true"><Languages size={19} /></span>
+            <div>
+              <span className="section-eyebrow">GEMINI WORD BANK</span>
+              <h2 id="word-bank-title">Find a word to add</h2>
+              <p>Search the checked A1 and A2 records, then review the details before saving a card.</p>
+            </div>
+          </div>
+          <span className="word-bank-card__count">{GERMAN_WORD_DATABASE.length} records</span>
+        </div>
+        <label className="word-bank-search" htmlFor="word-bank-search">
+          <Search size={17} aria-hidden="true" />
+          <span className="sr-only">Search the German word bank</span>
+          <input id="word-bank-search" type="search" value={wordBankQuery} onChange={(event) => setWordBankQuery(event.target.value)} placeholder="Search a German word..." />
+        </label>
+        {wordBankQuery.trim() && (
+          wordBankSuggestions.length > 0 ? (
+            <div className="word-bank-suggestions" role="listbox" aria-label="German word bank suggestions">
+              {wordBankSuggestions.map((word) => (
+                <button type="button" className="word-bank-suggestion" role="option" aria-label={`Add ${word.german}`} key={word.id} onClick={() => { onAddDatabaseWord(word); setWordBankQuery(""); }}>
+                  <ArticleBadge article={word.article} compact />
+                  <span className="word-bank-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}</span>
+                  <span className="word-bank-suggestion__meta"><span>{word.level}</span><Plus size={15} aria-hidden="true" /></span>
+                </button>
+              ))}
+            </div>
+          ) : <div className="word-bank-empty"><Search size={16} aria-hidden="true" /><span>No matching word yet. Add it manually and use Check card.</span></div>
+        )}
       </section>
 
       <section className="library-filters" aria-label="Filter cards">
@@ -2598,6 +2650,10 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiChecking, setAiChecking] = useState(false);
   const germanInputRef = useRef<HTMLInputElement>(null);
+  const wordSuggestions = useMemo(() => {
+    if (editing || draft.kind !== "word" || normalizeGermanTerm(draft.german).length < 2) return [];
+    return searchGermanWords(draft.german, 5);
+  }, [draft.german, draft.kind, editing]);
   const liveMatch = useMemo(() => {
     if (!draft.german.trim()) return null;
     return findCardMatch(existingCards, prepareCardDraft(draft));
@@ -2614,6 +2670,18 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
 
   const update = <K extends keyof CardDraft>(key: K, value: CardDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
+    setCheckResult(null);
+    setReferenceChecked(false);
+    setAiReview(null);
+    setAiError(null);
+  };
+
+  const applyWordSuggestion = (word: GermanWordRecord) => {
+    setDraft((current) => ({
+      ...current,
+      ...germanWordToCardDraft(word),
+      tags: normalizeTags([...normalizeTags(current.tags.split(",")), ...word.tags]).join(", "),
+    }));
     setCheckResult(null);
     setReferenceChecked(false);
     setAiReview(null);
@@ -2702,7 +2770,12 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
         {liveMatch && <div className={`card-live-match card-live-match--${liveMatch.type}`} role="status"><Info size={15} aria-hidden="true" /><span><strong>{liveMatch.type === "exact" ? "This card is already saved." : "A card with this headword already exists."}</strong><small>{liveMatch.card.german} · {liveMatch.card.translation}. Press Check card to compare the meaning.</small></span></div>}
         <form onSubmit={handleSubmit}>
           <div className="form-grid form-grid--two">
-            <label className="form-field" htmlFor="card-german"><span>German *</span><input id="card-german" ref={germanInputRef} value={draft.german} onChange={(event) => update("german", event.target.value)} placeholder="e.g. gemütlich or Das Eis" required /></label>
+            <div className="form-field-with-suggestions">
+              <label className="form-field" htmlFor="card-german"><span>German *</span><input id="card-german" ref={germanInputRef} value={draft.german} onChange={(event) => update("german", event.target.value)} placeholder="e.g. gemütlich or Das Eis" required aria-autocomplete="list" aria-controls={wordSuggestions.length > 0 ? "card-word-suggestions" : undefined} aria-expanded={wordSuggestions.length > 0} /></label>
+              {wordSuggestions.length > 0 && <div id="card-word-suggestions" className="word-suggestion-list" role="listbox" aria-label="German word bank suggestions">
+                {wordSuggestions.map((word) => <button type="button" className="word-suggestion" role="option" aria-label={`Use ${word.german}`} key={word.id} onClick={() => applyWordSuggestion(word)}><ArticleBadge article={word.article} compact /><span className="word-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}</span><span className="word-suggestion__meta"><span>{word.level}</span><Check size={14} aria-hidden="true" /></span></button>)}
+              </div>}
+            </div>
             <label className="form-field" htmlFor="card-translation"><span>Translation *</span><input id="card-translation" value={draft.translation} onChange={(event) => update("translation", event.target.value)} placeholder="e.g. cozy or ice cream" required /></label>
           </div>
           <div className="form-grid form-grid--three">
@@ -2947,6 +3020,10 @@ export default function App() {
     setEditingCardId(null);
     setAddCardSeed(seed);
     setAddCardOpen(true);
+  };
+
+  const handleAddDatabaseWord = (word: GermanWordRecord) => {
+    handleOpenAddCard(germanWordToCardDraft(word));
   };
 
   const handleOpenEditCard = (card: Flashcard) => {
@@ -3531,7 +3608,7 @@ export default function App() {
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} onAddCard={() => handleOpenAddCard()} />}
-          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
+          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} onStartReview={handleStartReview} />}
         </main>
       </div>
