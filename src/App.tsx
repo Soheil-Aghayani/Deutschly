@@ -61,8 +61,8 @@ import type { LucideIcon } from "lucide-react";
 import { getDailyAvatar } from "./lib/avatar";
 import { reviewCardWithGemini } from "./lib/gemini";
 import type { GeminiCardReview, GeminiCardReviewInput } from "./lib/gemini";
-import { extractMenschenPdf, getMenschenLesson } from "./lib/pdfImport";
-import type { PdfCandidate } from "./lib/pdfImport";
+import { extractMenschenPdf, getMenschenLesson, normalizePdfCandidateStatuses } from "./lib/pdfImport";
+import type { PdfCandidate, PdfCandidateStatus } from "./lib/pdfImport";
 import { checkSyncHealth, createSyncRoom, normalizeSyncRoom, pullSync, pushSync } from "./lib/sync";
 import {
   answerMatches,
@@ -117,6 +117,8 @@ interface PdfImportSummary {
   textPreview: string;
   extractedAt: string;
   candidates: PdfCandidate[];
+  candidateStatuses: Record<string, PdfCandidateStatus>;
+  candidateStatusUpdatedAt: Record<string, string>;
 }
 
 interface AppState {
@@ -155,6 +157,7 @@ interface CardDraft {
   lesson: string;
   kind: CardKind;
   referenceChecked: boolean;
+  sourceCandidateId?: string;
 }
 
 interface StatCardProps {
@@ -604,6 +607,14 @@ function normalizeTags(value: unknown): string[] {
     .slice(0, 12);
 }
 
+function normalizePdfCandidateStatusUpdatedAt(value: unknown, candidates: PdfCandidate[]): Record<string, string> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(candidates.flatMap((candidate) => {
+    const updatedAt = value[candidate.id];
+    return typeof updatedAt === "string" && updatedAt ? [[candidate.id, updatedAt]] : [];
+  }));
+}
+
 function normalizeCard(card: Flashcard): Flashcard {
   return {
     ...card,
@@ -651,6 +662,8 @@ function normalizeAppState(value: unknown): AppState {
         textPreview: pdfImportValue.textPreview,
         extractedAt: pdfImportValue.extractedAt,
         candidates: normalizedCandidates,
+        candidateStatuses: normalizePdfCandidateStatuses(normalizedCandidates, pdfImportValue.candidateStatuses),
+        candidateStatusUpdatedAt: normalizePdfCandidateStatusUpdatedAt(pdfImportValue.candidateStatusUpdatedAt, normalizedCandidates),
       };
     })()
     : undefined;
@@ -752,6 +765,37 @@ function mergeCards(localCards: Flashcard[], remoteCards: Flashcard[]): Flashcar
   return [...byMeaning.values()];
 }
 
+function pdfCandidateStatusPriority(status: PdfCandidateStatus): number {
+  if (status === "accepted") return 3;
+  if (status === "skipped") return 2;
+  return 1;
+}
+
+function mergePdfImportSummaries(local: PdfImportSummary, remote: PdfImportSummary): PdfImportSummary {
+  const localExtractedAt = timestamp(local.extractedAt);
+  const remoteExtractedAt = timestamp(remote.extractedAt);
+  const latest = localExtractedAt >= remoteExtractedAt ? local : remote;
+
+  if (local.fileName !== remote.fileName || local.extractedAt !== remote.extractedAt) return latest;
+
+  const candidateStatuses = normalizePdfCandidateStatuses(latest.candidates, latest.candidateStatuses);
+  const candidateStatusUpdatedAt = { ...latest.candidateStatusUpdatedAt };
+  latest.candidates.forEach((candidate) => {
+    const localStatus = local.candidateStatuses[candidate.id] ?? "pending";
+    const remoteStatus = remote.candidateStatuses[candidate.id] ?? "pending";
+    const localUpdatedAt = timestamp(local.candidateStatusUpdatedAt[candidate.id]);
+    const remoteUpdatedAt = timestamp(remote.candidateStatusUpdatedAt[candidate.id]);
+    const chooseLocal = localUpdatedAt > remoteUpdatedAt
+      || (localUpdatedAt === remoteUpdatedAt && pdfCandidateStatusPriority(localStatus) >= pdfCandidateStatusPriority(remoteStatus));
+    const selectedStatus = chooseLocal ? localStatus : remoteStatus;
+    const selectedUpdatedAt = chooseLocal ? local.candidateStatusUpdatedAt[candidate.id] : remote.candidateStatusUpdatedAt[candidate.id];
+    candidateStatuses[candidate.id] = selectedStatus;
+    if (selectedUpdatedAt) candidateStatusUpdatedAt[candidate.id] = selectedUpdatedAt;
+  });
+
+  return { ...latest, candidateStatuses, candidateStatusUpdatedAt };
+}
+
 function mergeAppStates(local: AppState, remote: AppState): AppState {
   const latestReviewState = (local.lastReviewDay ?? "") >= (remote.lastReviewDay ?? "") ? local : remote;
   const localResetAt = timestamp(local.progressResetAt);
@@ -765,7 +809,7 @@ function mergeAppStates(local: AppState, remote: AppState): AppState {
   const localPdf = local.pdfImport;
   const remotePdf = remote.pdfImport;
   const pdfImport = localPdf && remotePdf
-    ? timestamp(localPdf.extractedAt) >= timestamp(remotePdf.extractedAt) ? localPdf : remotePdf
+    ? mergePdfImportSummaries(localPdf, remotePdf)
     : localPdf ?? remotePdf;
 
   return {
@@ -1634,32 +1678,60 @@ function PdfCandidatesCard({
   loading,
   error,
   onUseCandidate,
+  candidateStatuses,
+  onCandidateStatusChange,
 }: {
   candidates: PdfCandidate[];
   sourcePreview: string;
   loading: boolean;
   error: string | null;
   onUseCandidate: (candidate: PdfCandidate) => void;
+  candidateStatuses: Record<string, PdfCandidateStatus>;
+  onCandidateStatusChange: (candidateId: string, status: PdfCandidateStatus) => void;
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [lessonFilter, setLessonFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<PdfCandidateStatus>("pending");
   const [visibleCount, setVisibleCount] = useState(12);
 
   const lessons = [...new Set(candidates.map((candidate) => candidate.lesson).filter((lesson): lesson is string => Boolean(lesson)))];
-  const filteredCandidates = candidates.filter((candidate) => lessonFilter === "all" || candidate.lesson === lessonFilter);
+  const statusCounts = candidates.reduce<Record<PdfCandidateStatus, number>>((counts, candidate) => {
+    const status = candidateStatuses[candidate.id] ?? "pending";
+    counts[status] += 1;
+    return counts;
+  }, { pending: 0, accepted: 0, skipped: 0 });
+  const filteredCandidates = candidates.filter((candidate) => (
+    (candidateStatuses[candidate.id] ?? "pending") === statusFilter
+    && (lessonFilter === "all" || candidate.lesson === lessonFilter)
+  ));
+  const statusLabels: Record<PdfCandidateStatus, string> = {
+    pending: "To review",
+    accepted: "Added",
+    skipped: "Skipped",
+  };
+  const emptyMessages: Record<PdfCandidateStatus, string> = {
+    pending: "Everything in this import has been reviewed. You can attach a newer PDF or revisit another status.",
+    accepted: "No cards have been added from this import yet.",
+    skipped: "No suggestions have been skipped.",
+  };
 
   useEffect(() => {
     setLessonFilter("all");
+    setStatusFilter("pending");
     setVisibleCount(12);
   }, [candidates]);
+
+  useEffect(() => {
+    setVisibleCount(12);
+  }, [statusFilter, lessonFilter]);
 
   if (!loading && !error && candidates.length === 0 && !sourcePreview) return null;
 
   return (
     <section className="pdf-import-card">
       <div className="pdf-import-card__heading">
-        <div><span className="section-eyebrow">LOCAL PDF IMPORT</span><h2>{loading ? "Reading your PDF..." : "Review words from the PDF"}</h2><p>{loading ? "Text stays in this browser while Deutschly extracts lesson-friendly suggestions." : "Suggestions are never added automatically. Check the meaning and plural, then create the card."}</p></div>
-        <div className="pdf-import-card__count" aria-label={`${candidates.length} word suggestions`}>{loading ? <RefreshCw size={17} aria-hidden="true" /> : candidates.length}</div>
+        <div><span className="section-eyebrow">LOCAL PDF IMPORT</span><h2>{loading ? "Reading your PDF..." : "Review imported words"}</h2><p>{loading ? "Text stays in this browser while Deutschly extracts lesson-friendly suggestions." : "Nothing is added automatically. Check the article, meaning, and plural before saving a card."}</p></div>
+        <div className="pdf-import-card__count" aria-label={`${statusCounts.pending} suggestions waiting for review`}>{loading ? <RefreshCw size={17} aria-hidden="true" /> : statusCounts.pending}</div>
       </div>
 
       {loading && <div className="pdf-import-card__loading"><span className="loading-bar" /><span className="loading-bar loading-bar--short" /></div>}
@@ -1667,25 +1739,47 @@ function PdfCandidatesCard({
 
       {!loading && candidates.length > 0 && (
         <>
+          <div className="pdf-candidate-tabs" aria-label="Imported word status">
+            {(Object.keys(statusLabels) as PdfCandidateStatus[]).map((status) => (
+              <button
+                type="button"
+                className={`pdf-candidate-tab${statusFilter === status ? " pdf-candidate-tab--active" : ""}`}
+                key={status}
+                aria-pressed={statusFilter === status}
+                onClick={() => setStatusFilter(status)}
+              >
+                <span>{statusLabels[status]}</span>
+                <strong>{statusCounts[status]}</strong>
+              </button>
+            ))}
+          </div>
           <div className="pdf-candidate-tools">
             <label className="library-filter" htmlFor="pdf-lesson-filter"><span>Course lesson</span><select id="pdf-lesson-filter" value={lessonFilter} onChange={(event) => setLessonFilter(event.target.value)}><option value="all">All lessons</option>{lessons.map((lesson) => <option value={lesson} key={lesson}>{lesson}</option>)}</select></label>
-            <span>{filteredCandidates.length} suggestions</span>
+            <span role="status" aria-live="polite">{filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions</span>
           </div>
           <div className="pdf-candidate-list">
             {filteredCandidates.slice(0, visibleCount).map((candidate) => (
-              <div className="pdf-candidate-row" key={candidate.id}>
+              <div className={`pdf-candidate-row pdf-candidate-row--${statusFilter}`} key={candidate.id}>
                 <ArticleBadge article={candidate.article} compact />
-                <div className="pdf-candidate-row__copy"><strong>{candidate.german}</strong><span>{candidate.lesson ? `${candidate.lesson} · ` : ""}Page {candidate.page} · {candidate.context}</span></div>
-                <button type="button" className="button button--ghost" onClick={() => onUseCandidate(candidate)}>Use word <ArrowRight size={14} aria-hidden="true" /></button>
+                <div className="pdf-candidate-row__copy">
+                  <div className="pdf-candidate-row__title"><strong>{candidate.german}</strong>{statusFilter !== "pending" && <span className={`pdf-candidate-status pdf-candidate-status--${statusFilter}`}>{statusLabels[statusFilter]}</span>}</div>
+                  <span>{candidate.lesson ? `${candidate.lesson} · ` : ""}Page {candidate.page} · {candidate.context}</span>
+                </div>
+                <div className="pdf-candidate-row__actions">
+                  {statusFilter === "pending" ? <>
+                    <button type="button" className="button button--outline" onClick={() => onUseCandidate(candidate)}>Use word <ArrowRight size={14} aria-hidden="true" /></button>
+                    <button type="button" className="button button--ghost pdf-candidate-skip" onClick={() => onCandidateStatusChange(candidate.id, "skipped")} aria-label={`Skip ${candidate.german}`}>Skip</button>
+                  </> : <button type="button" className="button button--ghost" onClick={() => onCandidateStatusChange(candidate.id, "pending")}><RefreshCw size={14} aria-hidden="true" /> Move to inbox</button>}
+                </div>
               </div>
             ))}
           </div>
-          {filteredCandidates.length === 0 && <div className="pdf-import-card__empty"><Info size={17} aria-hidden="true" /><span>No suggestions were found for this lesson.</span></div>}
+          {filteredCandidates.length === 0 && <div className="pdf-import-card__empty"><Info size={17} aria-hidden="true" /><span>{lessonFilter === "all" ? emptyMessages[statusFilter] : "No suggestions were found for this lesson and status."}</span></div>}
           {filteredCandidates.length > visibleCount && <button type="button" className="button button--ghost pdf-candidate-more" onClick={() => setVisibleCount((count) => count + 12)}>Show 12 more</button>}
         </>
       )}
 
-      {!loading && filteredCandidates.length > 0 && <span className="pdf-import-card__more">Showing {Math.min(visibleCount, filteredCandidates.length)} of {filteredCandidates.length} suggestions. Every word is reviewed before it becomes a card.</span>}
+      {!loading && candidates.length > 0 && filteredCandidates.length > 0 && <span className="pdf-import-card__more">Showing {Math.min(visibleCount, filteredCandidates.length)} of {filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions. Use word opens the full duplicate and reference check.</span>}
       {!loading && candidates.length === 0 && !error && <div className="pdf-import-card__empty"><Sparkles size={17} aria-hidden="true" /><span>No article + noun patterns were detected. You can still add cards manually.</span></div>}
 
       {sourcePreview && (
@@ -1726,6 +1820,7 @@ function LibraryPage({
   sourceCandidateCount,
   sourcePreview,
   pdfCandidates,
+  pdfCandidateStatuses,
   pdfLoading,
   pdfError,
   onSearch,
@@ -1735,6 +1830,7 @@ function LibraryPage({
   onWeakCardsOnlyChange,
   onPdfUpload,
   onUsePdfCandidate,
+  onPdfCandidateStatusChange,
   onExportBackup,
   onImportBackup,
 }: {
@@ -1745,6 +1841,7 @@ function LibraryPage({
   sourceCandidateCount: number;
   sourcePreview: string;
   pdfCandidates: PdfCandidate[];
+  pdfCandidateStatuses: Record<string, PdfCandidateStatus>;
   pdfLoading: boolean;
   pdfError: string | null;
   onSearch: (value: string) => void;
@@ -1754,6 +1851,7 @@ function LibraryPage({
   onWeakCardsOnlyChange: (value: boolean) => void;
   onPdfUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onUsePdfCandidate: (candidate: PdfCandidate) => void;
+  onPdfCandidateStatusChange: (candidateId: string, status: PdfCandidateStatus) => void;
   onExportBackup: () => void;
   onImportBackup: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
@@ -1829,7 +1927,7 @@ function LibraryPage({
 
       <ResourceShelf />
 
-      <PdfCandidatesCard candidates={pdfCandidates} sourcePreview={sourcePreview} loading={pdfLoading} error={pdfError} onUseCandidate={onUsePdfCandidate} />
+      <PdfCandidatesCard candidates={pdfCandidates} sourcePreview={sourcePreview} loading={pdfLoading} error={pdfError} onUseCandidate={onUsePdfCandidate} candidateStatuses={pdfCandidateStatuses} onCandidateStatusChange={onPdfCandidateStatusChange} />
 
       <section className="library-list-card">
         <div className="library-list-card__heading"><div><span className="section-eyebrow">ALL CARDS</span><h2>{filteredCards.length} cards</h2></div><span className="muted-label">Article colors are always labeled</span></div>
@@ -2296,6 +2394,10 @@ export default function App() {
   }, [state]);
 
   useEffect(() => {
+    setPdfCandidates(state.pdfImport?.candidates ?? []);
+  }, [state.pdfImport?.candidates]);
+
+  useEffect(() => {
     document.documentElement.dataset.theme = state.theme;
     document.documentElement.style.colorScheme = state.theme;
     document.title = "Deutschly · German that sticks";
@@ -2549,7 +2651,20 @@ export default function App() {
       verification: preparedDraft.referenceChecked ? "reference-checked" : "unverified",
       updatedAt: createdAt,
     };
-    setState((current) => ({ ...current, cards: [newCard, ...current.cards], lastSyncedAt: createdAt }));
+    setState((current) => {
+      const shouldMarkCandidateAccepted = Boolean(
+        preparedDraft.sourceCandidateId
+        && current.pdfImport?.candidates.some((candidate) => candidate.id === preparedDraft.sourceCandidateId),
+      );
+      const pdfImport = shouldMarkCandidateAccepted && current.pdfImport && preparedDraft.sourceCandidateId
+        ? {
+          ...current.pdfImport,
+          candidateStatuses: { ...current.pdfImport.candidateStatuses, [preparedDraft.sourceCandidateId]: "accepted" as const },
+          candidateStatusUpdatedAt: { ...current.pdfImport.candidateStatusUpdatedAt, [preparedDraft.sourceCandidateId]: createdAt },
+        }
+        : current.pdfImport;
+      return { ...current, cards: [newCard, ...current.cards], pdfImport, lastSyncedAt: createdAt };
+    });
     handleCloseAddCard();
     showToast(`${newCard.german} was added to your review queue`);
   };
@@ -2681,7 +2796,16 @@ export default function App() {
       setState((current) => ({
         ...current,
         sourceFileName: file.name,
-        pdfImport: { fileName: file.name, pageCount: result.pageCount, candidateCount: result.candidates.length, textPreview: result.textPreview, extractedAt, candidates: result.candidates },
+        pdfImport: {
+          fileName: file.name,
+          pageCount: result.pageCount,
+          candidateCount: result.candidates.length,
+          textPreview: result.textPreview,
+          extractedAt,
+          candidates: result.candidates,
+          candidateStatuses: normalizePdfCandidateStatuses(result.candidates, undefined),
+          candidateStatusUpdatedAt: {},
+        },
         lastSyncedAt: extractedAt,
       }));
       setPdfCandidates(result.candidates);
@@ -2730,6 +2854,24 @@ export default function App() {
     }
   };
 
+  const handlePdfCandidateStatusChange = (candidateId: string, status: PdfCandidateStatus) => {
+    const updatedAt = new Date().toISOString();
+    setState((current) => {
+      if (!current.pdfImport?.candidates.some((candidate) => candidate.id === candidateId)) return current;
+      const candidateStatuses = normalizePdfCandidateStatuses(current.pdfImport.candidates, current.pdfImport.candidateStatuses);
+      return {
+        ...current,
+        pdfImport: {
+          ...current.pdfImport,
+          candidateStatuses: { ...candidateStatuses, [candidateId]: status },
+          candidateStatusUpdatedAt: { ...current.pdfImport.candidateStatusUpdatedAt, [candidateId]: updatedAt },
+        },
+        lastSyncedAt: updatedAt,
+      };
+    });
+    showToast(status === "skipped" ? "Suggestion moved to skipped." : status === "pending" ? "Suggestion moved back to the review inbox." : "Suggestion marked as added.");
+  };
+
   const handleUsePdfCandidate = (candidate: PdfCandidate) => {
     handleOpenAddCard({
       german: candidate.german,
@@ -2738,6 +2880,7 @@ export default function App() {
       lesson: candidate.lesson ?? "Personal cards",
       tags: "Menschen, PDF",
       note: `Suggested from ${state.sourceFileName || "Menschen PDF"}, ${candidate.lesson ? `${candidate.lesson}, ` : ""}page ${candidate.page}. ${candidate.context}`,
+      sourceCandidateId: candidate.id,
     });
   };
 
@@ -2852,7 +2995,7 @@ export default function App() {
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} onAddCard={() => handleOpenAddCard()} />}
-          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
+          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} />}
         </main>
       </div>

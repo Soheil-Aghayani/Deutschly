@@ -1,4 +1,5 @@
 export type PdfArticle = "der" | "die" | "das";
+export type PdfCandidateStatus = "pending" | "accepted" | "skipped";
 
 export interface PdfCandidate {
   id: string;
@@ -13,6 +14,27 @@ export interface PdfImportResult {
   pageCount: number;
   textPreview: string;
   candidates: PdfCandidate[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isPdfCandidateStatus(value: unknown): value is PdfCandidateStatus {
+  return value === "pending" || value === "accepted" || value === "skipped";
+}
+
+export function normalizePdfCandidateStatuses(
+  candidates: PdfCandidate[],
+  value: unknown,
+): Record<string, PdfCandidateStatus> {
+  const source = isRecord(value) ? value : {};
+  const statuses: Record<string, PdfCandidateStatus> = {};
+  candidates.forEach((candidate) => {
+    const status = source[candidate.id];
+    statuses[candidate.id] = isPdfCandidateStatus(status) ? status : "pending";
+  });
+  return statuses;
 }
 
 type PdfJsModule = typeof import("pdfjs-dist");

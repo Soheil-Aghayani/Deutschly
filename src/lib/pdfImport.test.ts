@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findArticleCandidates, getMenschenLesson } from "./pdfImport";
+import { findArticleCandidates, getMenschenLesson, normalizePdfCandidateStatuses } from "./pdfImport";
 
 describe("findArticleCandidates", () => {
   it("finds unique article+noun suggestions and keeps their source page", () => {
@@ -21,5 +21,17 @@ describe("findArticleCandidates", () => {
     expect(candidates[0]?.lesson).toBe("Lesson 4");
     expect(getMenschenLesson(8)).toBeUndefined();
     expect(getMenschenLesson(72)).toBe("Lesson 12");
+  });
+
+  it("keeps only valid candidate statuses and defaults new suggestions to pending", () => {
+    const candidates = findArticleCandidates([{ page: 25, text: "Der Tisch ist schön. Die Lampe ist neu." }]);
+
+    expect(normalizePdfCandidateStatuses(candidates, {
+      [candidates[0]?.id ?? ""]: "skipped",
+      "unknown-id": "accepted",
+    })).toEqual({
+      [candidates[0]?.id ?? ""]: "skipped",
+      [candidates[1]?.id ?? ""]: "pending",
+    });
   });
 });

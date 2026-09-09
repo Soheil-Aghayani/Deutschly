@@ -2684,6 +2684,65 @@ kbd {
   border-top: 1px solid var(--border);
 }
 
+.pdf-candidate-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 5px;
+  margin-top: 16px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+}
+
+.pdf-candidate-tab {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.pdf-candidate-tab:hover {
+  color: var(--text-strong);
+  background: var(--surface);
+}
+
+.pdf-candidate-tab--active {
+  color: var(--primary);
+  background: var(--surface);
+  border-color: rgba(79, 70, 229, 0.18);
+  box-shadow: var(--shadow-sm);
+}
+
+.pdf-candidate-tab strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 5px;
+  color: currentColor;
+  font-size: 9px;
+  background: var(--surface-muted);
+  border-radius: 7px;
+}
+
+.pdf-candidate-tab--active strong {
+  background: var(--primary-soft);
+}
+
 .pdf-candidate-tools {
   display: flex;
   align-items: flex-end;
@@ -2720,6 +2779,14 @@ kbd {
   gap: 3px;
 }
 
+.pdf-candidate-row__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
 .pdf-candidate-row__copy strong {
   color: var(--text-strong);
   font-size: 12px;
@@ -2735,10 +2802,64 @@ kbd {
   overflow-wrap: anywhere;
 }
 
+.pdf-candidate-row__title > strong {
+  flex: 0 1 auto;
+}
+
+.pdf-candidate-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 21px;
+  padding: 0 7px;
+  font-size: 8px;
+  font-weight: 700;
+  border-radius: 6px;
+}
+
+.pdf-candidate-status--accepted {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.pdf-candidate-status--skipped {
+  color: var(--orange);
+  background: var(--orange-soft);
+}
+
+.pdf-candidate-row__title > .pdf-candidate-status {
+  font-size: 8px;
+  line-height: 1.2;
+}
+
+.pdf-candidate-row__title > .pdf-candidate-status--accepted {
+  color: var(--success);
+}
+
+.pdf-candidate-row__title > .pdf-candidate-status--skipped {
+  color: var(--orange);
+}
+
+.pdf-candidate-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
 .pdf-candidate-row .button {
   min-height: 36px;
   padding: 0 10px;
   font-size: 10px;
+}
+
+.pdf-candidate-skip {
+  color: var(--orange);
+}
+
+.pdf-candidate-skip:hover {
+  color: var(--orange);
+  background: var(--orange-soft);
 }
 
 .pdf-import-card__more {
@@ -5081,8 +5202,13 @@ kbd {
   }
 
   .pdf-candidate-row .button {
+    min-height: 40px;
+  }
+
+  .pdf-candidate-row__actions {
     grid-column: 2;
-    justify-self: start;
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .library-list-card {
