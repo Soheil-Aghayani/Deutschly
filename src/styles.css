@@ -1102,8 +1102,8 @@ svg {
   font-size: 10px;
 }
 
-.stat-card__more {
-  color: var(--text-muted);
+.stat-card__menu {
+  align-self: start;
 }
 
 .content-grid {
@@ -1326,21 +1326,32 @@ svg {
 }
 
 .deck-card {
+  padding: 0;
+  overflow: visible;
+}
+
+.deck-card__main {
   display: block;
   width: 100%;
-  margin: 0;
+  min-height: 162px;
+  padding: 16px;
   color: var(--text);
   font: inherit;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  text-align: left;
+  background: transparent;
+  border: 0;
   cursor: pointer;
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .deck-card:hover {
   border-color: rgba(79, 70, 229, 0.28);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
+}
+
+.deck-card__main:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.45);
+  outline-offset: -3px;
 }
 
 .deck-card__icon {
@@ -1355,16 +1366,63 @@ svg {
 
 .deck-card__menu {
   position: absolute;
-  top: 10px;
-  right: 9px;
+  top: 7px;
+  right: 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   color: var(--text-muted);
   border-radius: 8px;
-  pointer-events: none;
+  z-index: 3;
+}
+
+.overflow-menu {
+  position: relative;
+}
+
+.deck-card__menu {
+  position: absolute;
+}
+
+.overflow-menu__trigger {
+  width: 44px;
+  height: 44px;
+}
+
+.overflow-menu__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
+  display: grid;
+  min-width: 150px;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: var(--shadow-lg);
+}
+
+.overflow-menu__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 650;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+}
+
+.overflow-menu__item:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
 }
 
 .deck-card__subtitle {

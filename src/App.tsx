@@ -171,6 +171,12 @@ interface StatCardProps {
   value: string;
   detail: string;
   tone: "indigo" | "orange" | "mint";
+  menuItems?: OverflowMenuItem[];
+}
+
+interface OverflowMenuItem {
+  label: string;
+  onSelect: () => void;
 }
 
 const STORAGE_KEY = "deutschly:state:v1";
@@ -1050,6 +1056,15 @@ function isWeakCard(card: Flashcard): boolean {
     || (card.status === "review" && (card.difficulty ?? 5) >= 6);
 }
 
+function getAverageCardMastery(cards: Flashcard[]): number {
+  if (cards.length === 0) return 0;
+  return Math.round(cards.reduce((sum, card) => sum + getCardMastery(card), 0) / cards.length);
+}
+
+function formatCardCount(cards: Flashcard[]): string {
+  return `${cards.length} ${cards.length === 1 ? "card" : "cards"}`;
+}
+
 function getCardCheck(cards: Flashcard[], draft: CardDraft): CardCheckResult {
   const prepared = prepareCardDraft(draft);
   const match = findCardMatch(cards, prepared);
@@ -1141,7 +1156,35 @@ function ArticleBadge({ article, compact = false }: { article: Article; compact?
   );
 }
 
-function StatCard({ icon: Icon, label, value, detail, tone }: StatCardProps) {
+function OverflowMenu({ label, items, className = "" }: { label: string; items: OverflowMenuItem[]; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className={`overflow-menu${className ? ` ${className}` : ""}`}>
+      <button type="button" className="icon-button icon-button--small overflow-menu__trigger" onClick={() => setOpen((current) => !current)} aria-label={label} aria-expanded={open} aria-haspopup="menu" title={label}><MoreHorizontal size={17} aria-hidden="true" /></button>
+      {open && <div className="overflow-menu__panel" role="menu" aria-label={label}>{items.map((item) => <button type="button" className="overflow-menu__item" role="menuitem" key={item.label} onClick={() => { setOpen(false); item.onSelect(); }}>{item.label}</button>)}</div>}
+    </div>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, detail, tone, menuItems = [] }: StatCardProps) {
   return (
     <article className="stat-card">
       <div className={`stat-card__icon stat-card__icon--${tone}`} aria-hidden="true">
@@ -1152,7 +1195,7 @@ function StatCard({ icon: Icon, label, value, detail, tone }: StatCardProps) {
         <strong>{value}</strong>
         <small>{detail}</small>
       </div>
-      <MoreHorizontal className="stat-card__more" size={18} aria-hidden="true" />
+      {menuItems.length > 0 && <OverflowMenu label={`More options for ${label}`} items={menuItems} className="stat-card__menu" />}
     </article>
   );
 }
@@ -1190,6 +1233,7 @@ function OverviewPage({
   onStartReview,
   onAddCard,
   onOpenLibrary,
+  onViewProgress,
   onReminderToggle,
   onReminderTimeChange,
   onSnoozeReminder,
@@ -1205,6 +1249,7 @@ function OverviewPage({
   onStartReview: () => void;
   onAddCard: () => void;
   onOpenLibrary: () => void;
+  onViewProgress: () => void;
   onReminderToggle: () => void;
   onReminderTimeChange: (value: string) => void;
   onSnoozeReminder: () => void;
@@ -1220,6 +1265,10 @@ function OverviewPage({
   const reminderTargetLabel = formatReminderTarget(reminderTarget, currentTime);
   const reminderActionLabel = reminderSnoozedUntil ? "Cancel snooze" : "Snooze";
   const reminderActionDescription = reminderSnoozedUntil ? `Cancel snooze scheduled ${reminderTargetLabel}` : `Snooze reminder until ${reminderTargetLabel}`;
+  const menschenCards = state.cards.filter((card) => card.deck === "Menschen A1.1");
+  const listeningCards = state.cards.filter((card) => card.deck === "Everyday listening");
+  const courseProgress = getAverageCardMastery(menschenCards);
+  const listeningProgress = getAverageCardMastery(listeningCards);
   const week = [
     { label: "M", value: state.weeklyReviews[0] ?? 0 },
     { label: "T", value: state.weeklyReviews[1] ?? 0 },
@@ -1307,9 +1356,9 @@ function OverviewPage({
       </section>
 
       <section className="stats-grid" aria-label="Your statistics">
-        <StatCard icon={Flame} label="Current streak" value={`${state.streak} days`} detail={`Best: ${state.bestStreak} days`} tone="orange" />
-        <StatCard icon={BookMarked} label="Mastered cards" value={String(state.mastered)} detail="+18 this month" tone="indigo" />
-        <StatCard icon={Timer} label="Study time" value={`${state.studyMinutes} min`} detail="Today · 24 min goal" tone="mint" />
+        <StatCard icon={Flame} label="Current streak" value={`${state.streak} days`} detail={`Best: ${state.bestStreak} days`} tone="orange" menuItems={[{ label: "View progress", onSelect: onViewProgress }]} />
+        <StatCard icon={BookMarked} label="Mastered cards" value={String(state.mastered)} detail="+18 this month" tone="indigo" menuItems={[{ label: "Open library", onSelect: onOpenLibrary }]} />
+        <StatCard icon={Timer} label="Study time" value={`${state.studyMinutes} min`} detail="Today · 24 min goal" tone="mint" menuItems={[{ label: "View progress", onSelect: onViewProgress }]} />
       </section>
 
       <section className="content-grid">
@@ -1323,9 +1372,9 @@ function OverviewPage({
               </div>
               <h3>Vocabulary essentials</h3>
               <p>Lessons 1–6 · nouns, everyday phrases, and your first conversations.</p>
-              <div className="mini-progress"><span style={{ width: "36%" }} /></div>
+              <div className="mini-progress"><span style={{ width: `${courseProgress}%` }} /></div>
               <div className="continue-card__footer">
-                <span>36% complete</span>
+                <span>{courseProgress}% complete</span>
                 <button type="button" className="inline-button" onClick={onStartReview}>Continue <ArrowRight size={15} aria-hidden="true" /></button>
               </div>
             </div>
@@ -1340,8 +1389,8 @@ function OverviewPage({
 
           <SectionHeading eyebrow="YOUR COLLECTION" title="Your decks" action={{ label: "View library", onClick: onOpenLibrary }} />
           <div className="deck-grid">
-            <DeckCard icon={BookOpen} title="Menschen A1.1" subtitle="Course vocabulary" progress={36} count="180 cards" tone="indigo" onClick={onOpenLibrary} />
-            <DeckCard icon={Headphones} title="Everyday listening" subtitle="Phrases & dialogues" progress={12} count="42 cards" tone="mint" onClick={onOpenLibrary} />
+            <DeckCard icon={BookOpen} title="Menschen A1.1" subtitle="Course vocabulary" progress={courseProgress} count={formatCardCount(menschenCards)} tone="indigo" onClick={onOpenLibrary} onAddCard={onAddCard} />
+            <DeckCard icon={Headphones} title="Everyday listening" subtitle="Phrases & dialogues" progress={listeningProgress} count={formatCardCount(listeningCards)} tone="mint" onClick={onOpenLibrary} onAddCard={onAddCard} />
             <button type="button" className="new-deck-card" onClick={onAddCard}>
               <span className="new-deck-card__icon"><Plus size={20} aria-hidden="true" /></span>
               <strong>Add your own cards</strong>
@@ -1415,16 +1464,18 @@ function OverviewPage({
   );
 }
 
-function DeckCard({ icon: Icon, title, subtitle, progress, count, tone, onClick }: { icon: LucideIcon; title: string; subtitle: string; progress: number; count: string; tone: "indigo" | "mint"; onClick: () => void }) {
+function DeckCard({ icon: Icon, title, subtitle, progress, count, tone, onClick, onAddCard }: { icon: LucideIcon; title: string; subtitle: string; progress: number; count: string; tone: "indigo" | "mint"; onClick: () => void; onAddCard: () => void }) {
   return (
-    <button type="button" className="deck-card" onClick={onClick} aria-label={`Open ${title} in your library`}>
-      <div className={`deck-card__icon deck-card__icon--${tone}`} aria-hidden="true"><Icon size={19} /></div>
-      <span className="deck-card__menu" aria-hidden="true"><MoreHorizontal size={17} /></span>
-      <span className="deck-card__subtitle">{subtitle}</span>
-      <h3>{title}</h3>
-      <div className="deck-card__progress"><span style={{ width: `${progress}%` }} /></div>
-      <div className="deck-card__footer"><span>{progress}% mastered</span><span>{count}</span></div>
-    </button>
+    <article className="deck-card">
+      <button type="button" className="deck-card__main" onClick={onClick} aria-label={`Open ${title} in your library`}>
+        <div className={`deck-card__icon deck-card__icon--${tone}`} aria-hidden="true"><Icon size={19} /></div>
+        <span className="deck-card__subtitle">{subtitle}</span>
+        <h3>{title}</h3>
+        <div className="deck-card__progress"><span style={{ width: `${progress}%` }} /></div>
+        <div className="deck-card__footer"><span>{progress}% mastered</span><span>{count}</span></div>
+      </button>
+      <OverflowMenu label={`More options for ${title}`} items={[{ label: "Open in library", onSelect: onClick }, { label: "Add a card", onSelect: onAddCard }]} className="deck-card__menu" />
+    </article>
   );
 }
 
@@ -3373,7 +3424,7 @@ export default function App() {
         </header>
 
         <main id="main-content" className="main-content">
-          {activeTab === "overview" && <OverviewPage state={state} profileName={profileName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
+          {activeTab === "overview" && <OverviewPage state={state} profileName={profileName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
