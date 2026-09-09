@@ -3907,7 +3907,7 @@ export default function App() {
       <aside className="sidebar">
         <div className="sidebar__top">
           <div className="brand"><span className="brand__mark" aria-hidden="true"><BookOpen size={20} strokeWidth={2.4} /></span><span className="brand__word">deutschly</span><span className="brand__beta">BETA</span></div>
-          <div className="sidebar__course"><span className="course-dot" aria-hidden="true" /><div><strong>Menschen A1.1</strong><span>German foundations</span></div><ChevronRight size={15} aria-hidden="true" /></div>
+          <button type="button" className="sidebar__course" onClick={() => handleTabChange("library")} aria-label="Open Menschen A1.1 in your library"><span className="course-dot" aria-hidden="true" /><span><strong>Menschen A1.1</strong><span>German foundations</span></span><ChevronRight size={15} aria-hidden="true" /></button>
           <nav className="sidebar-nav" aria-label="Primary navigation">
             <span className="sidebar-nav__label">Workspace</span>
             {navItems.map(({ id, label, icon: Icon }) => (

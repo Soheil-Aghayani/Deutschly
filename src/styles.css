@@ -296,14 +296,35 @@ svg {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
+  width: 100%;
   min-height: 60px;
   padding: 11px 10px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
   background: var(--surface-soft);
   border: 1px solid var(--border);
   border-radius: 13px;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.sidebar__course:hover {
+  background: var(--surface);
+  border-color: rgba(79, 70, 229, 0.28);
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar__course:active {
+  background: var(--surface-soft);
+}
+
+.sidebar__course:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.45);
+  outline-offset: 3px;
 }
 
 .sidebar__course > div,
+.sidebar__course > span:not(.course-dot),
 .sidebar-profile > div:not(.avatar),
 .source-card > div:nth-child(2) {
   display: flex;
