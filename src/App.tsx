@@ -62,6 +62,16 @@ import type { LucideIcon } from "lucide-react";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { useInstallPrompt } from "./hooks/useInstallPrompt";
 import { getDailyAvatar } from "./lib/avatar";
+import {
+  finishFirebaseRedirectSignIn,
+  isFirebaseConfigured,
+  loadFirebaseCloudDocument,
+  saveFirebaseCloudDocument,
+  signInWithFirebaseProvider,
+  signOutFromFirebase,
+  subscribeToFirebaseAuth,
+} from "./lib/firebase";
+import type { FirebaseAuthProvider, FirebaseUserSummary } from "./lib/firebase";
 import { reviewCardWithGemini } from "./lib/gemini";
 import type { GeminiCardReview, GeminiCardReviewInput } from "./lib/gemini";
 import { playPracticeFeedbackSound } from "./lib/feedbackSounds";
@@ -205,6 +215,16 @@ function isValidProfileName(value: string): boolean {
 function loadProfileName(): string {
   const name = normalizeProfileName(loadLocalSetting(PROFILE_NAME_KEY));
   return isValidProfileName(name) ? name : "";
+}
+
+function firebaseErrorMessage(error: unknown): string {
+  const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "";
+  if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return "The sign-in window was closed.";
+  if (code === "auth/operation-not-allowed") return "This sign-in provider is not enabled in Firebase yet.";
+  if (code === "auth/unauthorized-domain") return "Add this website to Firebase Authentication authorized domains.";
+  if (code === "permission-denied" || code === "firestore/permission-denied") return "Firebase denied access. Check the Firestore rules for this account.";
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return "Firebase could not complete the account or sync request.";
 }
 
 const navItems: Array<{ id: Tab; label: string; icon: LucideIcon }> = [
@@ -2475,6 +2495,34 @@ function ProfileOnboardingModal({ onSave }: { onSave: (name: string) => void }) 
   );
 }
 
+function FirebaseAccountSection({
+  configured,
+  user,
+  busy,
+  error,
+  onSignIn,
+  onSignOut,
+  onSync,
+}: {
+  configured: boolean;
+  user: FirebaseUserSummary | null;
+  busy: boolean;
+  error: string | null;
+  onSignIn: (provider: FirebaseAuthProvider) => void;
+  onSignOut: () => void;
+  onSync: () => void;
+}) {
+  return (
+    <section className="settings-section" aria-labelledby="settings-account-title">
+      <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Cloud size={16} /></span><div><h3 id="settings-account-title">Cloud account</h3><p>Use one account to keep your cards in sync on your phone and computer.</p></div></div>
+      {!configured && <div className="settings-notification settings-notification--default" role="status"><span className="settings-notification__copy"><Cloud size={14} aria-hidden="true" /><span><strong>Firebase setup is still needed</strong><small>Add the Firebase web settings to this build, then enable Google or GitHub sign-in.</small></span></span></div>}
+      {configured && !user && <div className="firebase-account__actions"><button type="button" className="button button--outline" onClick={() => onSignIn("google")} disabled={busy}>Continue with Google</button><button type="button" className="button button--outline" onClick={() => onSignIn("github")} disabled={busy}>Continue with GitHub</button></div>}
+      {configured && user && <div className="firebase-account__signed-in"><div className="firebase-account__identity"><strong>{user.displayName || user.email || "Signed in"}</strong><small>{user.email || "Account connected"}</small></div><div className="firebase-account__actions"><button type="button" className="button button--outline" onClick={onSync} disabled={busy}><Cloud size={15} aria-hidden="true" /> {busy ? "Syncing..." : "Sync now"}</button><button type="button" className="button button--ghost" onClick={onSignOut} disabled={busy}>Sign out</button></div></div>}
+      {error && <div className="onboarding-modal__error firebase-account__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
+    </section>
+  );
+}
+
 interface ProfileModalProps {
   name: string;
   theme: Theme;
@@ -2504,6 +2552,13 @@ interface ProfileModalProps {
   onOpenSync: () => void;
   onResetProgress: () => void;
   onInstallApp: () => void;
+  firebaseConfigured: boolean;
+  firebaseUser: FirebaseUserSummary | null;
+  firebaseBusy: boolean;
+  firebaseError: string | null;
+  onFirebaseSignIn: (provider: FirebaseAuthProvider) => void;
+  onFirebaseSignOut: () => void;
+  onFirebaseSync: () => void;
 }
 
 function ProfileModal({
@@ -2535,6 +2590,13 @@ function ProfileModal({
   onOpenSync,
   onResetProgress,
   onInstallApp,
+  firebaseConfigured,
+  firebaseUser,
+  firebaseBusy,
+  firebaseError,
+  onFirebaseSignIn,
+  onFirebaseSignOut,
+  onFirebaseSync,
 }: ProfileModalProps) {
   const [draftName, setDraftName] = useState(name);
   const backupInputRef = useRef<HTMLInputElement>(null);
@@ -2576,6 +2638,8 @@ function ProfileModal({
             <div className="profile-preview"><div className="profile-preview__avatar"><Avatar name={previewAvatar.seed} variant={previewAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={58} title={false} aria-hidden="true" /></div><div><span className="section-eyebrow">LEARNER</span><strong>{draftName.trim() || "Your name"}</strong><small>Private on this device</small></div></div>
             <label className="form-field" htmlFor="profile-name"><span>Display name</span><input id="profile-name" value={draftName} onChange={(event) => setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH))} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="name" spellCheck={false} /></label>
           </section>
+
+          <FirebaseAccountSection configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} error={firebaseError} onSignIn={onFirebaseSignIn} onSignOut={onFirebaseSignOut} onSync={onFirebaseSync} />
 
           <section className="settings-section" aria-labelledby="settings-appearance-title">
             <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--indigo" aria-hidden="true">{theme === "light" ? <Sun size={16} /> : <Moon size={16} />}</span><div><h3 id="settings-appearance-title">Appearance</h3><p>Choose the surface that feels easiest to study in.</p></div></div>
@@ -2866,6 +2930,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
   const installPrompt = useInstallPrompt();
+  const firebaseConfigured = isFirebaseConfigured();
   const [installDismissed, setInstallDismissed] = useState(() => loadLocalBooleanSetting(PWA_INSTALL_DISMISSED_KEY));
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermissionState>(() => getNotificationPermission());
   const [activeTab, setActiveTab] = useState<Tab>(() => getInitialTab());
@@ -2880,6 +2945,9 @@ export default function App() {
   const [autoSync, setAutoSync] = useState(() => loadLocalBooleanSetting(AUTO_SYNC_KEY));
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [testingConnection, setTestingConnection] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUserSummary | null>(null);
+  const [firebaseBusy, setFirebaseBusy] = useState(false);
+  const [firebaseError, setFirebaseError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -2904,6 +2972,9 @@ export default function App() {
   const syncInFlightRef = useRef(false);
   const autoSyncReadyRef = useRef(false);
   const lastAutoSyncFingerprintRef = useRef("");
+  const firebaseSyncInFlightRef = useRef(false);
+  const firebaseAuthSyncUserRef = useRef("");
+  const lastFirebaseSyncFingerprintRef = useRef("");
 
   const todayKey = getDayKey();
   stateRef.current = state;
@@ -2970,6 +3041,24 @@ export default function App() {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const unsubscribe = subscribeToFirebaseAuth((user) => {
+      if (mounted) setFirebaseUser(user);
+    });
+    void finishFirebaseRedirectSignIn()
+      .then((user) => {
+        if (mounted && user) setFirebaseUser(user);
+      })
+      .catch((error: unknown) => {
+        if (mounted) setFirebaseError(firebaseErrorMessage(error));
+      });
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [firebaseConfigured]);
 
   useEffect(() => () => {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
@@ -3336,6 +3425,85 @@ export default function App() {
       setSyncing(false);
     }
   };
+
+  const handleFirebaseSync = async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!firebaseConfigured || !firebaseUser || firebaseSyncInFlightRef.current) return;
+    firebaseSyncInFlightRef.current = true;
+    setFirebaseBusy(true);
+    setFirebaseError(null);
+    const localState = stateRef.current;
+    try {
+      const remote = await loadFirebaseCloudDocument(firebaseUser.uid);
+      const remoteState = remote ? normalizeAppState(remote.state) : null;
+      const mergedState = remoteState ? mergeAppStates(localState, remoteState) : localState;
+      const remoteProfileName = remote?.profileName ? normalizeProfileName(remote.profileName) : "";
+      const mergedProfileName = profileName || (isValidProfileName(remoteProfileName) ? remoteProfileName : "");
+      if (mergedProfileName && mergedProfileName !== profileName) {
+        setProfileName(mergedProfileName);
+        window.localStorage.setItem(PROFILE_NAME_KEY, mergedProfileName);
+        setProfileOnboardingOpen(false);
+      }
+      const syncedAt = await saveFirebaseCloudDocument(firebaseUser.uid, { state: mergedState, profileName: mergedProfileName });
+      lastFirebaseSyncFingerprintRef.current = getSyncFingerprint(mergedState);
+      setState((current) => ({ ...mergeAppStates(current, mergedState), lastSyncedAt: syncedAt }));
+      if (!silent) showToast(remote ? `Synced ${mergedState.cards.length} cards to your account.` : "Your cards are now backed up to your account.");
+    } catch (error: unknown) {
+      setFirebaseError(firebaseErrorMessage(error));
+      if (!silent) showToast("Cloud sync failed. Check the Firebase setup and try again.");
+    } finally {
+      firebaseSyncInFlightRef.current = false;
+      setFirebaseBusy(false);
+    }
+  };
+
+  const handleFirebaseSignIn = async (provider: FirebaseAuthProvider) => {
+    if (!firebaseConfigured) {
+      setFirebaseError("Firebase setup is still needed for account sign-in.");
+      return;
+    }
+    setFirebaseBusy(true);
+    setFirebaseError(null);
+    try {
+      const useRedirect = window.matchMedia?.("(max-width: 760px)").matches ?? false;
+      const user = await signInWithFirebaseProvider(provider, useRedirect);
+      if (user) {
+        setFirebaseUser(user);
+        showToast(`Signed in with ${provider === "google" ? "Google" : "GitHub"}.`);
+      }
+    } catch (error: unknown) {
+      setFirebaseError(firebaseErrorMessage(error));
+    } finally {
+      setFirebaseBusy(false);
+    }
+  };
+
+  const handleFirebaseSignOut = async () => {
+    setFirebaseBusy(true);
+    setFirebaseError(null);
+    try {
+      await signOutFromFirebase();
+      setFirebaseUser(null);
+      firebaseAuthSyncUserRef.current = "";
+      lastFirebaseSyncFingerprintRef.current = "";
+      showToast("Signed out. Your local cards remain on this device.");
+    } catch (error: unknown) {
+      setFirebaseError(firebaseErrorMessage(error));
+    } finally {
+      setFirebaseBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!firebaseConfigured || !firebaseUser || firebaseAuthSyncUserRef.current === firebaseUser.uid) return;
+    firebaseAuthSyncUserRef.current = firebaseUser.uid;
+    void handleFirebaseSync({ silent: true });
+  }, [firebaseConfigured, firebaseUser?.uid]);
+
+  useEffect(() => {
+    if (!firebaseConfigured || !firebaseUser || !lastFirebaseSyncFingerprintRef.current || lastFirebaseSyncFingerprintRef.current === syncFingerprint) return undefined;
+    const timer = window.setTimeout(() => void handleFirebaseSync({ silent: true }), 900);
+    return () => window.clearTimeout(timer);
+  }, [firebaseConfigured, firebaseUser?.uid, syncFingerprint]);
 
   const handleTestConnection = async () => {
     if (testingConnection || !syncEndpoint.trim()) return;
@@ -3718,6 +3886,13 @@ export default function App() {
         onOpenSync={handleOpenSyncFromSettings}
         onResetProgress={handleResetProgressFromSettings}
         onInstallApp={() => { void handleInstallApp(); }}
+        firebaseConfigured={firebaseConfigured}
+        firebaseUser={firebaseUser}
+        firebaseBusy={firebaseBusy}
+        firebaseError={firebaseError}
+        onFirebaseSignIn={(provider) => { void handleFirebaseSignIn(provider); }}
+        onFirebaseSignOut={() => { void handleFirebaseSignOut(); }}
+        onFirebaseSync={() => { void handleFirebaseSync(); }}
       />}
       {profileOnboardingOpen && <ProfileOnboardingModal onSave={handleCompleteProfileOnboarding} />}
       {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} isOnline={isOnline} testingConnection={testingConnection} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}

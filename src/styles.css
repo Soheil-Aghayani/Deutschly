@@ -4908,6 +4908,53 @@ kbd {
   margin-bottom: 0;
 }
 
+.firebase-account__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.firebase-account__actions .button {
+  min-height: 42px;
+}
+
+.firebase-account__signed-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 13px;
+  padding: 12px;
+  margin-top: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.firebase-account__identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.firebase-account__identity strong {
+  color: var(--text-strong);
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.firebase-account__identity small {
+  color: var(--text-muted);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.firebase-account__error {
+  margin-top: 12px;
+}
+
 .settings-row {
   display: flex;
   align-items: center;
@@ -6763,6 +6810,15 @@ kbd {
 
   .settings-action-grid {
     grid-template-columns: 1fr;
+  }
+
+  .firebase-account__signed-in {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .firebase-account__actions .button {
+    flex: 1 1 160px;
   }
 
   .settings-row--stack-mobile {

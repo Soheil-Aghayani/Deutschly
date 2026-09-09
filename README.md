@@ -1,6 +1,6 @@
 # Deutschly
 
-Deutschly is a focused German flashcard PWA for Fatemeh’s Menschen A1.1 learning journey. It works in a desktop browser, on a phone, or as an installed app.
+Deutschly is a focused German flashcard PWA for a Menschen A1.1 learning journey. It works in a desktop browser, on a phone, or as an installed app.
 
 Live site: <https://soheil-aghayani.github.io/Deutschly/>
 
@@ -56,6 +56,21 @@ Open the network URL printed by Vite on both devices. In Deutschly, open **Set u
 
 The sync server stores its room data in the ignored `.deutschly/sync.json` file on the computer. The static GitHub Pages site is shareable, but it does not host this private sync server. A production cloud sync service would still need HTTPS, authentication, encrypted storage, conflict history, and a hosted backend.
 
+## Optional account sync
+
+Deutschly can also use Firebase Authentication and Firestore for account-based sync. The app supports Google and GitHub sign-in, keeps each user's document under `users/{uid}`, and applies the owner-only rules in `firestore.rules`. Without Firebase settings, the app stays fully local and the private-room sync flow remains available.
+
+To enable it:
+
+1. Create a Firebase project and add a Web app.
+2. Enable Google and GitHub under Authentication providers. GitHub requires an OAuth app whose callback URL is the one shown by Firebase.
+3. Create a Firestore database and publish `firestore.rules`.
+4. Copy `.env.example` to `.env.local` and fill in the six Firebase Web App values.
+5. For GitHub Pages, add the same six values as repository or environment variables named `VITE_FIREBASE_*`, then let the Pages workflow build again.
+6. Add the deployed Pages domain and `localhost` to Firebase Authentication's authorized domains.
+
+The Firebase client configuration is intended for the browser. OAuth client secrets stay in Firebase's provider settings and must never be added to this repository. The cloud account section is hidden behind the optional configuration, so a missing Firebase project does not break local use.
+
 ## Optional Gemini card review
 
 The **Ask Gemini** action in the card checker is an optional assistant for uncertain articles, plurals, meanings, and duplicate clues. The local duplicate checker remains the source of truth, and Gemini suggestions are never saved automatically.
@@ -99,4 +114,4 @@ The source-aware importer is intentionally bounded. It skips words already in th
 
 `.github/workflows/deploy.yml` builds `dist` and deploys it to GitHub Pages whenever `main` is updated. The repository should have Pages configured with **GitHub Actions** as its build source.
 
-The app is designed to keep Fatemeh’s cards in the browser by default. Use **Export backup** before moving data to a new browser, or use the private-room sync flow when both devices are available on the same network.
+The app keeps your cards in the browser by default. Use **Export backup** before moving data to a new browser, or use account sync or the private-room sync flow when both devices are available on the same network.
