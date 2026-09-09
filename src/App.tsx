@@ -3142,7 +3142,7 @@ export default function App() {
             <button type="button" className="icon-button" onClick={toggleTheme} aria-label={state.theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={state.theme === "light" ? "Dark mode" : "Light mode"}>{state.theme === "light" ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}</button>
             <button type="button" className="icon-button notification-button" onClick={handleReminderBell} aria-label="View reminders" title="Reminders"><Bell size={18} aria-hidden="true" />{state.reminderEnabled && dueCards.length > 0 && <span aria-hidden="true" />}</button>
             <button type="button" className={`sync-button${syncing ? " sync-button--syncing" : ""}`} onClick={() => void handleSync()} disabled={syncing}><Cloud size={16} aria-hidden="true" />{syncing ? "Syncing..." : syncConfigured ? "Sync now" : "Set up sync"}</button>
-            <div className="topbar__avatar" role="img" aria-label={`Signed in as ${profileName}`}><Avatar name={profileAvatar.seed} variant={profileAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={34} title={false} aria-hidden="true" /></div>
+            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileName}`} title="Profile settings"><Avatar name={profileAvatar.seed} variant={profileAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={34} title={false} aria-hidden="true" /></button>
           </div>
         </header>
 
