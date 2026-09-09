@@ -236,8 +236,8 @@ svg {
 .brand__word {
   color: var(--text-strong);
   font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.06em;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
 
 .brand__beta {
@@ -573,9 +573,9 @@ svg {
   margin: 8px 0 7px;
   color: var(--text-strong);
   font-size: clamp(28px, 3vw, 39px);
-  font-weight: 800;
-  letter-spacing: -0.055em;
-  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .page-intro p {
@@ -722,8 +722,9 @@ svg {
 .hero-card__copy h2 {
   margin: 0 0 7px;
   font-size: clamp(24px, 3vw, 34px);
-  font-weight: 800;
-  letter-spacing: -0.055em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .hero-card__copy p {
@@ -773,8 +774,8 @@ svg {
 
 .progress-ring__inner strong {
   font-size: 32px;
-  font-weight: 800;
-  letter-spacing: -0.07em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .progress-ring__inner span {
@@ -846,8 +847,8 @@ svg {
   margin: 8px 0 8px;
   color: var(--text-strong);
   font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   line-height: 1.25;
 }
 
@@ -974,8 +975,8 @@ svg {
   margin-top: 4px;
   color: var(--text-strong);
   font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.055em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .stat-card__content small {
@@ -1022,8 +1023,8 @@ svg {
   margin: 5px 0 0;
   color: var(--text-strong);
   font-size: 18px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .text-button,
@@ -1082,8 +1083,8 @@ svg {
   margin: 0 0 6px;
   color: var(--text-strong);
   font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.045em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .continue-card p {
@@ -1162,8 +1163,8 @@ svg {
 .flashcard-preview strong {
   color: var(--text-strong);
   font-size: 25px;
-  font-weight: 800;
-  letter-spacing: -0.06em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .flashcard-preview > span:not(.flashcard-preview__topline) {
@@ -1441,8 +1442,8 @@ svg {
 .week-card__footer strong {
   color: var(--text-strong);
   font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .week-card__footer span {
@@ -1659,9 +1660,9 @@ svg {
   max-width: 100%;
   color: var(--text-strong);
   font-size: clamp(22px, var(--study-word-size, 18cqw), 64px);
-  font-weight: 800;
-  letter-spacing: 0;
-  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: 0.004em;
+  line-height: 1.08;
   overflow-wrap: normal;
   text-wrap: balance;
 }
@@ -1719,8 +1720,8 @@ svg {
 .study-answer__translation {
   color: var(--text-strong);
   font-size: 23px;
-  font-weight: 800;
-  letter-spacing: -0.035em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
 }
 
 .study-answer__example {
