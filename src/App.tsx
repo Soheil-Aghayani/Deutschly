@@ -2534,8 +2534,8 @@ function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogl
             <h2 id="onboarding-title">How do you want to start?</h2>
             <p id="onboarding-intro" className="onboarding-modal__intro">Choose an account so we can keep your learning space safe and available on the devices you use.</p>
             <div className="onboarding-modal__choices">
-              {configured && <button type="button" className="button button--primary onboarding-modal__choice" onClick={handleGoogleAction} disabled={busy}><GoogleLogo size={18} /><span>{busy ? "Opening Google..." : user ? "Review Google name" : "Continue with Google"}</span><ArrowRight size={16} aria-hidden="true" /></button>}
-              <button type="button" className="button button--outline onboarding-modal__choice" onClick={() => { setStep("guest"); setError(""); }} disabled={busy}><span>Continue as guest</span><ArrowRight size={16} aria-hidden="true" /></button>
+              {configured && <button type="button" className="button button--outline onboarding-modal__choice" onClick={handleGoogleAction} disabled={busy}><GoogleLogo size={18} /><span>{busy ? "Opening Google..." : user ? "Review Google name" : "Continue with Google"}</span><ArrowRight size={16} aria-hidden="true" /></button>}
+              <button type="button" className="button button--primary onboarding-modal__choice" onClick={() => { setStep("guest"); setError(""); }} disabled={busy}><span>Continue as guest</span><ArrowRight size={16} aria-hidden="true" /></button>
             </div>
             {configured && <small className="onboarding-modal__helper">Google sign-in keeps your cards available on your phone and computer. You can change your profile name later.</small>}
             {!configured && <div className="onboarding-modal__notice" role="status"><Info size={15} aria-hidden="true" /><span>Google sign-in is not available in this build yet. You can start as a guest and connect an account later from Settings.</span></div>}
