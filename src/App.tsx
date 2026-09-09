@@ -1513,7 +1513,7 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
       </section>
 
       <section className="practice-toolbar" aria-label="Practice settings">
-        <div><SlidersHorizontal size={17} aria-hidden="true" /><strong>Choose a drill</strong><span>Change the question without losing your library.</span></div>
+        <div className="practice-toolbar__summary"><SlidersHorizontal size={17} aria-hidden="true" /><div className="practice-toolbar__copy"><strong>Choose a drill</strong><span>Change the question without losing your library.</span></div></div>
         <label className="practice-select"><span>Practice mode</span><select value={mode} onChange={(event) => setMode(event.target.value as PracticeMode)}><option value="article">Article</option><option value="plural">Plural</option><option value="translation">Translation</option><option value="cloze">Sentence gap</option></select><ChevronDown size={15} aria-hidden="true" /></label>
       </section>
 

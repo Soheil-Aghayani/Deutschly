@@ -280,23 +280,21 @@ svg {
 .sidebar-profile strong,
 .sidebar-tip strong,
 .source-card strong {
-  overflow: hidden;
   color: var(--text-strong);
   font-size: 12px;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .sidebar__course span:not(.course-dot),
 .sidebar-profile span,
 .sidebar-tip span,
 .source-card span {
-  overflow: hidden;
   color: var(--text-muted);
   font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .course-dot,
@@ -1517,12 +1515,11 @@ svg {
 }
 
 .due-row__word {
-  overflow: hidden;
   color: var(--text-strong);
   font-size: 12px;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .button--primary {
@@ -1769,9 +1766,9 @@ svg {
 }
 
 .voice-recorder > div span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .voice-recorder .button {
@@ -2420,11 +2417,10 @@ kbd {
 }
 
 .resource-shelf summary small {
-  overflow: hidden;
   color: var(--text-muted);
   font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .resource-shelf[open] summary > svg:last-child {
@@ -2563,21 +2559,18 @@ kbd {
 }
 
 .pdf-candidate-row__copy strong {
-  overflow: hidden;
   color: var(--text-strong);
   font-size: 12px;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .pdf-candidate-row__copy span {
-  overflow: hidden;
   color: var(--text-muted);
   font-size: 9px;
   line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .pdf-candidate-row .button {
@@ -2661,22 +2654,20 @@ kbd {
 }
 
 .library-row__word strong {
-  overflow: hidden;
   color: var(--text-strong);
   font-size: 12px;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .library-row__word small {
   grid-column: 2;
   margin-top: -5px;
-  overflow: hidden;
   color: var(--text-muted);
   font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .library-row__word .verification-note {
@@ -2688,11 +2679,10 @@ kbd {
 
 .library-row__translation,
 .library-row__lesson {
-  overflow: hidden;
   color: var(--text-muted);
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .status-pill {
@@ -3297,12 +3287,11 @@ kbd {
 }
 
 .card-check__ai-fields strong {
-  overflow: hidden;
   color: var(--text-strong);
   font-size: 10px;
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .card-check__ai-result > p {
@@ -3873,9 +3862,8 @@ kbd {
 
 .achievement-item strong,
 .achievement-item small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .achievement-item strong {
@@ -3917,10 +3905,11 @@ kbd {
 }
 
 .practice-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 18px;
+  container-type: inline-size;
   padding: 15px 18px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -3928,26 +3917,37 @@ kbd {
   box-shadow: var(--shadow-sm);
 }
 
-.practice-toolbar > div:first-child {
-  display: flex;
-  align-items: center;
+.practice-toolbar__summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: 9px;
   min-width: 0;
   color: var(--primary);
 }
 
-.practice-toolbar > div:first-child strong {
+.practice-toolbar__copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 8px;
+  min-width: 0;
+}
+
+.practice-toolbar__copy strong {
+  flex: 0 0 auto;
   color: var(--text-strong);
   font-size: 12px;
   font-weight: 700;
 }
 
-.practice-toolbar > div:first-child span {
-  overflow: hidden;
+.practice-toolbar__copy span {
+  flex: 1 1 18rem;
+  min-width: 0;
   color: var(--text-muted);
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .library-row__word .library-row__tags {
@@ -3986,6 +3986,19 @@ kbd {
   position: absolute;
   right: 10px;
   pointer-events: none;
+}
+
+@container (max-width: 680px) {
+  .practice-toolbar__summary,
+  .practice-select {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .practice-select select {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .practice-layout {
@@ -4464,12 +4477,8 @@ kbd {
   }
 
   .practice-toolbar {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     gap: 13px;
-  }
-
-  .practice-toolbar > div:first-child span {
-    white-space: normal;
   }
 
   .practice-select,
