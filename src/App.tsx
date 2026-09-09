@@ -58,6 +58,8 @@ import {
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { InstallPrompt } from "./components/InstallPrompt";
+import { useInstallPrompt } from "./hooks/useInstallPrompt";
 import { getDailyAvatar } from "./lib/avatar";
 import { reviewCardWithGemini } from "./lib/gemini";
 import type { GeminiCardReview, GeminiCardReviewInput } from "./lib/gemini";
@@ -83,6 +85,7 @@ type Theme = "light" | "dark";
 type VerificationStatus = "unverified" | "reference-checked";
 type PracticeMode = "article" | "plural" | "translation" | "cloze";
 type SyncStatus = "idle" | "syncing" | "synced" | "offline" | "error";
+type NotificationPermissionState = NotificationPermission | "unsupported";
 
 interface Flashcard {
   id: string;
@@ -173,6 +176,7 @@ const SYNC_ENDPOINT_KEY = "deutschly:sync:endpoint:v1";
 const SYNC_ROOM_KEY = "deutschly:sync:room:v1";
 const AUTO_SYNC_KEY = "deutschly:sync:auto:v1";
 const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v3";
+const PWA_INSTALL_DISMISSED_KEY = "deutschly:pwa:install-dismissed:v1";
 const PROFILE_NAME_KEY = "deutschly:profile:name:v1";
 const PROFILE_NAME = "Fatemeh";
 const PROFILE_AVATAR_COLORS = ["#EEF0FF", "#8D8BFF", "#56C39E", "#F6A261", "#F2B4BE"];
@@ -184,6 +188,12 @@ const navItems: Array<{ id: Tab; label: string; icon: LucideIcon }> = [
   { id: "library", label: "My library", icon: Library },
   { id: "progress", label: "Progress", icon: BarChart3 },
 ];
+
+function getInitialTab(): Tab {
+  if (typeof window === "undefined") return "overview";
+  const requestedTab = new URLSearchParams(window.location.search).get("tab");
+  return navItems.some(({ id }) => id === requestedTab) ? requestedTab as Tab : "overview";
+}
 
 const articleMeta: Record<Article, { label: string; detail: string }> = {
   der: { label: "der", detail: "masculine" },
@@ -233,6 +243,10 @@ function getGreeting(date = new Date()): string {
   if (hour >= 12 && hour < 18) return "Guten Tag";
   if (hour >= 18 && hour < 22) return "Guten Abend";
   return "Gute Nacht";
+}
+
+function getNotificationPermission(): NotificationPermissionState {
+  return typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported";
 }
 
 function formatTimeLabel(value: string): string {
@@ -1143,6 +1157,8 @@ function OverviewPage({
   onReminderTimeChange,
   onSnoozeReminder,
   onAddReminderToCalendar,
+  notificationPermission,
+  onEnableNotifications,
   reminderSnoozedUntil,
 }: {
   state: AppState;
@@ -1156,6 +1172,8 @@ function OverviewPage({
   onReminderTimeChange: (value: string) => void;
   onSnoozeReminder: () => void;
   onAddReminderToCalendar: () => void;
+  notificationPermission: NotificationPermissionState;
+  onEnableNotifications: () => void;
   reminderSnoozedUntil: number | null;
 }) {
   const progress = Math.min(100, Math.round((state.reviewsToday / state.dailyGoal) * 100));
@@ -1240,6 +1258,13 @@ function OverviewPage({
               {reminderSnoozedUntil ? <X size={14} aria-hidden="true" /> : <Clock3 size={14} aria-hidden="true" />}
               {reminderActionLabel}
             </button>
+          </div>
+          <div className={`reminder-card__notification reminder-card__notification--${notificationPermission}`} role="status" aria-live="polite">
+            <span className="reminder-card__notification-copy">
+              {notificationPermission === "granted" ? <CheckCircle2 size={14} aria-hidden="true" /> : <Bell size={14} aria-hidden="true" />}
+              <span>{notificationPermission === "granted" ? "Browser alerts are on." : notificationPermission === "default" ? "Allow alerts for review reminders." : notificationPermission === "denied" ? "Notifications are blocked. Calendar still works when closed." : "In-app reminder only. Add it to your calendar."}</span>
+            </span>
+            {notificationPermission === "default" && <button type="button" className="text-button" onClick={onEnableNotifications}>Enable</button>}
           </div>
         </aside>
       </section>
@@ -2421,7 +2446,10 @@ function AddCardModal({ onClose, onSave, existingCards, initialDraft, editing = 
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const installPrompt = useInstallPrompt();
+  const [installDismissed, setInstallDismissed] = useState(() => loadLocalBooleanSetting(PWA_INSTALL_DISMISSED_KEY));
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermissionState>(() => getNotificationPermission());
+  const [activeTab, setActiveTab] = useState<Tab>(() => getInitialTab());
   const [studySession, setStudySession] = useState({ reviewed: 0, total: 0 });
   const [showAnswer, setShowAnswer] = useState(false);
   const [addCardOpen, setAddCardOpen] = useState(false);
@@ -2469,6 +2497,7 @@ export default function App() {
     }), [state.cards, todayKey]);
   const syncConfigured = Boolean(syncEndpoint.trim() && syncRoom.length >= 6);
   const syncFingerprint = useMemo(() => getSyncFingerprint(state), [state]);
+  const showInstallPrompt = !installDismissed && !installPrompt.isInstalled && (installPrompt.canInstall || installPrompt.isIos || installPrompt.isMobile);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -2491,6 +2520,16 @@ export default function App() {
   useEffect(() => {
     const clock = window.setInterval(() => setCurrentTime(new Date()), 60_000);
     return () => window.clearInterval(clock);
+  }, []);
+
+  useEffect(() => {
+    const refreshNotificationPermission = () => setNotificationPermission(getNotificationPermission());
+    window.addEventListener("focus", refreshNotificationPermission);
+    document.addEventListener("visibilitychange", refreshNotificationPermission);
+    return () => {
+      window.removeEventListener("focus", refreshNotificationPermission);
+      document.removeEventListener("visibilitychange", refreshNotificationPermission);
+    };
   }, []);
 
   useEffect(() => () => {
@@ -2539,7 +2578,7 @@ export default function App() {
           try {
             if ("serviceWorker" in navigator) {
               const registration = await navigator.serviceWorker.ready;
-              await registration.showNotification("Deutschly review reminder", { body: message, icon: "./icon-192.svg", tag });
+              await registration.showNotification("Deutschly review reminder", { body: message, icon: "./icon-192.svg", tag, data: { url: "./?tab=study" } });
               return;
             }
           } catch {
@@ -2965,12 +3004,29 @@ export default function App() {
     });
   };
 
+  const handleEnableNotifications = async () => {
+    if (!("Notification" in window)) {
+      setNotificationPermission("unsupported");
+      showToast("This browser does not support notifications. Calendar reminders are still available.");
+      return;
+    }
+    if (Notification.permission === "granted") {
+      setNotificationPermission("granted");
+      showToast("Browser notifications are already enabled.");
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      showToast(permission === "granted" ? "Browser notifications are enabled." : permission === "denied" ? "Notifications are blocked. Calendar reminders are still available." : "Notification permission was not changed.");
+    } catch {
+      setNotificationPermission("unsupported");
+      showToast("Notifications could not be enabled. Calendar reminders are still available.");
+    }
+  };
   const handleReminderToggle = async () => {
     const nextEnabled = !state.reminderEnabled;
-    if (nextEnabled && "Notification" in window && Notification.permission === "default") {
-      const permission = await Notification.requestPermission();
-      if (permission === "denied") showToast("Browser notifications are blocked; the in-app reminder will still be saved.");
-    }
+    if (nextEnabled && notificationPermission === "default") await handleEnableNotifications();
     setState((current) => ({ ...current, reminderEnabled: nextEnabled }));
     if (!nextEnabled) {
       setReminderSnoozedUntil(null);
@@ -3003,12 +3059,15 @@ export default function App() {
       showToast("Reminders are paused. Turn them on from the Overview page.");
       return;
     }
-    if ("Notification" in window && Notification.permission === "default") {
-      const permission = await Notification.requestPermission();
-      showToast(permission === "granted" ? "Browser notifications are enabled." : "In-app reminders stay on while this page is open.");
+    if (notificationPermission === "default") {
+      await handleEnableNotifications();
       return;
     }
-    showToast(state.reminderEnabled ? `Reminder set for ${state.reminderTime}. You can also add it to your calendar.` : "Reminders are paused");
+    if (notificationPermission === "denied") {
+      showToast("Notifications are blocked. Calendar reminders are still available.");
+      return;
+    }
+    showToast(notificationPermission === "granted" ? `Reminder set for ${formatTimeLabel(state.reminderTime)}.` : "In-app reminders stay on while this page is open.");
   };
   const handleSaveProfile = (nextName: string) => {
     const trimmedName = nextName.trim().slice(0, 32);
@@ -3036,6 +3095,21 @@ export default function App() {
     showToast("Progress reset. Your cards are ready to learn from the beginning.");
   };
   const toggleTheme = () => setState((current) => ({ ...current, theme: current.theme === "light" ? "dark" : "light" }));
+  const handleDismissInstallPrompt = () => {
+    setInstallDismissed(true);
+    window.localStorage.setItem(PWA_INSTALL_DISMISSED_KEY, "true");
+  };
+  const handleInstallApp = async () => {
+    const installed = await installPrompt.install();
+    if (!installed) {
+      setInstallDismissed(true);
+      window.localStorage.setItem(PWA_INSTALL_DISMISSED_KEY, "true");
+      return;
+    }
+    setInstallDismissed(true);
+    window.localStorage.setItem(PWA_INSTALL_DISMISSED_KEY, "true");
+    showToast("Deutschly was installed. Your review space is ready from the home screen.");
+  };
 
   return (
     <div className="app-shell" data-theme={state.theme}>
@@ -3073,7 +3147,7 @@ export default function App() {
         </header>
 
         <main id="main-content" className="main-content">
-          {activeTab === "overview" && <OverviewPage state={state} profileName={profileName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} reminderSnoozedUntil={reminderSnoozedUntil} />}
+          {activeTab === "overview" && <OverviewPage state={state} profileName={profileName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
@@ -3093,6 +3167,7 @@ export default function App() {
       {profileOpen && <ProfileModal name={profileName} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
       {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} testingConnection={testingConnection} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
       {resetProgressOpen && <ResetProgressModal onClose={() => setResetProgressOpen(false)} onConfirm={handleResetProgress} />}
+      {showInstallPrompt && <InstallPrompt canInstall={installPrompt.canInstall} isIos={installPrompt.isIos} isMobile={installPrompt.isMobile} onInstall={() => { void handleInstallApp(); }} onDismiss={handleDismissInstallPrompt} />}
       {toast && <div className="toast" role="status"><Check size={16} aria-hidden="true" /> {toast}</div>}
     </div>
   );

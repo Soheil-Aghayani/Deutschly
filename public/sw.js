@@ -1,4 +1,4 @@
-const CACHE_NAME = "deutschly-shell-v4";
+const CACHE_NAME = "deutschly-shell-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -31,11 +31,14 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const targetUrl = event.notification.data?.url || "./";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       const existingClient = clientList.find((client) => "focus" in client);
-      if (existingClient) return existingClient.focus();
-      return self.clients.openWindow("./");
+      if (existingClient) {
+        return existingClient.focus().then(() => existingClient.navigate?.(targetUrl));
+      }
+      return self.clients.openWindow(targetUrl);
     }),
   );
 });
