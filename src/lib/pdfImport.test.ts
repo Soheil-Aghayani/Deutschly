@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findArticleCandidates, getMenschenLesson, normalizePdfCandidateStatuses } from "./pdfImport";
+import { assessPdfCandidate, findArticleCandidates, getMenschenLesson, normalizePdfCandidateStatuses } from "./pdfImport";
 
 describe("findArticleCandidates", () => {
   it("finds unique article+noun suggestions and keeps their source page", () => {
@@ -33,5 +33,18 @@ describe("findArticleCandidates", () => {
       [candidates[0]?.id ?? ""]: "skipped",
       [candidates[1]?.id ?? ""]: "pending",
     });
+  });
+
+  it("flags short OCR fragments without rejecting valid short nouns", () => {
+    expect(assessPdfCandidate({ german: "Na", context: "die Na men" })).toEqual({
+      confidence: "low",
+      reasons: ["Very short token"],
+    });
+    expect(assessPdfCandidate({ german: "Vis", context: "die Vis ite n ka rte n" })).toEqual({
+      confidence: "low",
+      reasons: ["Looks split by OCR: Vis ite"],
+    });
+    expect(assessPdfCandidate({ german: "Uhr", context: "die Uhr ist richtig" }).confidence).toBe("high");
+    expect(assessPdfCandidate({ german: "Tag", context: "der Tag kommt" }).confidence).toBe("high");
   });
 });

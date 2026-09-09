@@ -2758,6 +2758,26 @@ kbd {
   font-size: 10px;
 }
 
+.pdf-candidate-tools__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.pdf-candidate-tools__meta > span {
+  padding-bottom: 7px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.pdf-candidate-quality-toggle {
+  color: var(--orange);
+  text-align: left;
+}
+
 .pdf-candidate-more {
   margin-top: 12px;
 }
@@ -2802,6 +2822,11 @@ kbd {
   overflow-wrap: anywhere;
 }
 
+.pdf-candidate-row__copy .pdf-candidate-reason {
+  color: var(--orange);
+  font-size: 9px;
+}
+
 .pdf-candidate-row__title > strong {
   flex: 0 1 auto;
 }
@@ -2822,6 +2847,26 @@ kbd {
 }
 
 .pdf-candidate-status--skipped {
+  color: var(--orange);
+  background: var(--orange-soft);
+}
+
+.pdf-candidate-quality-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 21px;
+  padding: 0 7px;
+  font-size: 8px;
+  font-weight: 700;
+  border-radius: 6px;
+}
+
+.pdf-candidate-quality-badge--medium {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.pdf-candidate-quality-badge--low {
   color: var(--orange);
   background: var(--orange-soft);
 }
@@ -5340,6 +5385,16 @@ kbd {
 
   .pdf-import-card__heading {
     gap: 10px;
+  }
+
+  .pdf-candidate-tools__meta {
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .pdf-candidate-tools__meta > span {
+    padding-bottom: 0;
   }
 
   .pdf-candidate-row {

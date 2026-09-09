@@ -1,5 +1,11 @@
 export type PdfArticle = "der" | "die" | "das";
 export type PdfCandidateStatus = "pending" | "accepted" | "skipped";
+export type PdfCandidateConfidence = "high" | "medium" | "low";
+
+export interface PdfCandidateAssessment {
+  confidence: PdfCandidateConfidence;
+  reasons: string[];
+}
 
 export interface PdfCandidate {
   id: string;
@@ -8,6 +14,8 @@ export interface PdfCandidate {
   page: number;
   lesson?: string;
   context: string;
+  confidence?: PdfCandidateConfidence;
+  confidenceReasons?: string[];
 }
 
 export interface PdfImportResult {
@@ -90,6 +98,86 @@ function normalizeCandidate(value: string): string {
   return value.trim().normalize("NFKC").toLocaleLowerCase("de-DE");
 }
 
+const COMMON_FOLLOWING_WORDS = new Set([
+  "aber",
+  "als",
+  "am",
+  "an",
+  "auch",
+  "auf",
+  "aus",
+  "bei",
+  "das",
+  "dem",
+  "den",
+  "der",
+  "des",
+  "die",
+  "du",
+  "ein",
+  "eine",
+  "für",
+  "geht",
+  "gibt",
+  "hat",
+  "haben",
+  "heißt",
+  "hier",
+  "ich",
+  "im",
+  "in",
+  "ist",
+  "ihr",
+  "kein",
+  "keine",
+  "kommt",
+  "lernen",
+  "macht",
+  "man",
+  "mit",
+  "nach",
+  "neu",
+  "nicht",
+  "noch",
+  "nur",
+  "sehr",
+  "sind",
+  "sie",
+  "spielen",
+  "und",
+  "von",
+  "vor",
+  "wie",
+  "wir",
+  "zu",
+]);
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findPossibleSplitFragment(german: string, context: string): string | undefined {
+  const match = context.match(new RegExp(`\\b${escapeRegExp(german)}\\s+([a-zäöüß]{2,8})\\b`, "iu"));
+  const fragment = match?.[1]?.toLocaleLowerCase("de-DE");
+  if (!fragment || COMMON_FOLLOWING_WORDS.has(fragment)) return undefined;
+  return fragment;
+}
+
+export function assessPdfCandidate({ german, context }: Pick<PdfCandidate, "german" | "context">): PdfCandidateAssessment {
+  const normalizedGerman = normalizeCandidate(german);
+  const reasons: string[] = [];
+  const possibleSplitFragment = findPossibleSplitFragment(german, context);
+  const looksLikeSplitWord = Boolean(possibleSplitFragment && normalizedGerman.length <= 3 && possibleSplitFragment.length <= 4);
+
+  if (normalizedGerman.length <= 2) reasons.push("Very short token");
+  if (looksLikeSplitWord && normalizedGerman.length > 2) reasons.push(`Looks split by OCR: ${german} ${possibleSplitFragment}`);
+
+  return {
+    confidence: normalizedGerman.length <= 2 || looksLikeSplitWord ? "low" : reasons.length > 0 ? "medium" : "high",
+    reasons,
+  };
+}
+
 export function findArticleCandidates(pages: ExtractedPage[]): PdfCandidate[] {
   const candidates = new Map<string, PdfCandidate>();
   const articlePattern = /\b((?:[dD]er|[dD]ie|[dD]as))\s+([A-ZÄÖÜẞ][\p{L}-]{1,})\b/gu;
@@ -105,6 +193,7 @@ export function findArticleCandidates(pages: ExtractedPage[]): PdfCandidate[] {
         const contextStart = Math.max(0, match.index - 46);
         const contextEnd = Math.min(text.length, match.index + match[0].length + 78);
         const context = text.slice(contextStart, contextEnd).trim();
+        const assessment = assessPdfCandidate({ german, context });
         candidates.set(key, {
           id: `pdf-${page}-${normalizeCandidate(german).replace(/[^a-z0-9äöüß]+/gi, "-")}`,
           german,
@@ -112,6 +201,8 @@ export function findArticleCandidates(pages: ExtractedPage[]): PdfCandidate[] {
           page,
           lesson: getMenschenLesson(page),
           context: `${contextStart > 0 ? "…" : ""}${context}${contextEnd < text.length ? "…" : ""}`,
+          confidence: assessment.confidence,
+          confidenceReasons: assessment.reasons,
         });
       }
       match = articlePattern.exec(text);

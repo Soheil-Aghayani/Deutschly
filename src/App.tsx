@@ -61,7 +61,7 @@ import type { LucideIcon } from "lucide-react";
 import { getDailyAvatar } from "./lib/avatar";
 import { reviewCardWithGemini } from "./lib/gemini";
 import type { GeminiCardReview, GeminiCardReviewInput } from "./lib/gemini";
-import { extractMenschenPdf, getMenschenLesson, normalizePdfCandidateStatuses } from "./lib/pdfImport";
+import { assessPdfCandidate, extractMenschenPdf, getMenschenLesson, normalizePdfCandidateStatuses } from "./lib/pdfImport";
 import type { PdfCandidate, PdfCandidateStatus } from "./lib/pdfImport";
 import { checkSyncHealth, createSyncRoom, normalizeSyncRoom, pullSync, pushSync } from "./lib/sync";
 import {
@@ -593,7 +593,18 @@ function isPdfCandidate(value: unknown): value is PdfCandidate {
     && (value.article === "der" || value.article === "die" || value.article === "das")
     && typeof value.page === "number"
     && (value.lesson === undefined || typeof value.lesson === "string")
-    && typeof value.context === "string";
+    && typeof value.context === "string"
+    && (value.confidence === undefined || value.confidence === "high" || value.confidence === "medium" || value.confidence === "low")
+    && (value.confidenceReasons === undefined || (Array.isArray(value.confidenceReasons) && value.confidenceReasons.every((reason) => typeof reason === "string")));
+}
+
+function normalizePdfCandidate(candidate: PdfCandidate): PdfCandidate {
+  const assessment = assessPdfCandidate(candidate);
+  return {
+    ...candidate,
+    confidence: assessment.confidence,
+    confidenceReasons: assessment.reasons,
+  };
 }
 
 function normalizeTags(value: unknown): string[] {
@@ -652,7 +663,7 @@ function normalizeAppState(value: unknown): AppState {
       const candidates = pdfImportValue.candidates.filter(isPdfCandidate).map((candidate) => ({
         ...candidate,
         lesson: candidate.lesson?.trim() || getMenschenLesson(candidate.page),
-      }));
+      })).map(normalizePdfCandidate);
       const courseCandidates = candidates.filter((candidate) => candidate.lesson);
       const normalizedCandidates = courseCandidates.length > 0 ? courseCandidates : candidates;
       return {
@@ -1693,14 +1704,17 @@ function PdfCandidatesCard({
   const [lessonFilter, setLessonFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<PdfCandidateStatus>("pending");
   const [visibleCount, setVisibleCount] = useState(12);
+  const [showLowConfidence, setShowLowConfidence] = useState(false);
 
   const lessons = [...new Set(candidates.map((candidate) => candidate.lesson).filter((lesson): lesson is string => Boolean(lesson)))];
-  const statusCounts = candidates.reduce<Record<PdfCandidateStatus, number>>((counts, candidate) => {
+  const lowConfidenceCount = candidates.filter((candidate) => candidate.confidence === "low").length;
+  const qualityCandidates = showLowConfidence ? candidates : candidates.filter((candidate) => candidate.confidence !== "low");
+  const statusCounts = qualityCandidates.reduce<Record<PdfCandidateStatus, number>>((counts, candidate) => {
     const status = candidateStatuses[candidate.id] ?? "pending";
     counts[status] += 1;
     return counts;
   }, { pending: 0, accepted: 0, skipped: 0 });
-  const filteredCandidates = candidates.filter((candidate) => (
+  const filteredCandidates = qualityCandidates.filter((candidate) => (
     (candidateStatuses[candidate.id] ?? "pending") === statusFilter
     && (lessonFilter === "all" || candidate.lesson === lessonFilter)
   ));
@@ -1719,11 +1733,12 @@ function PdfCandidatesCard({
     setLessonFilter("all");
     setStatusFilter("pending");
     setVisibleCount(12);
+    setShowLowConfidence(false);
   }, [candidates]);
 
   useEffect(() => {
     setVisibleCount(12);
-  }, [statusFilter, lessonFilter]);
+  }, [statusFilter, lessonFilter, showLowConfidence]);
 
   if (!loading && !error && candidates.length === 0 && !sourcePreview) return null;
 
@@ -1755,15 +1770,19 @@ function PdfCandidatesCard({
           </div>
           <div className="pdf-candidate-tools">
             <label className="library-filter" htmlFor="pdf-lesson-filter"><span>Course lesson</span><select id="pdf-lesson-filter" value={lessonFilter} onChange={(event) => setLessonFilter(event.target.value)}><option value="all">All lessons</option>{lessons.map((lesson) => <option value={lesson} key={lesson}>{lesson}</option>)}</select></label>
-            <span role="status" aria-live="polite">{filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions</span>
+            <div className="pdf-candidate-tools__meta">
+              {lowConfidenceCount > 0 && <label className="filter-check pdf-candidate-quality-toggle"><input type="checkbox" checked={showLowConfidence} onChange={(event) => setShowLowConfidence(event.target.checked)} /><span>{showLowConfidence ? "Showing" : "Show"} {lowConfidenceCount} low-confidence {lowConfidenceCount === 1 ? "fragment" : "fragments"}</span></label>}
+              <span role="status" aria-live="polite">{filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions</span>
+            </div>
           </div>
           <div className="pdf-candidate-list">
             {filteredCandidates.slice(0, visibleCount).map((candidate) => (
               <div className={`pdf-candidate-row pdf-candidate-row--${statusFilter}`} key={candidate.id}>
                 <ArticleBadge article={candidate.article} compact />
                 <div className="pdf-candidate-row__copy">
-                  <div className="pdf-candidate-row__title"><strong>{candidate.german}</strong>{statusFilter !== "pending" && <span className={`pdf-candidate-status pdf-candidate-status--${statusFilter}`}>{statusLabels[statusFilter]}</span>}</div>
+                  <div className="pdf-candidate-row__title"><strong>{candidate.german}</strong>{candidate.confidence && candidate.confidence !== "high" && <span className={`pdf-candidate-quality-badge pdf-candidate-quality-badge--${candidate.confidence}`}>{candidate.confidence === "low" ? "Low confidence" : "Needs a closer look"}</span>}{statusFilter !== "pending" && <span className={`pdf-candidate-status pdf-candidate-status--${statusFilter}`}>{statusLabels[statusFilter]}</span>}</div>
                   <span>{candidate.lesson ? `${candidate.lesson} · ` : ""}Page {candidate.page} · {candidate.context}</span>
+                  {candidate.confidence && candidate.confidence !== "high" && candidate.confidenceReasons && candidate.confidenceReasons.length > 0 && <span className="pdf-candidate-reason">OCR note: {candidate.confidenceReasons.join(" · ")}</span>}
                 </div>
                 <div className="pdf-candidate-row__actions">
                   {statusFilter === "pending" ? <>
@@ -1774,12 +1793,12 @@ function PdfCandidatesCard({
               </div>
             ))}
           </div>
-          {filteredCandidates.length === 0 && <div className="pdf-import-card__empty"><Info size={17} aria-hidden="true" /><span>{lessonFilter === "all" ? emptyMessages[statusFilter] : "No suggestions were found for this lesson and status."}</span></div>}
+          {filteredCandidates.length === 0 && <div className="pdf-import-card__empty"><Info size={17} aria-hidden="true" /><span>{!showLowConfidence && lowConfidenceCount > 0 && qualityCandidates.length === 0 ? "Only low-confidence OCR fragments are hidden. Turn on the option above to review them." : lessonFilter === "all" ? emptyMessages[statusFilter] : "No suggestions were found for this lesson and status."}</span></div>}
           {filteredCandidates.length > visibleCount && <button type="button" className="button button--ghost pdf-candidate-more" onClick={() => setVisibleCount((count) => count + 12)}>Show 12 more</button>}
         </>
       )}
 
-      {!loading && candidates.length > 0 && filteredCandidates.length > 0 && <span className="pdf-import-card__more">Showing {Math.min(visibleCount, filteredCandidates.length)} of {filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions. Use word opens the full duplicate and reference check.</span>}
+      {!loading && candidates.length > 0 && filteredCandidates.length > 0 && <span className="pdf-import-card__more">Showing {Math.min(visibleCount, filteredCandidates.length)} of {filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions. Use word opens the full duplicate and reference check.{!showLowConfidence && lowConfidenceCount > 0 ? ` ${lowConfidenceCount} low-confidence ${lowConfidenceCount === 1 ? "fragment is" : "fragments are"} hidden until you include them.` : ""}</span>}
       {!loading && candidates.length === 0 && !error && <div className="pdf-import-card__empty"><Sparkles size={17} aria-hidden="true" /><span>No article + noun patterns were detected. You can still add cards manually.</span></div>}
 
       {sourcePreview && (
