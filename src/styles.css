@@ -4134,20 +4134,31 @@ kbd {
   padding: 22px;
 }
 
+.practice-aside__heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.practice-aside__heading .section-eyebrow {
+  display: block;
+  line-height: 1.2;
+}
+
 .practice-aside__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   width: 38px;
   height: 38px;
-  margin-bottom: 19px;
   color: var(--primary);
   background: var(--primary-soft);
   border-radius: 11px;
 }
 
 .practice-aside h2 {
-  margin: 9px 0 8px;
+  margin: 18px 0 8px;
   color: var(--text-strong);
   font-size: 18px;
   font-weight: 700;
