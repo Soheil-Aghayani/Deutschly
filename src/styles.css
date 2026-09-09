@@ -1907,6 +1907,12 @@ svg {
   box-shadow: var(--shadow-md);
 }
 
+.study-card--answered {
+  transform-origin: center;
+  backface-visibility: hidden;
+  animation: study-card-reveal 460ms cubic-bezier(0.22, 0.75, 0.25, 1) both;
+}
+
 .study-card__meta {
   text-align: left;
 }
@@ -2057,6 +2063,10 @@ svg {
   background: var(--surface-soft);
   border: 1px solid var(--border);
   border-radius: 14px;
+}
+
+.study-answer--visible {
+  animation: study-answer-rise 280ms ease both;
 }
 
 .study-answer__hidden {
@@ -5255,6 +5265,36 @@ kbd {
   to { opacity: 0.95; }
 }
 
+@keyframes study-card-reveal {
+  0% { opacity: 0.7; transform: perspective(1100px) rotateY(-82deg) scale(0.98); }
+  58% { opacity: 1; transform: perspective(1100px) rotateY(8deg) scale(1.01); }
+  100% { opacity: 1; transform: perspective(1100px) rotateY(0) scale(1); }
+}
+
+@keyframes study-answer-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes practice-feedback-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes practice-next-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .study-card--answered,
+  .study-answer--visible,
+  .practice-result,
+  .practice-next {
+    animation: none;
+  }
+}
+
 .progress-level-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(290px, 0.95fr);
@@ -5656,12 +5696,21 @@ kbd {
   gap: 8px;
 }
 
+.practice-answer__row .button {
+  min-height: 56px;
+}
+
 @container (max-width: 640px) {
   .practice-answer__row {
     flex-direction: column;
   }
 
-  .practice-answer__row input,
+  .practice-answer__row input {
+    flex: 0 0 56px;
+    min-height: 56px;
+    width: 100%;
+  }
+
   .practice-answer__row .button {
     width: 100%;
   }
@@ -5670,7 +5719,7 @@ kbd {
 .practice-answer input {
   flex: 1;
   min-width: 0;
-  height: 46px;
+  height: 56px;
   padding: 0 13px;
   color: var(--text-strong);
   background: var(--surface-soft);
@@ -5695,6 +5744,7 @@ kbd {
   background: var(--surface-soft);
   border: 1px solid var(--border);
   border-radius: 11px;
+  animation: practice-feedback-in 260ms ease both;
 }
 
 .practice-result__icon {
@@ -5735,6 +5785,7 @@ kbd {
 
 .practice-next {
   margin-top: 17px;
+  animation: practice-next-in 300ms 80ms ease both;
 }
 
 .practice-aside {

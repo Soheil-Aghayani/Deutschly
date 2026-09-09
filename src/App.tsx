@@ -64,6 +64,7 @@ import { useInstallPrompt } from "./hooks/useInstallPrompt";
 import { getDailyAvatar } from "./lib/avatar";
 import { reviewCardWithGemini } from "./lib/gemini";
 import type { GeminiCardReview, GeminiCardReviewInput } from "./lib/gemini";
+import { playPracticeFeedbackSound } from "./lib/feedbackSounds";
 import { GERMAN_WORD_DATABASE, searchGermanWords } from "./data/germanWords";
 import type { GermanWordRecord } from "./data/germanWords";
 import { assessPdfCandidate, extractMenschenPdf, getMenschenLesson, normalizePdfCandidateStatuses } from "./lib/pdfImport";
@@ -1731,7 +1732,6 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
   const [isCorrect, setIsCorrect] = useState(false);
   const [score, setScore] = useState(0);
   const [attempts, setAttempts] = useState(0);
-  const answerRef = useRef<HTMLInputElement>(null);
   const nextButtonRef = useRef<HTMLButtonElement>(null);
 
   const eligibleCards = useMemo(() => cards.filter((card) => mode !== "plural" || Boolean(card.plural)), [cards, mode]);
@@ -1747,8 +1747,7 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
 
   useEffect(() => {
     if (submitted) nextButtonRef.current?.focus();
-    else answerRef.current?.focus();
-  }, [index, submitted, mode]);
+  }, [index, submitted]);
 
   if (!card) {
     return (
@@ -1776,6 +1775,8 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
     event.preventDefault();
     if (submitted || !answer.trim()) return;
     const correct = answerMatches(answer, expected);
+    const isFinalQuestion = index % eligibleCards.length === eligibleCards.length - 1;
+    playPracticeFeedbackSound(isFinalQuestion ? "complete" : correct ? "correct" : "incorrect");
     setIsCorrect(correct);
     setSubmitted(true);
     setAttempts((current) => current + 1);
@@ -1810,7 +1811,7 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
 
           <form className="practice-answer" onSubmit={handleSubmit}>
             <label htmlFor="practice-answer">Your answer</label>
-            <div className="practice-answer__row"><input ref={answerRef} id="practice-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder={mode === "article" ? "der / die / das" : mode === "plural" ? "Type the plural" : "Type your answer"} autoComplete="off" disabled={submitted} /><button type="submit" className="button button--primary" disabled={submitted || !answer.trim()}>{submitted ? "Checked" : "Check"} <Check size={16} aria-hidden="true" /></button></div>
+            <div className="practice-answer__row"><input id="practice-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder={mode === "article" ? "der / die / das" : mode === "plural" ? "Type the plural" : "Type your answer"} autoComplete="off" disabled={submitted} /><button type="submit" className="button button--primary" disabled={submitted || !answer.trim()}>{submitted ? "Checked" : "Check"} <Check size={16} aria-hidden="true" /></button></div>
           </form>
 
           {submitted && <div className="practice-result" role="status"><div className="practice-result__icon" aria-hidden="true">{isCorrect ? <CheckCircle2 size={21} /> : <Info size={21} />}</div><div><strong>{isCorrect ? "Sehr gut!" : "Almost, keep this one visible."}</strong><span>{isCorrect ? "That answer matches the card." : `Expected: ${expectedLabel}`}</span></div>{!isCorrect && <PronunciationButton text={expectedAudio} />}</div>}
