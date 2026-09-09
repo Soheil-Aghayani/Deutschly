@@ -1,4 +1,4 @@
-const CACHE_NAME = "deutschly-shell-v5";
+const CACHE_NAME = "deutschly-shell-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -31,7 +31,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || "./";
+  const targetUrl = event.action === "review" ? "./?tab=study" : event.notification.data?.url || "./";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       const existingClient = clientList.find((client) => "focus" in client);
@@ -41,6 +41,27 @@ self.addEventListener("notificationclick", (event) => {
       return self.clients.openWindow(targetUrl);
     }),
   );
+});
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data?.json() || {};
+  } catch {
+    data = { body: event.data?.text() || "Your German review is ready." };
+  }
+
+  const title = typeof data.title === "string" && data.title.trim() ? data.title : "Deutschly review reminder";
+  const body = typeof data.body === "string" && data.body.trim() ? data.body : "Your German cards are ready for review.";
+  event.waitUntil(self.registration.showNotification(title, {
+    body,
+    icon: "./icon-192.svg",
+    badge: "./icon-192.svg",
+    tag: typeof data.tag === "string" ? data.tag : "deutschly-push-review",
+    renotify: true,
+    actions: [{ action: "review", title: "Review now" }],
+    data: { url: "./?tab=study" },
+  }));
 });
 
 self.addEventListener("fetch", (event) => {

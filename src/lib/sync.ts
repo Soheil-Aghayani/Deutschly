@@ -15,6 +15,7 @@ export class SyncRequestError extends Error {
 }
 
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const REQUEST_TIMEOUT_MS = 10_000;
 
 export function createSyncRoom(): string {
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
@@ -90,8 +91,23 @@ function parseSyncResponse(payload: Record<string, unknown>): SyncResponse {
   };
 }
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new SyncRequestError("The sync server did not respond in time.", 0);
+    }
+    throw new SyncRequestError("The sync server could not be reached.", 0);
+  } finally {
+    globalThis.clearTimeout(timer);
+  }
+}
+
 export async function pullSync(endpoint: string, room: string): Promise<SyncResponse | null> {
-  const response = await fetch(syncUrl(endpoint, room), {
+  const response = await fetchWithTimeout(syncUrl(endpoint, room), {
     headers: { Accept: "application/json" },
   });
 
@@ -100,7 +116,7 @@ export async function pullSync(endpoint: string, room: string): Promise<SyncResp
 }
 
 export async function pushSync(endpoint: string, room: string, state: unknown): Promise<SyncResponse> {
-  const response = await fetch(syncUrl(endpoint, room), {
+  const response = await fetchWithTimeout(syncUrl(endpoint, room), {
     method: "PUT",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ state }),
@@ -110,7 +126,7 @@ export async function pushSync(endpoint: string, room: string, state: unknown): 
 }
 
 export async function checkSyncHealth(endpoint: string): Promise<void> {
-  const response = await fetch(syncHealthUrl(endpoint), {
+  const response = await fetchWithTimeout(syncHealthUrl(endpoint), {
     headers: { Accept: "application/json" },
   });
   const payload = await readResponse(response);

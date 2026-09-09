@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { geminiReviewUrl, parseGeminiCardReview, reviewCardWithGemini } from "./gemini";
+import { generateGermanWordBatch, geminiReviewUrl, geminiWordBatchUrl, parseGeminiCardReview, parseGermanWordBatch, reviewCardWithGemini } from "./gemini";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -73,5 +73,42 @@ describe("Gemini card review bridge", () => {
 
   it("rejects a response with an unsupported article", () => {
     expect(() => parseGeminiCardReview({ review: { ...review, article: "ein" } })).toThrow("invalid article");
+  });
+});
+
+describe("Gemini German word agent bridge", () => {
+  const word = {
+    id: "gemini-a1-eis",
+    german: "Eis",
+    englishMeanings: ["ice cream", "ice"],
+    article: "das",
+    level: "A1",
+    partOfSpeech: "noun",
+    examples: ["Ich esse gern Eis."],
+    tags: ["food", "everyday"],
+  };
+
+  it("maps the sync server URL to the word batch route", () => {
+    expect(geminiWordBatchUrl("")).toBe("/api/gemini/word-batch");
+    expect(geminiWordBatchUrl("/api/sync")).toBe("/api/gemini/word-batch");
+    expect(geminiWordBatchUrl("http://192.168.1.20:8787/api/sync")).toBe("http://192.168.1.20:8787/api/gemini/word-batch");
+  });
+
+  it("parses a structured batch without requiring source fields", () => {
+    expect(parseGermanWordBatch({ level: "A1", words: [word], requestedCount: 1, returnedCount: 1 })).toEqual({
+      level: "A1",
+      words: [word],
+      requestedCount: 1,
+      returnedCount: 1,
+    });
+  });
+
+  it("posts the word batch request without exposing a Gemini key", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ level: "A2", words: [{ ...word, level: "A2" }], requestedCount: 1, returnedCount: 1 }), { status: 200 }));
+    const result = await generateGermanWordBatch("/api/sync", { level: "A2", count: 1, existingWords: ["Eis"] });
+
+    expect(result.level).toBe("A2");
+    expect(fetchMock).toHaveBeenCalledWith("/api/gemini/word-batch", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("headers.x-goog-api-key");
   });
 });

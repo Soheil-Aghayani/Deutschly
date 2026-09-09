@@ -30,6 +30,23 @@
     <meta name="twitter:description" content="A focused, adaptive flashcard workspace for learning German with Menschen." />
     <meta name="twitter:image" content="https://soheil-aghayani.github.io/Deutschly/og-preview.svg" />
     <meta name="twitter:image:alt" content="Deutschly German flashcard app" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Deutschly",
+        "url": "https://soheil-aghayani.github.io/Deutschly/",
+        "description": "A focused, adaptive flashcard workspace for learning German with Menschen.",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Web",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
     <title>Deutschly · German that sticks</title>
     <style>
       html, body, #root { min-width: 320px; min-height: 100%; }
@@ -39,6 +56,10 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <h1>Deutschly, a German flashcard app</h1>
+      <p>Practice German vocabulary with adaptive review, article colors, reminders, and private device sync.</p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,3 +1,5 @@
+import type { GermanWordArticle, GermanWordRecord } from "../data/germanWords";
+
 export type GeminiArticle = "der" | "die" | "das" | "plural" | "none";
 export type GeminiConfidence = "high" | "medium" | "low";
 export type GeminiReviewVerdict = "looks-good" | "needs-review";
@@ -31,6 +33,22 @@ export interface GeminiCardReview {
   duplicateHint: string;
 }
 
+export type GermanWordBatchLevel = "A1" | "A2";
+
+export interface GermanWordBatchRequest {
+  level: GermanWordBatchLevel;
+  count: number;
+  existingWords: string[];
+}
+
+export interface GermanWordBatchResponse {
+  level: GermanWordBatchLevel;
+  words: GermanWordRecord[];
+  requestedCount: number;
+  returnedCount: number;
+  model?: string;
+}
+
 export class GeminiRequestError extends Error {
   status: number;
 
@@ -44,6 +62,8 @@ export class GeminiRequestError extends Error {
 const ARTICLES = new Set<GeminiArticle>(["der", "die", "das", "plural", "none"]);
 const CONFIDENCE = new Set<GeminiConfidence>(["high", "medium", "low"]);
 const VERDICTS = new Set<GeminiReviewVerdict>(["looks-good", "needs-review"]);
+const GERMAN_WORD_ARTICLES = new Set<GermanWordArticle>(["der", "die", "das", "plural", "none"]);
+const GERMAN_WORD_LEVELS = new Set<GermanWordRecord["level"]>(["A1", "A2", "B1", "B2", "C1", "C2", "unknown"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -133,4 +153,65 @@ export async function reviewCardWithGemini(endpoint: string, input: GeminiCardRe
   });
 
   return parseGeminiCardReview(await readResponse(response));
+}
+
+export function geminiWordBatchUrl(endpoint: string): string {
+  return geminiReviewUrl(endpoint).replace(/\/check-card$/, "/word-batch");
+}
+
+function readStringArray(value: unknown, field: string, maxItems: number, maxLength: number): string[] {
+  if (!Array.isArray(value) || value.length > maxItems) throw new GeminiRequestError(`Gemini returned an invalid ${field}.`);
+  return value.map((item) => readText(item, field, maxLength)).filter(Boolean);
+}
+
+function readOptionalText(value: unknown, field: string, maxLength: number): string {
+  return value === undefined || value === null ? "" : readText(value, field, maxLength);
+}
+
+function parseGermanWordRecord(value: unknown): GermanWordRecord {
+  if (!isRecord(value)) throw new GeminiRequestError("Gemini returned an invalid German word.");
+  const article = readEnum(value.article, "article", GERMAN_WORD_ARTICLES);
+  const level = readEnum(value.level, "word level", GERMAN_WORD_LEVELS);
+  const articleAlternatives = value.articleAlternatives === undefined
+    ? []
+    : readStringArray(value.articleAlternatives, "article variants", 3, 8)
+      .filter((item): item is Extract<GermanWordArticle, "der" | "die" | "das"> => ["der", "die", "das"].includes(item) && item !== article);
+  const plural = readOptionalText(value.plural, "plural", 120);
+  const partOfSpeech = readOptionalText(value.partOfSpeech, "part of speech", 40);
+  return {
+    id: readText(value.id, "word id", 120),
+    german: readText(value.german, "German word", 120),
+    englishMeanings: readStringArray(value.englishMeanings, "English meanings", 4, 120),
+    article,
+    ...(articleAlternatives.length > 0 ? { articleAlternatives } : {}),
+    ...(plural ? { plural } : {}),
+    level,
+    ...(partOfSpeech ? { partOfSpeech } : {}),
+    ...(value.examples === undefined ? {} : { examples: readStringArray(value.examples, "examples", 2, 220) }),
+    tags: readStringArray(value.tags, "tags", 8, 32),
+  };
+}
+
+export function parseGermanWordBatch(payload: unknown): GermanWordBatchResponse {
+  if (!isRecord(payload)) throw new GeminiRequestError("Gemini returned an invalid word batch.");
+  const level = readEnum(payload.level, "word level", new Set<GermanWordBatchLevel>(["A1", "A2"]));
+  if (!Array.isArray(payload.words)) throw new GeminiRequestError("Gemini returned an invalid word list.");
+  const words = payload.words.map(parseGermanWordRecord);
+  return {
+    level,
+    words,
+    requestedCount: typeof payload.requestedCount === "number" ? payload.requestedCount : words.length,
+    returnedCount: typeof payload.returnedCount === "number" ? payload.returnedCount : words.length,
+    ...(typeof payload.model === "string" ? { model: payload.model } : {}),
+  };
+}
+
+export async function generateGermanWordBatch(endpoint: string, input: GermanWordBatchRequest): Promise<GermanWordBatchResponse> {
+  const response = await fetch(geminiWordBatchUrl(endpoint), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  return parseGermanWordBatch(await readResponse(response));
 }

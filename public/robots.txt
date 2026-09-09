@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://soheil-aghayani.github.io/Deutschly/sitemap.xml

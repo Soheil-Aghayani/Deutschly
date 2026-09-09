@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, ChangeEvent, FormEvent } from "react";
+import type { CSSProperties, ChangeEvent, FormEvent, ReactNode } from "react";
 import Avatar from "boring-avatars";
 import {
   Activity,
@@ -257,6 +257,16 @@ function getNotificationPermission(): NotificationPermissionState {
   return typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported";
 }
 
+function updateReviewBadge(count: number): void {
+  if (typeof navigator === "undefined") return;
+  const badgeNavigator = navigator as Navigator & {
+    setAppBadge?: (value?: number) => Promise<void> | void;
+    clearAppBadge?: () => Promise<void> | void;
+  };
+  const result = count > 0 ? badgeNavigator.setAppBadge?.(count) : badgeNavigator.clearAppBadge?.();
+  if (result instanceof Promise) void result.catch(() => undefined);
+}
+
 function formatTimeLabel(value: string): string {
   const [hours, minutes] = value.split(":").map(Number);
   const date = new Date();
@@ -372,7 +382,7 @@ function createInitialCards(): Flashcard[] {
       kind: "word",
       due,
       interval: 0,
-      status: "learning",
+      status: "new",
     },
     {
       id: "menschen-02",
@@ -386,7 +396,7 @@ function createInitialCards(): Flashcard[] {
       kind: "word",
       due,
       interval: 0,
-      status: "learning",
+      status: "new",
     },
     {
       id: "menschen-03",
@@ -533,23 +543,23 @@ function createInitialState(): AppState {
   return {
     cards: createInitialCards(),
     deletedCardIds: {},
-    reviewsToday: 16,
+    reviewsToday: 0,
     dailyGoal: 24,
-    streak: 7,
-    mastered: 248,
-    studyMinutes: 18,
-    xp: 1240,
-    totalReviews: 482,
-    correctReviews: 414,
-    bestStreak: 14,
-    achievements: ["first-review", "week-streak"],
-    weeklyReviews: [18, 24, 14, 28, 21, 31, 16],
+    streak: 0,
+    mastered: 0,
+    studyMinutes: 0,
+    xp: 0,
+    totalReviews: 0,
+    correctReviews: 0,
+    bestStreak: 0,
+    achievements: [],
+    weeklyReviews: Array.from({ length: 7 }, () => 0),
     reminderEnabled: true,
     reminderTime: "19:00",
     theme: "light",
     sourceFileName: "",
-    lastReviewDay: getDayKey(),
-    lastStudyDay: getDayKey(),
+    lastReviewDay: undefined,
+    lastStudyDay: undefined,
     lastSyncedAt: new Date().toISOString(),
   };
 }
@@ -1296,31 +1306,37 @@ function OverviewPage({
 
       <section className="dashboard-hero-grid" aria-label="Daily study overview">
         <article className="hero-card">
-          <div className="hero-card__glow hero-card__glow--one" aria-hidden="true" />
-          <div className="hero-card__glow hero-card__glow--two" aria-hidden="true" />
           <div className="hero-card__topline">
-            <span className="hero-card__eyebrow">Your daily routine</span>
+            <span className="hero-card__eyebrow"><Flame size={14} aria-hidden="true" /> Today's path</span>
             <span className="hero-card__goal"><Target size={14} aria-hidden="true" /> Daily goal</span>
           </div>
           <div className="hero-card__body">
             <div className="hero-card__copy">
-              <h2>Make it stick.</h2>
-              <p>{dueCards.length} cards are ready for review. Keep your momentum gentle and consistent.</p>
+              <span className="hero-card__streak"><Flame size={13} aria-hidden="true" /> {state.streak > 0 ? `${state.streak}-day streak` : "Ready for day one"}</span>
+              <h2>{state.reviewsToday > 0 ? "Keep going!" : "Start your streak."}</h2>
+              <p>{dueCards.length > 0 ? `${dueCards.length} cards are ready. One small session keeps your path moving.` : "Your next small win is ready when you are."}</p>
               <button type="button" className="button button--light" onClick={onStartReview}>
-                Review due cards
+                {dueCards.length > 0 ? "Start review" : "Open practice"}
                 <ArrowRight size={17} aria-hidden="true" />
               </button>
             </div>
-            <div className="progress-ring" style={{ "--progress": `${progress}%` } as CSSProperties} aria-label={`${progress}% of daily goal complete`}>
-              <div className="progress-ring__inner">
-                <strong>{progress}%</strong>
-                <span>today</span>
+            <div className="hero-card__progress-side">
+              <div className="progress-ring" style={{ "--progress": `${progress}%` } as CSSProperties} aria-label={`${progress}% of daily goal complete`}>
+                <div className="progress-ring__inner">
+                  <strong>{progress}%</strong>
+                  <span>today</span>
+                </div>
               </div>
+              <span className="hero-card__progress-caption">{state.dailyGoal - state.reviewsToday > 0 ? `${state.dailyGoal - state.reviewsToday} to go` : "Goal complete"}</span>
             </div>
           </div>
-          <div className="hero-card__footer">
-            <span><CheckCircle2 size={15} aria-hidden="true" /> {state.reviewsToday} reviewed</span>
-            <span>{state.dailyGoal - state.reviewsToday > 0 ? `${state.dailyGoal - state.reviewsToday} to goal` : "Goal complete"}</span>
+          <div className="hero-card__path" aria-label="Daily learning path">
+            {[{ label: "Recall", complete: state.reviewsToday > 0 }, { label: "Practice", complete: progress >= 50 }, { label: "Goal", complete: progress >= 100 }].map((step, index) => (
+              <span className={`hero-path__step${step.complete ? " hero-path__step--complete" : index === 0 ? " hero-path__step--current" : ""}`} key={step.label}>
+                <span className="hero-path__dot">{step.complete ? <Check size={12} aria-hidden="true" /> : index + 1}</span>
+                <span>{step.label}</span>
+              </span>
+            ))}
           </div>
         </article>
 
@@ -1383,7 +1399,7 @@ function OverviewPage({
               <strong>Bahnhof</strong>
               <span>railway station</span>
               <div className="flashcard-preview__example">Der Bahnhof ist in der Nähe.</div>
-              <Volume2 size={16} aria-hidden="true" />
+              <PronunciationButton text="der Bahnhof" />
             </div>
           </article>
 
@@ -1818,10 +1834,12 @@ function PdfCandidatesCard({
   const [statusFilter, setStatusFilter] = useState<PdfCandidateStatus>("pending");
   const [visibleCount, setVisibleCount] = useState(12);
   const [showLowConfidence, setShowLowConfidence] = useState(false);
+  const [candidateSearch, setCandidateSearch] = useState("");
 
   const lessons = [...new Set(candidates.map((candidate) => candidate.lesson).filter((lesson): lesson is string => Boolean(lesson)))];
   const lowConfidenceCount = candidates.filter((candidate) => candidate.confidence === "low").length;
   const qualityCandidates = showLowConfidence ? candidates : candidates.filter((candidate) => candidate.confidence !== "low");
+  const normalizedCandidateSearch = candidateSearch.trim().toLocaleLowerCase();
   const statusCounts = qualityCandidates.reduce<Record<PdfCandidateStatus, number>>((counts, candidate) => {
     const status = candidateStatuses[candidate.id] ?? "pending";
     counts[status] += 1;
@@ -1830,6 +1848,7 @@ function PdfCandidatesCard({
   const filteredCandidates = qualityCandidates.filter((candidate) => (
     (candidateStatuses[candidate.id] ?? "pending") === statusFilter
     && (lessonFilter === "all" || candidate.lesson === lessonFilter)
+    && (!normalizedCandidateSearch || [candidate.german, candidate.lesson, candidate.article].some((value) => value?.toLocaleLowerCase().includes(normalizedCandidateSearch)))
   ));
   const statusLabels: Record<PdfCandidateStatus, string> = {
     pending: "To review",
@@ -1847,18 +1866,19 @@ function PdfCandidatesCard({
     setStatusFilter("pending");
     setVisibleCount(12);
     setShowLowConfidence(false);
+    setCandidateSearch("");
   }, [candidates]);
 
   useEffect(() => {
     setVisibleCount(12);
-  }, [statusFilter, lessonFilter, showLowConfidence]);
+  }, [statusFilter, lessonFilter, showLowConfidence, candidateSearch]);
 
   if (!loading && !error && candidates.length === 0 && !sourcePreview) return null;
 
   return (
     <section className="pdf-import-card">
       <div className="pdf-import-card__heading">
-        <div><span className="section-eyebrow">LOCAL PDF IMPORT</span><h2>{loading ? "Reading your PDF..." : "Review imported words"}</h2><p>{loading ? "Text stays in this browser while Deutschly extracts lesson-friendly suggestions." : "Nothing is added automatically. Check the article, meaning, and plural before saving a card."}</p></div>
+        <div><span className="section-eyebrow">LOCAL PDF IMPORT</span><h2>{loading ? "Reading your PDF..." : "Import inbox"}</h2><p>{loading ? "Text stays in this browser while Deutschly extracts lesson-friendly suggestions." : "Search suggestions, then check the article, meaning, and plural before saving a card."}</p></div>
         <div className="pdf-import-card__count" aria-label={`${statusCounts.pending} suggestions waiting for review`}>{loading ? <RefreshCw size={17} aria-hidden="true" /> : statusCounts.pending}</div>
       </div>
 
@@ -1882,6 +1902,7 @@ function PdfCandidatesCard({
             ))}
           </div>
           <div className="pdf-candidate-tools">
+            <label className="pdf-candidate-search" htmlFor="pdf-candidate-search"><span>Search imported words</span><input id="pdf-candidate-search" type="search" value={candidateSearch} onChange={(event) => setCandidateSearch(event.target.value)} placeholder="Search German words" /></label>
             <label className="library-filter" htmlFor="pdf-lesson-filter"><span>Course lesson</span><select id="pdf-lesson-filter" value={lessonFilter} onChange={(event) => setLessonFilter(event.target.value)}><option value="all">All lessons</option>{lessons.map((lesson) => <option value={lesson} key={lesson}>{lesson}</option>)}</select></label>
             <div className="pdf-candidate-tools__meta">
               {lowConfidenceCount > 0 && <label className="filter-check pdf-candidate-quality-toggle"><input type="checkbox" checked={showLowConfidence} onChange={(event) => setShowLowConfidence(event.target.checked)} /><span>{showLowConfidence ? "Showing" : "Show"} {lowConfidenceCount} low-confidence {lowConfidenceCount === 1 ? "fragment" : "fragments"}</span></label>}
@@ -1894,7 +1915,7 @@ function PdfCandidatesCard({
                 <ArticleBadge article={candidate.article} compact />
                 <div className="pdf-candidate-row__copy">
                   <div className="pdf-candidate-row__title"><strong>{candidate.german}</strong>{candidate.confidence && candidate.confidence !== "high" && <span className={`pdf-candidate-quality-badge pdf-candidate-quality-badge--${candidate.confidence}`}>{candidate.confidence === "low" ? "Low confidence" : "Needs a closer look"}</span>}{statusFilter !== "pending" && <span className={`pdf-candidate-status pdf-candidate-status--${statusFilter}`}>{statusLabels[statusFilter]}</span>}</div>
-                  <span>{candidate.lesson ? `${candidate.lesson} · ` : ""}Page {candidate.page} · {candidate.context}</span>
+                  <span>{candidate.lesson || "Menschen A1.1"} · Suggested word</span>
                   {candidate.confidence && candidate.confidence !== "high" && candidate.confidenceReasons && candidate.confidenceReasons.length > 0 && <span className="pdf-candidate-reason">OCR note: {candidate.confidenceReasons.join(" · ")}</span>}
                 </div>
                 <div className="pdf-candidate-row__actions">
@@ -1906,7 +1927,7 @@ function PdfCandidatesCard({
               </div>
             ))}
           </div>
-          {filteredCandidates.length === 0 && <div className="pdf-import-card__empty"><Info size={17} aria-hidden="true" /><span>{!showLowConfidence && lowConfidenceCount > 0 && qualityCandidates.length === 0 ? "Only low-confidence OCR fragments are hidden. Turn on the option above to review them." : lessonFilter === "all" ? emptyMessages[statusFilter] : "No suggestions were found for this lesson and status."}</span></div>}
+          {filteredCandidates.length === 0 && <div className="pdf-import-card__empty"><Info size={17} aria-hidden="true" /><span>{normalizedCandidateSearch ? "No suggestions match that search." : !showLowConfidence && lowConfidenceCount > 0 && qualityCandidates.length === 0 ? "Only low-confidence OCR fragments are hidden. Turn on the option above to review them." : lessonFilter === "all" ? emptyMessages[statusFilter] : "No suggestions were found for this lesson and status."}</span></div>}
           {filteredCandidates.length > visibleCount && <button type="button" className="button button--ghost pdf-candidate-more" onClick={() => setVisibleCount((count) => count + 12)}>Show 12 more</button>}
         </>
       )}
@@ -2067,7 +2088,7 @@ function LibraryPage({
           <div className="library-table__header" role="row"><span>Word</span><span>Meaning</span><span>Lesson</span><span>State</span><span aria-hidden="true" /></div>
           {filteredCards.map((card) => (
             <div className="library-row" role="row" key={card.id}>
-              <div className="library-row__word"><ArticleBadge article={card.article} compact /><strong>{card.german}</strong>{card.plural && <small>plural: {card.plural}</small>}{card.tags && card.tags.length > 0 && <small className="library-row__tags">{card.tags.join(" · ")}</small>}{card.sourcePage && <small>PDF page {card.sourcePage}</small>}{card.verification === "unverified" && <small className="verification-note">needs reference check</small>}</div>
+              <div className="library-row__word"><ArticleBadge article={card.article} compact /><strong>{card.german}</strong>{card.plural && <small>plural: {card.plural}</small>}{card.tags && card.tags.length > 0 && <small className="library-row__tags">{card.tags.join(" · ")}</small>}{card.verification === "unverified" && <small className="verification-note">needs reference check</small>}</div>
               <span className="library-row__translation">{card.translation}</span>
               <span className="library-row__lesson">{card.lesson}</span>
               <span className={`status-pill status-pill--${card.status}`}>{card.status === "review" ? "Review" : card.status === "learning" ? "Learning" : "New"}</span>
@@ -2153,6 +2174,21 @@ function getProgressBreakdownStats(cards: Flashcard[], todayKey: string): Progre
   };
 }
 
+function ProgressBreakdownSection({ eyebrow, title, icon: Icon, id, children }: { eyebrow: string; title: string; icon: LucideIcon; id: string; children: ReactNode }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <article className={`progress-breakdown-card${open ? " progress-breakdown-card--open" : ""}`}>
+      <button type="button" className="progress-breakdown-card__heading" aria-expanded={open} aria-controls={id} onClick={() => setOpen((current) => !current)}>
+        <span><span className="section-eyebrow">{eyebrow}</span><span className="progress-breakdown-card__title" role="heading" aria-level={2}>{title}</span></span>
+        <span className="progress-breakdown-card__toggle" aria-hidden="true"><Icon size={19} /><ChevronDown size={16} /></span>
+      </button>
+      <div id={id} className="progress-breakdown-card__body" aria-hidden={!open}>
+        <div>{children}</div>
+      </div>
+    </article>
+  );
+}
+
 function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgress, onStartReview }: { state: AppState; onViewWeakCards: () => void; onAdjustReminder: () => void; onResetProgress: () => void; onStartReview: () => void }) {
   const todayKey = getDayKey();
   const maxValue = Math.max(...state.weeklyReviews, 1);
@@ -2200,13 +2236,12 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgres
           </div>
         </article>
         <article className="mastery-card">
-          <div className="mastery-card__ring" aria-hidden="true"><div><strong>{mastery}%</strong><span>mastery</span></div></div>
+          <div className="mastery-card__ring" style={{ "--mastery": `${mastery}%` } as CSSProperties} role="img" aria-label={`${mastery}% course mastery`}><div><strong>{mastery}%</strong><span>mastery</span></div></div>
           <div><span className="section-eyebrow">COURSE MASTERY</span><h2>{masteryTitle}</h2><p>{masteryMessage}</p>{weakCards > 0 ? <button type="button" className="text-button" onClick={onViewWeakCards}>See weak cards <ChevronRight size={16} aria-hidden="true" /></button> : isFreshStart ? <button type="button" className="text-button" onClick={onStartReview}>Start your first review <ChevronRight size={16} aria-hidden="true" /></button> : <span className="mastery-card__status">Nothing needs extra attention right now.</span>}</div>
         </article>
       </section>
       <section className="progress-breakdown-grid" aria-label="Progress by lesson and article">
-        <article className="progress-breakdown-card">
-          <div className="progress-breakdown-card__heading"><div><span className="section-eyebrow">COURSE MAP</span><h2>Progress by lesson</h2></div><BookText size={19} aria-hidden="true" /></div>
+        <ProgressBreakdownSection eyebrow="COURSE MAP" title="Progress by lesson" icon={BookText} id="progress-by-lesson">
           <p className="progress-breakdown-card__intro">See which Menschen lessons are becoming reliable and which still need another pass.</p>
           <div className="progress-breakdown-list">
             {lessonStats.length > 0 ? lessonStats.map(({ lesson, stats }) => (
@@ -2217,9 +2252,8 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgres
               </div>
             )) : <div className="progress-breakdown-empty"><Info size={17} aria-hidden="true" /><span>Add cards to see lesson progress.</span></div>}
           </div>
-        </article>
-        <article className="progress-breakdown-card">
-          <div className="progress-breakdown-card__heading"><div><span className="section-eyebrow">ARTICLE COLORS</span><h2>Progress by article</h2></div><Languages size={19} aria-hidden="true" /></div>
+        </ProgressBreakdownSection>
+        <ProgressBreakdownSection eyebrow="ARTICLE COLORS" title="Progress by article" icon={Languages} id="progress-by-article">
           <p className="progress-breakdown-card__intro">Your recall balance across der, die, das, plural, and phrases.</p>
           <div className="progress-breakdown-list">
             {articleStats.length > 0 ? articleStats.map(({ article, stats }) => (
@@ -2230,7 +2264,7 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgres
               </div>
             )) : <div className="progress-breakdown-empty"><Info size={17} aria-hidden="true" /><span>Add cards to see article progress.</span></div>}
           </div>
-        </article>
+        </ProgressBreakdownSection>
       </section>
       <section className="progress-metrics">
         <StatCard icon={Flame} label="Longest streak" value={`${state.bestStreak} days`} detail={`Current streak · ${state.streak} days`} tone="orange" />
@@ -2336,6 +2370,7 @@ function CardCheckPanel({ result, referenceChecked, onReferenceChecked, onApplyS
 interface ProfileModalProps {
   name: string;
   theme: Theme;
+  dailyGoal: number;
   reminderEnabled: boolean;
   reminderTime: string;
   notificationPermission: NotificationPermissionState;
@@ -2350,6 +2385,7 @@ interface ProfileModalProps {
   onClose: () => void;
   onSave: (name: string) => void;
   onThemeChange: (theme: Theme) => void;
+  onDailyGoalChange: (value: number) => void;
   onReminderToggle: () => void;
   onReminderTimeChange: (value: string) => void;
   onEnableNotifications: () => void;
@@ -2365,6 +2401,7 @@ interface ProfileModalProps {
 function ProfileModal({
   name,
   theme,
+  dailyGoal,
   reminderEnabled,
   reminderTime,
   notificationPermission,
@@ -2379,6 +2416,7 @@ function ProfileModal({
   onClose,
   onSave,
   onThemeChange,
+  onDailyGoalChange,
   onReminderToggle,
   onReminderTimeChange,
   onEnableNotifications,
@@ -2442,6 +2480,14 @@ function ProfileModal({
             </div>
           </section>
 
+          <section className="settings-section" aria-labelledby="settings-plan-title">
+            <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--mint" aria-hidden="true"><Target size={16} /></span><div><h3 id="settings-plan-title">Study plan</h3><p>Set a gentle daily target that shapes your progress ring and goal.</p></div></div>
+            <div className="settings-row settings-row--stack-mobile">
+              <div className="settings-row__copy"><strong>Cards per day</strong><small>Choose between 1 and 100 reviews.</small></div>
+              <label className="settings-number-field" htmlFor="settings-daily-goal"><span className="sr-only">Cards per day</span><input id="settings-daily-goal" type="number" min="1" max="100" step="1" value={dailyGoal} onChange={(event) => onDailyGoalChange(Number(event.target.value))} /></label>
+            </div>
+          </section>
+
           <section className="settings-section" aria-labelledby="settings-reminder-title">
             <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--orange" aria-hidden="true"><Bell size={16} /></span><div><h3 id="settings-reminder-title">Study reminders</h3><p>Choose when Deutschly should bring your review back to mind.</p></div></div>
             <div className="settings-row">
@@ -2481,6 +2527,7 @@ function SyncModal({
   error,
   autoSync,
   syncStatus,
+  isOnline,
   testingConnection,
   onEndpointChange,
   onRoomChange,
@@ -2495,6 +2542,7 @@ function SyncModal({
   error: string | null;
   autoSync: boolean;
   syncStatus: SyncStatus;
+  isOnline: boolean;
   testingConnection: boolean;
   onEndpointChange: (value: string) => void;
   onRoomChange: (value: string) => void;
@@ -2530,7 +2578,7 @@ function SyncModal({
           <label className="form-field" htmlFor="sync-room"><span>Room code</span><input id="sync-room" value={room} onChange={(event) => onRoomChange(normalizeSyncRoom(event.target.value))} placeholder="8 characters" maxLength={32} autoCapitalize="characters" spellCheck={false} /></label>
         </div>
         <label className="sync-auto-option"><input type="checkbox" checked={autoSync} onChange={(event) => onAutoSyncChange(event.target.checked)} /><span><strong>Keep sync on automatically</strong><small>Push local changes after a short pause and look for updates from the other device every minute.</small></span></label>
-        <div className={`sync-status sync-status--${syncStatus}`} role="status"><Wifi size={15} aria-hidden="true" /><span>{syncStatus === "syncing" ? "Syncing now..." : syncStatus === "synced" ? "Connection is ready." : syncStatus === "offline" ? "Not connected yet." : syncStatus === "error" ? "Connection needs attention." : "Connection not tested yet."}</span><button type="button" className="text-button" onClick={onTestConnection} disabled={testingConnection || !endpoint.trim()}>{testingConnection ? "Testing..." : "Test connection"}</button></div>
+        <div className={`sync-status sync-status--${isOnline ? syncStatus : "offline"}`} role="status"><Wifi size={15} aria-hidden="true" /><span>{!isOnline ? "Offline. Local changes are safe." : syncStatus === "syncing" ? "Syncing now..." : syncStatus === "synced" ? "Connection is ready." : syncStatus === "offline" ? "Not connected yet." : syncStatus === "error" ? "Connection needs attention." : "Connection not tested yet."}</span><button type="button" className="text-button" onClick={onTestConnection} disabled={testingConnection || !endpoint.trim() || !isOnline}>{testingConnection ? "Testing..." : "Test connection"}</button></div>
         <div className="sync-modal__warning"><Info size={15} aria-hidden="true" /><span>Anyone with this room code can read and write its data. Use it only on a trusted network; this starter server is not for public internet use without HTTPS and authentication.</span></div>
         {error && <div className="sync-modal__error" role="alert"><X size={15} aria-hidden="true" /><span>{error}</span></div>}
         <div className="modal-panel__footer">
@@ -2550,6 +2598,10 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiChecking, setAiChecking] = useState(false);
   const germanInputRef = useRef<HTMLInputElement>(null);
+  const liveMatch = useMemo(() => {
+    if (!draft.german.trim()) return null;
+    return findCardMatch(existingCards, prepareCardDraft(draft));
+  }, [draft, existingCards]);
 
   useEffect(() => {
     germanInputRef.current?.focus();
@@ -2647,6 +2699,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
       <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="add-card-title">
         <div className="modal-panel__heading"><div><span className="section-eyebrow">PERSONAL LIBRARY</span><h2 id="add-card-title">{editing ? "Edit a flashcard" : "Add a flashcard"}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close add card dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
         <p className="modal-panel__intro">Add a word, phrase, or grammar item. Deutschly checks your entry for duplicates and common issues before it joins the review queue.</p>
+        {liveMatch && <div className={`card-live-match card-live-match--${liveMatch.type}`} role="status"><Info size={15} aria-hidden="true" /><span><strong>{liveMatch.type === "exact" ? "This card is already saved." : "A card with this headword already exists."}</strong><small>{liveMatch.card.german} · {liveMatch.card.translation}. Press Check card to compare the meaning.</small></span></div>}
         <form onSubmit={handleSubmit}>
           <div className="form-grid form-grid--two">
             <label className="form-field" htmlFor="card-german"><span>German *</span><input id="card-german" ref={germanInputRef} value={draft.german} onChange={(event) => update("german", event.target.value)} placeholder="e.g. gemütlich or Das Eis" required /></label>
@@ -2698,6 +2751,7 @@ export default function App() {
   const [autoSync, setAutoSync] = useState(() => loadLocalBooleanSetting(AUTO_SYNC_KEY));
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [testingConnection, setTestingConnection] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
@@ -2762,12 +2816,27 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    updateReviewBadge(dueCards.length);
+  }, [dueCards.length]);
+
+  useEffect(() => {
     const refreshNotificationPermission = () => setNotificationPermission(getNotificationPermission());
     window.addEventListener("focus", refreshNotificationPermission);
     document.addEventListener("visibilitychange", refreshNotificationPermission);
     return () => {
       window.removeEventListener("focus", refreshNotificationPermission);
       document.removeEventListener("visibilitychange", refreshNotificationPermission);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
@@ -2817,7 +2886,15 @@ export default function App() {
           try {
             if ("serviceWorker" in navigator) {
               const registration = await navigator.serviceWorker.ready;
-              await registration.showNotification("Deutschly review reminder", { body: message, icon: "./icon-192.svg", tag, data: { url: "./?tab=study" } });
+              const notificationOptions = {
+                body: message,
+                icon: "./icon-192.svg",
+                badge: "./icon-192.svg",
+                tag,
+                actions: [{ action: "review", title: "Review now" }],
+                data: { url: "./?tab=study" },
+              } as NotificationOptions;
+              await registration.showNotification("Deutschly review reminder", notificationOptions);
               return;
             }
           } catch {
@@ -3081,6 +3158,12 @@ export default function App() {
 
   const handleSync = async ({ silent = false }: { silent?: boolean } = {}) => {
     if (syncInFlightRef.current) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setSyncStatus("offline");
+      setSyncError("You are offline. Local changes are safe and will sync when the connection returns.");
+      if (!silent) setSyncOpen(true);
+      return;
+    }
     if (!syncConfigured) {
       setSyncStatus("offline");
       if (!silent) {
@@ -3168,6 +3251,22 @@ export default function App() {
     if (!autoSync || !syncConfigured) return undefined;
     const timer = window.setInterval(() => void handleSync({ silent: true }), 60_000);
     return () => window.clearInterval(timer);
+  }, [autoSync, syncConfigured, syncEndpoint, syncRoom]);
+
+  useEffect(() => {
+    if (!autoSync || !syncConfigured) return undefined;
+    const syncWhenAvailable = () => {
+      if (navigator.onLine && document.visibilityState === "visible") void handleSync({ silent: true });
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") syncWhenAvailable();
+    };
+    window.addEventListener("online", syncWhenAvailable);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("online", syncWhenAvailable);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [autoSync, syncConfigured, syncEndpoint, syncRoom]);
 
   const handlePdfUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -3304,6 +3403,11 @@ export default function App() {
     setState((current) => ({ ...current, reminderTime }));
     setReminderSnoozedUntil(null);
     window.localStorage.removeItem(REMINDER_SNOOZE_KEY);
+  };
+  const handleDailyGoalChange = (value: number) => {
+    if (!Number.isFinite(value)) return;
+    const dailyGoal = Math.max(1, Math.min(100, Math.round(value)));
+    setState((current) => ({ ...current, dailyGoal }));
   };
   const handleSnoozeReminder = () => {
     if (reminderSnoozedUntil) {
@@ -3445,6 +3549,7 @@ export default function App() {
       {profileOpen && <ProfileModal
         name={profileName}
         theme={state.theme}
+        dailyGoal={state.dailyGoal}
         reminderEnabled={state.reminderEnabled}
         reminderTime={state.reminderTime}
         notificationPermission={notificationPermission}
@@ -3459,6 +3564,7 @@ export default function App() {
         onClose={() => setProfileOpen(false)}
         onSave={handleSaveProfile}
         onThemeChange={handleThemeChange}
+        onDailyGoalChange={handleDailyGoalChange}
         onReminderToggle={handleReminderToggle}
         onReminderTimeChange={handleReminderTimeChange}
         onEnableNotifications={handleEnableNotifications}
@@ -3470,7 +3576,7 @@ export default function App() {
         onResetProgress={handleResetProgressFromSettings}
         onInstallApp={() => { void handleInstallApp(); }}
       />}
-      {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} testingConnection={testingConnection} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
+      {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} isOnline={isOnline} testingConnection={testingConnection} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
       {resetProgressOpen && <ResetProgressModal onClose={() => setResetProgressOpen(false)} onConfirm={handleResetProgress} />}
       {showInstallPrompt && <InstallPrompt canInstall={installPrompt.canInstall} isIos={installPrompt.isIos} isMobile={installPrompt.isMobile} onInstall={() => { void handleInstallApp(); }} onDismiss={handleDismissInstallPrompt} />}
       {toast && <div className="toast" role="status"><Check size={16} aria-hidden="true" /> {toast}</div>}
