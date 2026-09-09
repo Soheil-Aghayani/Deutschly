@@ -3464,7 +3464,7 @@ export default function App() {
     setFirebaseBusy(true);
     setFirebaseError(null);
     try {
-      const useRedirect = window.matchMedia?.("(max-width: 760px)").matches ?? false;
+      const useRedirect = true;
       const user = await signInWithFirebaseProvider(provider, useRedirect);
       if (user) {
         setFirebaseUser(user);
