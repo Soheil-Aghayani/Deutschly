@@ -676,5 +676,1641 @@
       "page": 35,
       "context": "Wörterbuch. b Sammeln Sie „Ihre“ Wörter im Plural an der Tafel. c der Stuhl – die Stühle: Finden Sie die Unterschiede. Arbeiten Sie zu zweit auf Seite 83. 7 Wo ist denn ...? a Hören Sie das Gespräch mit Fr"
     }
+  },
+  {
+    "id": "gemini-a1-c2Nod2Vpeg",
+    "german": "Schweiz",
+    "englishMeanings": [
+      "Switzerland"
+    ],
+    "article": "die",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich komme aus der Schweiz."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 1",
+      "page": 10,
+      "context": "komme aus Mexiko. Yaco Du kommst aus Deutschland, hm? N tcore Aus der schweiz? Ich komme aus Österreich. b Ergänzen Sie und vergleichen Sie mit a. i woher komm_ du? ! tch kommaus Mexiko. >ros I Woher kommt d"
+    }
+  },
+  {
+    "id": "gemini-a1-dMO8cmtlaQ",
+    "german": "Türkei",
+    "englishMeanings": [
+      "Turkey"
+    ],
+    "article": "die",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich komme aus der Türkei."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 1",
+      "page": 10,
+      "context": "erreich aus Deutschland/SpanienflVien/... ! aus der Schweiz / aus der Türkei / aus dem Iran ) r lurKel TI Frankreich Hören Sie das Gespräch weiter und Prco Wie geht's? Gut, danke! Und wie geht's Ihnen? Auch"
+    }
+  },
+  {
+    "id": "gemini-a1-cGVyc29u",
+    "german": "Person",
+    "englishMeanings": [
+      "person"
+    ],
+    "article": "die",
+    "plural": "Personen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich bin eine neue Person hier."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 1",
+      "page": 11,
+      "context": "Wie geht's? Wie geht es lhnen? seln ist >108 AB E i.i I Was sagen die Personen? Hören Sie noch einmal und ordnen Sie zu. Wie geht's? Wie geht es Ihnen? Wie geht es dir? Sehr gut, dantel rg) 5j Gut, danke.;!"
+    }
+  },
+  {
+    "id": "gemini-a1-d2VuZHVuZw",
+    "german": "Wendung",
+    "englishMeanings": [
+      "expression, turn of phrase"
+    ],
+    "article": "die",
+    "plural": "Wendungen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Die Wendung ist sehr nützlich."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 1",
+      "page": 12,
+      "context": "mst du? Ich Ich Mein Name r,,o l-fEl Hollo oder tschüs? Hören Sie die Wendungen aus dem Bildlexikon und ordnen Sie zu. tlallo I Guten Tag I Guten Morgen I Guten Abend IGute-lhrcht I , Wie heißen Sie? / Wie h"
+    }
+  },
+  {
+    "id": "gemini-a1-dGFn",
+    "german": "Tag",
+    "englishMeanings": [
+      "day"
+    ],
+    "article": "der",
+    "plural": "Tage",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Guten Tag!"
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 1",
+      "page": 12,
+      "context": "e die Wendungen aus dem Bildlexikon und ordnen Sie zu. tlallo I Guten Tag I Guten Morgen I Guten Abend IGute-lhrcht I , Wie heißen Sie? / Wie heißt du? i Wer sind Sie? / Wer bist du? P,p Q'9 R,r lPel [Qu"
+    }
+  },
+  {
+    "id": "gemini-a1-bW9yZ2Vu",
+    "german": "Morgen",
+    "englishMeanings": [
+      "morning"
+    ],
+    "article": "der",
+    "plural": "Morgen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Guten Morgen!"
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 1",
+      "page": 12,
+      "context": "gen aus dem Bildlexikon und ordnen Sie zu. tlallo I Guten Tag I Guten Morgen I Guten Abend IGute-lhrcht I , Wie heißen Sie? / Wie heißt du? i Wer sind Sie? / Wer bist du? P,p Q'9 R,r lPel [Qu] [Er] Tsch üs"
+    }
+  },
+  {
+    "id": "gemini-a1-YWJlbmQ",
+    "german": "Abend",
+    "englishMeanings": [
+      "evening"
+    ],
+    "article": "der",
+    "plural": "Abende",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Guten Abend!"
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 1",
+      "page": 12,
+      "context": "dlexikon und ordnen Sie zu. tlallo I Guten Tag I Guten Morgen I Guten Abend IGute-lhrcht I , Wie heißen Sie? / Wie heißt du? i Wer sind Sie? / Wer bist du? P,p Q'9 R,r lPel [Qu] [Er] Tsch üs I Auf Wiederse"
+    }
+  },
+  {
+    "id": "gemini-a1-bGFuZA",
+    "german": "Land",
+    "englishMeanings": [
+      "country"
+    ],
+    "article": "das",
+    "plural": "Länder",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Deutschland ist ein großes Land."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 1",
+      "page": 10,
+      "context": "Spanien? ^ ---..Nein, ich komme aus Mexiko. Yaco Du kommst aus Deutschland, hm? N tcore Aus der schweiz? Ich komme aus Österreich. b Ergänzen Sie und vergleichen Sie mit a. i woher komm_ du? ! tch kommaus"
+    }
+  },
+  {
+    "id": "gemini-a1-a8OkcnRjaGVu",
+    "german": "Kärtchen",
+    "englishMeanings": [
+      "small card"
+    ],
+    "article": "das",
+    "plural": "Kärtchen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Schreibe die Wörter auf Kärtchen."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 2",
+      "page": 14,
+      "context": ": Arbeiten Sie zu zweit auf Seite 74. Suchen Sie im Kurs. Wer hat die Kärtchen geschrieben? I Carmen, was machst du beruflich? o Ich mache eine Ausbildung als Friseurin. Was machen Sie / machst du beruflich?"
+    }
+  },
+  {
+    "id": "gemini-a1-dmVyYg",
+    "german": "Verb",
+    "englishMeanings": [
+      "verb"
+    ],
+    "article": "das",
+    "plural": "Verben",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist ein Verb."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 2",
+      "page": 16,
+      "context": "hreiben a Lesen Sie den Steckbrief und den Text und markieren Sie die Verben. lah ffi ttfulto 5votrdson vnd kommo auiPänc.ttar!* Ith wohno in Koponbpn. lch bin 9tv&:rhn vnd lu6o oinori Job ale KollncnÄ. l"
+    }
+  },
+  {
+    "id": "gemini-a1-c3R1ZGVudA",
+    "german": "Student",
+    "englishMeanings": [
+      "male college student"
+    ],
+    "article": "der",
+    "plural": "Studenten",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Der Student kommt aus Spanien."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 2",
+      "page": 14,
+      "context": "a Ingenreur a Mechatroniker a Schauspieler a Student >112 Ich bin ... Ich arbeite r]\\ d Schreiben Sie lhr Internet-Profil: Arbeiten Sie zu zweit auf Seite 74. Suchen Sie im Kurs. Wer"
+    }
+  },
+  {
+    "id": "gemini-a1-emFobA",
+    "german": "Zahl",
+    "englishMeanings": [
+      "number"
+    ],
+    "article": "die",
+    "plural": "Zahlen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Wie ist Ihre Telefonnummer? - Meine Nummer ist..."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 2",
+      "page": 15,
+      "context": "präche üben: Was haben Sie gemeinsam? Arbeiten Sie auf Seite 74. n' I Zahlen von 0 bis 100 >rrs a Hören Sie und sprechen Sie nach. Ergänzen Sie die fehlenden Zahlen. r dp Hören Sie das lnterview. Was Barb"
+    }
+  },
+  {
+    "id": "gemini-a1-YXVzYmlsZHVuZw",
+    "german": "Ausbildung",
+    "englishMeanings": [
+      "training, apprenticeship, vocational education"
+    ],
+    "article": "die",
+    "plural": "Ausbildungen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich mache eine Ausbildung zur Mechatronikerin."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 2",
+      "page": 14,
+      "context": "chen geschrieben? I Carmen, was machst du beruflich? o Ich mache eine Ausbildung als Friseurin. Was machen Sie / machst du beruflich? Was sind Sie / bist du von Beruf? Ich bin ... / Ich arbeite als ... ä Ich bi"
+    }
+  },
+  {
+    "id": "gemini-a1-aGVya3VuZnQ",
+    "german": "Herkunft",
+    "englishMeanings": [
+      "origin"
+    ],
+    "article": "die",
+    "plural": "Herkünfte",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Woher hast du deine Herkunft?"
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 2",
+      "page": 16,
+      "context": "SCHREIBTRAINING Vorname: Familienname: Herkunft: Wohnort: Beruf: Alter: Familienstand: Kinder: ^tloftv Svordea{i Vänonark Kf he6ta 9vdorrhn / Job als Z+ Kollnonn tind\" koino Kdo"
+    }
+  },
+  {
+    "id": "gemini-a1-d29obm9ydA",
+    "german": "Wohnort",
+    "englishMeanings": [
+      "place of residence"
+    ],
+    "article": "der",
+    "plural": "Wohnorte",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Mein Wohnort ist Berlin."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 2",
+      "page": 16,
+      "context": "SCHREIBTRAINING Vorname: Familienname: Herkunft: Wohnort: Beruf: Alter: Familienstand: Kinder: ^tloftv Svordea{i Vänonark Kf he6ta 9vdorrhn / Job als Z+ Kollnonn tind\" koino Kdor Und Sie"
+    }
+  },
+  {
+    "id": "gemini-a1-ZmFtaWxpZW5zdGFuZA",
+    "german": "Familienstand",
+    "englishMeanings": [
+      "marital status"
+    ],
+    "article": "der",
+    "plural": "Familienstände",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Der Familienstand ist ledig."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 2",
+      "page": 16,
+      "context": "HREIBTRAINING Vorname: Familienname: Herkunft: Wohnort: Beruf: Alter: Familienstand: Kinder: ^tloftv Svordea{i Vänonark Kf he6ta 9vdorrhn / Job als Z+ Kollnonn tind\" koino Kdor Und Sie? Ergänzen Sie den Steckbrief"
+    }
+  },
+  {
+    "id": "gemini-a1-cHJvZmls",
+    "german": "Profil",
+    "englishMeanings": [
+      "profile"
+    ],
+    "article": "das",
+    "plural": "Profile",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist mein Profil."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 2",
+      "page": 14,
+      "context": "Student >112 Ich bin ... Ich arbeite r]\\ d Schreiben Sie lhr Internet-Profil: Arbeiten Sie zu zweit auf Seite 74. Suchen Sie im Kurs. Wer hat die Kärtchen geschrieben? I Carmen, was machst du beruflich? o I"
+    }
+  },
+  {
+    "id": "gemini-a1-ZnJhdQ",
+    "german": "Frau",
+    "englishMeanings": [
+      "woman, Mrs."
+    ],
+    "article": "die",
+    "plural": "Frauen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist Frau Müller."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 17,
+      "context": "utter. ,rr, [Sehen Sie das Foto an, hören Sie und kreuzen Sie an. Die Frau auf dem Bild ist Herberts Mutter. Die Frau auf dem Bild ist Herberts Frau. t ',u I Was segt Mark? Hören Sie und kreuzen Sie an. b"
+    }
+  },
+  {
+    "id": "gemini-a1-dGFiZWxsZQ",
+    "german": "Tabelle",
+    "englishMeanings": [
+      "table, chart"
+    ],
+    "article": "die",
+    "plural": "Tabellen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ergänzen Sie die Tabelle."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 18,
+      "context": "Drehbuch-Ausschnitt und hören Sie noch einmal. Ergänzen Sie dann die Tabelle. : :^L oou mein Mann r r*.rb 1 deine Frau meine Oma 2 dein Mann mein Vater 3 dein Mann mein Opa dein Vater Efvi ra ! Wer ist das?"
+    }
+  },
+  {
+    "id": "gemini-a1-YmlsZGxleGlrb24",
+    "german": "Bildlexikon",
+    "englishMeanings": [
+      "picture dictionary"
+    ],
+    "article": "das",
+    "plural": "Bildlexika",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Schau dir das Bildlexikon auf Seite 19 an."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 19,
+      "context": "E Carl und Helga Poppenreuther sind meine Großeltern. a Sehen Sie das Bildlexikon an und hören Sie. Ergänzen Sie dann die Familienmitglieder. Carl Poppenreuther Helga Poppenreuther . (Ehe)Mann . (Ehe)Frau Ceschw"
+    }
+  },
+  {
+    "id": "gemini-a1-ZmFtaWxpZW5taXRnbGllZA",
+    "german": "Familienmitglied",
+    "englishMeanings": [
+      "family member"
+    ],
+    "article": "das",
+    "plural": "Familienmitglieder",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist ein Familienmitglied."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 19,
+      "context": ". a Sehen Sie das Bildlexikon an und hören Sie. Ergänzen Sie dann die Familienmitglieder. Carl Poppenreuther Helga Poppenreuther . (Ehe)Mann . (Ehe)Frau Ceschwister a Großvater/Opa a Großmutter/Oma Großeltern r Enkel"
+    }
+  },
+  {
+    "id": "gemini-a1-Z2ViaWV0",
+    "german": "Gebiet",
+    "englishMeanings": [
+      "area, region"
+    ],
+    "article": "das",
+    "plural": "Gebiete",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist ein ruhiges Gebiet."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 20,
+      "context": "achen Wo in der Schweiz spricht man welche Sprache? Markieren Sie die Gebiete farbig. Die Auflösung finden Sie auf Seite 75. Deutsch lFranzösisch | , lRätoromanisch b Welche Sprachen sprechen Sie? Hilfe fin"
+    }
+  },
+  {
+    "id": "gemini-a1-YXVmbMO2c3VuZw",
+    "german": "Auflösung",
+    "englishMeanings": [
+      "solution / resolution"
+    ],
+    "article": "die",
+    "plural": "Auflösungen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Die Aufgabe hat eine einfache Auflösung."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 20,
+      "context": "eiz spricht man welche Sprache? Markieren Sie die Gebiete farbig. Die Auflösung finden Sie auf Seite 75. Deutsch lFranzösisch | , lRätoromanisch b Welche Sprachen sprechen Sie? Hilfe finden Sie auch im Wörterb"
+    }
+  },
+  {
+    "id": "gemini-a1-dGV4dA",
+    "german": "Text",
+    "englishMeanings": [
+      "text"
+    ],
+    "article": "der",
+    "plural": "Texte",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Der Text ist kurz."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 21,
+      "context": "LESEMAGAZIN *T DAS BIN ICH. L,['l !l E Lesen Sie die Texte und korrigieren Sie die Sätze. a Paco kommt aus Spadat. b Paco ist arbeitslos. c Miguel ist geschieden. d Patricia arbeitet als"
+    }
+  },
+  {
+    "id": "gemini-a1-cmVwb3J0YWdl",
+    "german": "Reportage",
+    "englishMeanings": [
+      "report, feature"
+    ],
+    "article": "die",
+    "plural": "Reportagen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich lese eine interessante Reportage."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 22,
+      "context": "nand! Hallo! ffii Tschüs! > Clip 2 E tch bin Friseurin. Sehen Sie die Reportage und korrigieren Sie die Steckbriefe. t., .::,,;)i....i,..,,.:,t,:;:ijtAi#i{i t' I Gencer AüSsbürB Ailthing Friseurin Gilching 27"
+    }
+  },
+  {
+    "id": "gemini-a1-c3RlY2ticmllZg",
+    "german": "Steckbrief",
+    "englishMeanings": [
+      "profile sheet"
+    ],
+    "article": "der",
+    "plural": "Steckbriefe",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Schreiben Sie einen Steckbrief."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 22,
+      "context": "E tch bin Friseurin. Sehen Sie die Reportage und korrigieren Sie die Steckbriefe. t., .::,,;)i....i,..,,.:,t,:;:ijtAi#i{i t' I Gencer AüSsbürB Ailthing Friseurin Gilching 27 Familienstand: nicht verheiratet. I"
+    }
+  },
+  {
+    "id": "gemini-a1-dG9jaHRlcg",
+    "german": "Tochter",
+    "englishMeanings": [
+      "daughter"
+    ],
+    "article": "die",
+    "plural": "Töchter",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist meine Tochter."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 23,
+      "context": "Sie den Text und ergänzen Sie den Stammbaum. I(lum Heidi Klum ist die Tochter von Erna und Günther Klum und kommt aus Deutschland. Sie ist am 1.6.1973 in Bergisch Gladbach geboren. Heidi Klums Vater ist Chem"
+    }
+  },
+  {
+    "id": "gemini-a1-ZWx0ZXJu",
+    "german": "Eltern",
+    "englishMeanings": [
+      "parents"
+    ],
+    "article": "plural",
+    "plural": "Eltern",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das sind meine Eltern."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 23,
+      "context": "wie in l. Meine Person heißt .,. Sie/Er kommt aus ... und ist ... Die Eltern heißen ... Der Vater /Die Mutter arbeitet als ... ... ist verheiratet/geschieden/... ... und ... haben ... Kinder. Sie wohnen in"
+    }
+  },
+  {
+    "id": "gemini-a1-c3RhZHQ",
+    "german": "Stadt",
+    "englishMeanings": [
+      "city, town"
+    ],
+    "article": "die",
+    "plural": "Städte",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Berlin ist eine große Stadt."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 24,
+      "context": "= C, Nachname: Buchstabe l 4 = D, Nachname: Buchstabe I Wie heißt die Stadt? Lösung: ft 12 3 4 5 6 7 fl Ergänzen Sie die Ländernamen auf der Karte. Belgien I Dänemark lMtH I Frankreich I ltalien I Liechten"
+    }
+  },
+  {
+    "id": "gemini-a1-a2FydGU",
+    "german": "Karte",
+    "englishMeanings": [
+      "map, card"
+    ],
+    "article": "die",
+    "plural": "Karten",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich habe eine Karte von Berlin."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 24,
+      "context": "AUSI(LANG >r2r E Hören Sie das Lied und suchen Sie die Städte aufder Karte. E winfried wohnt in ... a Erinnern Sie sich an die Menschen in den ersten drei Lektionen? Wer ist wer? Ergänzen Sie die Namen. B"
+    }
+  },
+  {
+    "id": "gemini-a1-ZnJldW5kaW4",
+    "german": "Freundin",
+    "englishMeanings": [
+      "female friend"
+    ],
+    "article": "die",
+    "plural": "Freundinnen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist meine Freundin Anna."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 19,
+      "context": "ist mein Enkel. Er heißt ... €+n, fnnQ I6bia<, fttldo r Ist sie deine Freundin? r Ja, das ist richtig. Ewa ist meine Freundin. AB lW Schreiben Sie vier Namen auf einen Zettel. Wer sind die Personen? Die ander"
+    }
+  },
+  {
+    "id": "gemini-a1-bWFubg",
+    "german": "Mann",
+    "englishMeanings": [
+      "man, husband"
+    ],
+    "article": "der",
+    "plural": "Männer",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Der Mann heißt Thomas."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 18,
+      "context": "hören Sie noch einmal. Ergänzen Sie dann die Tabelle. : :^L oou mein Mann r r*.rb 1 deine Frau meine Oma 2 dein Mann mein Vater 3 dein Mann mein Opa dein Vater Efvi ra ! Wer ist das? Ist das deine Frau?"
+    }
+  },
+  {
+    "id": "gemini-a1-b21h",
+    "german": "Oma",
+    "englishMeanings": [
+      "grandmother"
+    ],
+    "article": "die",
+    "plural": "Omas",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist meine Oma."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 3",
+      "page": 18,
+      "context": "Sie dann die Tabelle. : :^L oou mein Mann r r*.rb 1 deine Frau meine Oma 2 dein Mann mein Vater 3 dein Mann mein Opa dein Vater Efvi ra ! Wer ist das? Ist das deine Frau? Nein. Das ist mei-ne Mutter. De"
+    }
+  },
+  {
+    "id": "gemini-a1-bcO2YmVs",
+    "german": "Möbel",
+    "englishMeanings": [
+      "furniture"
+    ],
+    "article": "plural",
+    "plural": "Möbel",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Die Möbel sind modern."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 4",
+      "page": 25,
+      "context": "n,.* * !rl# Wle heißen die Möbel auf Deutsch? Zeigen Sie auf dem Foto und nennen Sie die Wörter. Hilfe finden Sie im Bildlexikon auf Seite 26 und 27. lä* Wer sagt"
+    }
+  },
+  {
+    "id": "gemini-a1-ZGVzaWduZXI",
+    "german": "Designer",
+    "englishMeanings": [
+      "designer"
+    ],
+    "article": "der",
+    "plural": "Designer",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Er ist Designer von Beruf."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 4",
+      "page": 26,
+      "context": "uer! Das ist aber sehr teuer! tlnoen 51e a Sie kommt aus Italien. Der Designer heißt Enzo Carotti. Was kostet die Lampe? Die lampe kostet nur 119 Euro. Das ist sehr günstig. Ein Sonderangebot. Die Lampe ist w"
+    }
+  },
+  {
+    "id": "gemini-a1-cHJlaXM",
+    "german": "Preis",
+    "englishMeanings": [
+      "price"
+    ],
+    "article": "der",
+    "plural": "Preise",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Was kostet das?"
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 4",
+      "page": 27,
+      "context": "ehntausend 100 000 898 000 > I 26-28 a Hören Sie und notieren Sie die Preise. 2 Gespräche üben: Nach Preisen fragen und Preise nennen. Arbeiten Sie zu zweit auf Seite 79. AB l-El wie viel kostet das? AB l-"
+    }
+  },
+  {
+    "id": "gemini-a1-c2NocmFuaw",
+    "german": "Schrank",
+    "englishMeanings": [
+      "cupboard, wardrobe"
+    ],
+    "article": "der",
+    "plural": "Schränke",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Der Schrank ist groß."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 4",
+      "page": 27,
+      "context": "L to Sofa/r Couch E a Schrank . reppigh 1n IEI Ergänzen Sie die Zahlenschlange. Hören Sie dann und vergleichen Sie. 300 200 AB ,'b 'ö I00 (ein)hundert 351 drei"
+    }
+  },
+  {
+    "id": "gemini-a1-YmlsZA",
+    "german": "Bild",
+    "englishMeanings": [
+      "picture"
+    ],
+    "article": "das",
+    "plural": "Bilder",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist ein schönes Bild."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 4",
+      "page": 27,
+      "context": "beiten Sie zu zweit auf Seite 79. IIN rridolins Möbel a Sehen Sie die Bilder an. Was ist das Problem? Kreuzen Sie an. Preis 100 Cent = l Euro 9,99 e = ,,9 Euro 99.\" . 0,50 € = ,,50 Cent.\" a er CS b Wie fi"
+    }
+  },
+  {
+    "id": "gemini-a1-YXVmZ2FiZQ",
+    "german": "Aufgabe",
+    "englishMeanings": [
+      "task, exercise, assignment"
+    ],
+    "article": "die",
+    "plural": "Aufgaben",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Die Aufgabe ist nicht schwer."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 4",
+      "page": 27,
+      "context": "e = ,,9 Euro 99.\" . 0,50 € = ,,50 Cent.\" a er CS b Wie finden Sie die Aufgabe? zu leicht okay zu schwer oB l[l Gespräche üben: etwas bewerten. Arbeiten Sie zu zweit auf Seite 80. siebenundzwanzig | 27 ::.:i:"
+    }
+  },
+  {
+    "id": "gemini-a1-bm9taW5hdGl2",
+    "german": "Nominativ",
+    "englishMeanings": [
+      "nominative case"
+    ],
+    "article": "der",
+    "plural": "Nominative",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Der Nominativ ist der erste Fall."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 4",
+      "page": 28,
+      "context": "i wl\" übersetzen Sie bitte und donke? defi niter Artihel de{ ilas/die Nominativ Singular definiterArtikel r maskulin Der Tisch r neutral Das Bett ist schön. r feminin Die Lampe Peraoaalprono met er /e s / aie"
+    }
+  },
+  {
+    "id": "gemini-a1-aGlsZmU",
+    "german": "Hilfe",
+    "englishMeanings": [
+      "help"
+    ],
+    "article": "die",
+    "plural": "Hilfen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich brauche Hilfe."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 4",
+      "page": 26,
+      "context": "ren Srsvrre Ja, bitte. Wie viel kostet denn der Tisch? X Brauchen Sie Hilfe? Der Tisch kostet 1478 Euro. Ja. Das ist zu teuer! Das ist aber sehr teuer! tlnoen 51e a Sie kommt aus Italien. Der Designer heiß"
+    }
+  },
+  {
+    "id": "gemini-a1-a2FmZmVl",
+    "german": "Kaffee",
+    "englishMeanings": [
+      "coffee"
+    ],
+    "article": "der",
+    "plural": "Kaffees",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich trinke morgens gerne Kaffee."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 4",
+      "page": 28,
+      "context": "Hören sie dann und vergleichen sie. AB Brauchen Sie Hilfe? Ja, b!!p. Kaffee? Nein, Das macht dann 9 Euro 95, Übersetzen Sie die Gespräche in lO in lhre Muttersprache. Vielen Dank! Beratungsgespräche Brauch"
+    }
+  },
+  {
+    "id": "gemini-a1-cHJvZHVrdA",
+    "german": "Produkt",
+    "englishMeanings": [
+      "product"
+    ],
+    "article": "das",
+    "plural": "Produkte",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist ein neues Produkt."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 5",
+      "page": 32,
+      "context": "lFc lm Internet bestellen Sehen Sie die Produkte und die Bestellung an. Welche Informationen fehlen? Ergänzen Sie. E Bestellnummer Produktname .lZ1 | /-!I, t'/l'! *:t in Welche"
+    }
+  },
+  {
+    "id": "gemini-a1-YmVzdGVsbHVuZw",
+    "german": "Bestellung",
+    "englishMeanings": [
+      "order"
+    ],
+    "article": "die",
+    "plural": "Bestellungen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich möchte bitte meine Bestellung aufgeben."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 5",
+      "page": 32,
+      "context": "lFc lm Internet bestellen Sehen Sie die Produkte und die Bestellung an. Welche Informationen fehlen? Ergänzen Sie. E Bestellnummer Produktname .lZ1 | /-!I, t'/l'! *:t in Welche Uhr möchten Sie best"
+    }
+  },
+  {
+    "id": "gemini-a1-ZmFyYmU",
+    "german": "Farbe",
+    "englishMeanings": [
+      "color"
+    ],
+    "article": "die",
+    "plural": "Farben",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Welche Farbe magst du?"
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 37,
+      "context": ". Die hier ist modern. Sie ist groß, aber nicht zu groß. Und auch die Farbe ist doch sehr hübsch, oder? Hallo, ich heiße Claudio Danzer. lch bin 31 und arbeite als Autor. lch wohne hier in Meilling. Was? M"
+    }
+  },
+  {
+    "id": "gemini-a1-a3Vuc3RzdG9mZg",
+    "german": "Kunststoff",
+    "englishMeanings": [
+      "plastic"
+    ],
+    "article": "der",
+    "plural": "Kunststoffe",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das Produkt ist aus Kunststoff."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 5",
+      "page": 32,
+      "context": "Gern.)/ Kein problem. einen Gegeastand beechreiben Die Brille ist aus Kunststoff/... Die Brille ist rund/eckig/..., rot/bratrn/... und modern/... Negativartikel kein Schlüssel kein Buch keine Brille 32 | zweiun"
+    }
+  },
+  {
+    "id": "gemini-a1-Z2VnZW5zdGFuZA",
+    "german": "Gegenstand",
+    "englishMeanings": [
+      "object"
+    ],
+    "article": "der",
+    "plural": "Gegenstände",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Was ist das für ein Gegenstand?"
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 39,
+      "context": "Eintritt kostet 7, Euro. L\"itt EI Klassenflohmarkt a Wählen Sie einen Gegenstand und schreiben Sie eine Produktbeschreibung wie im Beispiel. Bringen Sie den Gegenstand und die Beschreibung mit in den Kurs. SUPE"
+    }
+  },
+  {
+    "id": "gemini-a1-ZS1tYWls",
+    "german": "E-Mail",
+    "englishMeanings": [
+      "email"
+    ],
+    "article": "die",
+    "plural": "E-Mails",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich schreibe eine E-Mail."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 34,
+      "context": "rüße C. Lehmann Brenner IT-Consulting ● Laptop ● Handy ● Briefmarke ● E-Mail ● Rechnung ● Telefon ● SMS 2 Lesen Sie die E-Mail, sehen Sie die Fotos an und hören Sie. Ergänzen Sie. Christian Schmidt | Hierho"
+    }
+  },
+  {
+    "id": "gemini-a1-Y2hlZg",
+    "german": "Chef",
+    "englishMeanings": [
+      "boss"
+    ],
+    "article": "der",
+    "plural": "Chefs",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Mein Chef ist sehr nett."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 34,
+      "context": "n Schmidt. b __ ist eine Kollegin von Christian Schmidt. c __ ist der Chef von Christian Schmidt. d __ schreibt eine SMS. e __ sucht Rechnungen und Formulare. f __ braucht Stifte. g __ hat am See nur Stre"
+    }
+  },
+  {
+    "id": "gemini-a1-c21z",
+    "german": "SMS",
+    "englishMeanings": [
+      "text message"
+    ],
+    "article": "die",
+    "plural": "SMS",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich schreibe eine SMS."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 34,
+      "context": "sulting ● Laptop ● Handy ● Briefmarke ● E-Mail ● Rechnung ● Telefon ● SMS 2 Lesen Sie die E-Mail, sehen Sie die Fotos an und hören Sie. Ergänzen Sie. Christian Schmidt | Hierholtzer | Brenner | PR-Media"
+    }
+  },
+  {
+    "id": "gemini-a1-c3RpZnQ",
+    "german": "Stift",
+    "englishMeanings": [
+      "pen"
+    ],
+    "article": "der",
+    "plural": "Stifte",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Wo ist mein Stift?"
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 36,
+      "context": "n Formular. ● feminin die eine keine Briefmarke. ● Plural die – keine Stifte. KOMMUNIKATION GRAMMATIK Audiotraining Karaoke SPRECHTRAINING Artikel im Singular und Plural Singular Plural ● der/ein/kein Schl"
+    }
+  },
+  {
+    "id": "gemini-a1-YnJpZWZtYXJrZQ",
+    "german": "Briefmarke",
+    "englishMeanings": [
+      "stamp"
+    ],
+    "article": "die",
+    "plural": "Briefmarken",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich brauche eine Briefmarke für den Brief."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 36,
+      "context": "Schlüssel. ● neutral das ein kein Formular. ● feminin die eine keine Briefmarke. ● Plural die – keine Stifte. KOMMUNIKATION GRAMMATIK Audiotraining Karaoke SPRECHTRAINING Artikel im Singular und Plural Singula"
+    }
+  },
+  {
+    "id": "gemini-a1-c29mYQ",
+    "german": "Sofa",
+    "englishMeanings": [
+      "sofa"
+    ],
+    "article": "das",
+    "plural": "Sofas",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das Sofa ist bequem."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 36,
+      "context": "e)n die Briefmarke die Rechnung die Briefmarken die Rechnungen -s das Sofa die Sofas -er/¨ er das Bild das Notizbuch die Bilder die Notizbücher -/¨ der Kalender die Kalender"
+    }
+  },
+  {
+    "id": "gemini-a1-bm90aXpidWNo",
+    "german": "Notizbuch",
+    "englishMeanings": [
+      "notebook"
+    ],
+    "article": "das",
+    "plural": "Notizbücher",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich schreibe das in mein Notizbuch."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 36,
+      "context": "riefmarken die Rechnungen -s das Sofa die Sofas -er/¨ er das Bild das Notizbuch die Bilder die Notizbücher -/¨ der Kalender die Kalender"
+    }
+  },
+  {
+    "id": "gemini-a1-c291dmVuaXI",
+    "german": "Souvenir",
+    "englishMeanings": [
+      "souvenir"
+    ],
+    "article": "das",
+    "plural": "Souvenirs",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich habe ein schönes Souvenir gekauft."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 38,
+      "context": "Anne findet das Bild okav. zu klein. zu teuer. >crips I König-Ludwig-souvenirs: Das ist kein König. Das ist ein/eine ... Was ist das? Markieren Sie die Souvenirs. o Bleistift o Bierglas o Teller ' Ring o Tas"
+    }
+  },
+  {
+    "id": "gemini-a1-bmFjaHRmbG9obWFya3Q",
+    "german": "Nachtflohmarkt",
+    "englishMeanings": [
+      "night flea market"
+    ],
+    "article": "der",
+    "plural": "Nachtflohmärkte",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Wir gehen am Samstag zum Nachtflohmarkt."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 39,
+      "context": "ipzig Deutschlands schönster Trödelmarkt bei Nacht In Leipzig ist der Nachtflohmarkt schon Tradition und ist die Nummer eins in Sachsen. Sie stöbern und handeln gern? Dann sind Sie hier richtig. Von 16.00 Uhr bis 2"
+    }
+  },
+  {
+    "id": "gemini-a1-bnVtbWVy",
+    "german": "Nummer",
+    "englishMeanings": [
+      "number"
+    ],
+    "article": "die",
+    "plural": "Nummern",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Meine Telefonnummer ist 12345."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 39,
+      "context": "i Nacht In Leipzig ist der Nachtflohmarkt schon Tradition und ist die Nummer eins in Sachsen. Sie stöbern und handeln gern? Dann sind Sie hier richtig. Von 16.00 Uhr bis 24.00 Uhr kommen 200 Händler und zwi"
+    }
+  },
+  {
+    "id": "gemini-a1-YXVmYmF1",
+    "german": "Aufbau",
+    "englishMeanings": [
+      "setup, structure, or construction"
+    ],
+    "article": "der",
+    "plural": "Aufbauten",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Der Aufbau der Möbel ist einfach."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 39,
+      "context": "dung und vieles mehr. Informationen für Verkäufer: KEINE NEUWARE! Der Aufbau ist ab 13 Uhr. Standpreise: Z Euro pro Meter (Tische bitte selbst mitbringen!) Wo? An den Tierkliniken 42, O47O3 Leipzig, Leipzig"
+    }
+  },
+  {
+    "id": "gemini-a1-d2FyZQ",
+    "german": "Ware",
+    "englishMeanings": [
+      "goods, item"
+    ],
+    "article": "die",
+    "plural": "Waren",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Die Waren sind billig."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 39,
+      "context": "öbel, Kleidung und vieles mehr. Informationen für Verkäufer: KEINE NEUWARE! Der Aufbau ist ab 13 Uhr. Standpreise: Z Euro pro Meter (Tische bitte selbst mitbringen!) Wo? An den Tierkliniken 42, O47O3 Leip"
+    }
+  },
+  {
+    "id": "gemini-a1-ZWludHJpdHQ",
+    "german": "Eintritt",
+    "englishMeanings": [
+      "admission, entrance fee"
+    ],
+    "article": "der",
+    "plural": "Eintritte",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Der Eintritt kostet fünf Euro."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 39,
+      "context": "Zentrum-Südost Wann? Sa. 21.05. Geöffnet für Besucher: 16 bis 24 Uhr Eintritt: 2,Euro, Kinder bis 12 Jahre frei a Der Nachtflohmarkt ist in ]Hen, b Die Waren auf dem Flohmarkt sind neu. c Der Eintritt kostet"
+    }
+  },
+  {
+    "id": "gemini-a1-YmVzY2hyZWlidW5n",
+    "german": "Beschreibung",
+    "englishMeanings": [
+      "description"
+    ],
+    "article": "die",
+    "plural": "Beschreibungen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Die Beschreibung ist sehr klar."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 39,
+      "context": "flohmarkt a Wählen Sie einen Gegenstand und schreiben Sie eine Produktbeschreibung wie im Beispiel. Bringen Sie den Gegenstand und die Beschreibung mit in den Kurs. SUPER KUGELSCHREIBER! Sehr praktisch und leicht"
+    }
+  },
+  {
+    "id": "gemini-a1-a3VnZWxzY2hyZWliZXI",
+    "german": "Kugelschreiber",
+    "englishMeanings": [
+      "ballpoint pen"
+    ],
+    "article": "der",
+    "plural": "Kugelschreiber",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich habe einen Kugelschreiber."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 39,
+      "context": "ringen Sie den Gegenstand und die Beschreibung mit in den Kurs. SUPER KUGELSCHREIBER! Sehr praktisch und leicht. Er schreibt blau und macht keine Fehler. Er kostet nur 5 Euro! Machen Sie einen Flohmarkt im Kurs. r"
+    }
+  },
+  {
+    "id": "gemini-a1-emVpY2hudW5n",
+    "german": "Zeichnung",
+    "englishMeanings": [
+      "drawing"
+    ],
+    "article": "die",
+    "plural": "Zeichnungen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das ist eine schöne Zeichnung."
+    ],
+    "tags": [
+      "a1",
+      "menschen",
+      "gemini-verified",
+      "source-pdf"
+    ],
+    "source": {
+      "book": "Menschen A1.1 Kursbuch",
+      "lesson": "Lesson 6",
+      "page": 40,
+      "context": "AUSI(LANG E Was fehlt den Personen? Sehen Sie die Zeichnungen an und ergänzen Sie. Marina Hartner sucht Benjamin Rüssel hat Janina Rift hat w V?V9r\"\"htd??? Elena Blücher kauft tlvberlvE hri"
+    }
   }
 ]
