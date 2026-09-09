@@ -2312,5 +2312,188 @@
       "page": 40,
       "context": "AUSI(LANG E Was fehlt den Personen? Sehen Sie die Zeichnungen an und ergänzen Sie. Marina Hartner sucht Benjamin Rüssel hat Janina Rift hat w V?V9r\"\"htd??? Elena Blücher kauft tlvberlvE hri"
     }
+  },
+  {
+    "id": "gemini-a1-amFocg",
+    "german": "Jahr",
+    "englishMeanings": [
+      "year"
+    ],
+    "article": "das",
+    "plural": "Jahre",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das Jahr hat zwölf Monate."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-dWhy",
+    "german": "Uhr",
+    "englishMeanings": [
+      "clock, watch, o'clock"
+    ],
+    "article": "die",
+    "plural": "Uhren",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Wie viel Uhr ist es?"
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-emltbWVy",
+    "german": "Zimmer",
+    "englishMeanings": [
+      "room"
+    ],
+    "article": "das",
+    "plural": "die Zimmer",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Das Zimmer ist groß."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-bWFjaGVu",
+    "german": "machen",
+    "englishMeanings": [
+      "to do or make"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich mache die Hausaufgabe."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-Z2VoZW4",
+    "german": "gehen",
+    "englishMeanings": [
+      "to go"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich gehe in die Schule."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-ZXNzZW4",
+    "german": "essen",
+    "englishMeanings": [
+      "to eat"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich esse einen Apfel."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-dHJpbmtlbg",
+    "german": "trinken",
+    "englishMeanings": [
+      "to drink"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich trinke Wasser."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-aGV1dGU",
+    "german": "heute",
+    "englishMeanings": [
+      "today"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "adverb",
+    "examples": [
+      "Heute ist Montag."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-Z3Jvw58",
+    "german": "groß",
+    "englishMeanings": [
+      "big, tall, large"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "adjective",
+    "examples": [
+      "Mein Bruder ist sehr groß."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-a2xlaW4",
+    "german": "klein",
+    "englishMeanings": [
+      "small, short"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "adjective",
+    "examples": [
+      "Das Auto ist klein."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
   }
 ]
