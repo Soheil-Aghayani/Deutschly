@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, ChangeEvent, FormEvent, ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import type { CSSProperties, ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import Avatar from "boring-avatars";
 import {
   Activity,
@@ -1249,14 +1249,26 @@ function ArticleBadge({ article, compact = false }: { article: Article; compact?
 function OverflowMenu({ label, items, className = "" }: { label: string; items: OverflowMenuItem[]; className?: string }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const firstItemRef = useRef<HTMLButtonElement>(null);
+  const menuId = `overflow-menu-${useId().replace(/:/g, "")}`;
+
+  const closeMenu = (restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) triggerRef.current?.focus();
+  };
 
   useEffect(() => {
     if (!open) return undefined;
+    firstItemRef.current?.focus();
     const handlePointerDown = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!menuRef.current?.contains(event.target as Node)) closeMenu();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMenu(true);
+      }
     };
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -1266,12 +1278,82 @@ function OverflowMenu({ label, items, className = "" }: { label: string; items: 
     };
   }, [open]);
 
+  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const menuItems = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? []);
+    if (menuItems.length === 0) return;
+    const currentIndex = menuItems.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      const nextIndex = (currentIndex + direction + menuItems.length) % menuItems.length;
+      menuItems[nextIndex]?.focus();
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      menuItems[event.key === "Home" ? 0 : menuItems.length - 1]?.focus();
+    } else if (event.key === "Tab") {
+      closeMenu();
+    }
+  };
+
   return (
     <div ref={menuRef} className={`overflow-menu${className ? ` ${className}` : ""}`}>
-      <button type="button" className="icon-button icon-button--small overflow-menu__trigger" onClick={() => setOpen((current) => !current)} aria-label={label} aria-expanded={open} aria-haspopup="menu" title={label}><MoreHorizontal size={17} aria-hidden="true" /></button>
-      {open && <div className="overflow-menu__panel" role="menu" aria-label={label}>{items.map((item) => <button type="button" className="overflow-menu__item" role="menuitem" key={item.label} onClick={() => { setOpen(false); item.onSelect(); }}>{item.label}</button>)}</div>}
+      <button ref={triggerRef} type="button" className="icon-button icon-button--small overflow-menu__trigger" onClick={() => setOpen((current) => !current)} aria-label={label} aria-expanded={open} aria-haspopup="menu" aria-controls={menuId} title={label}><MoreHorizontal size={17} aria-hidden="true" /></button>
+      {open && <div id={menuId} className="overflow-menu__panel" role="menu" aria-label={label} onKeyDown={handleMenuKeyDown}>{items.map((item, index) => <button ref={index === 0 ? firstItemRef : undefined} type="button" className="overflow-menu__item" role="menuitem" key={item.label} onClick={() => { closeMenu(true); item.onSelect(); }}>{item.label}</button>)}</div>}
     </div>
   );
+}
+
+const MODAL_FOCUSABLE_SELECTOR = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])";
+
+function useModalFocus<T extends HTMLElement>(onClose?: () => void, preferredFocus?: () => HTMLElement | null) {
+  const panelRef = useRef<T>(null);
+  const onCloseRef = useRef(onClose);
+  const preferredFocusRef = useRef(preferredFocus);
+  onCloseRef.current = onClose;
+  preferredFocusRef.current = preferredFocus;
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusInitialControl = () => {
+      const preferred = preferredFocusRef.current?.();
+      const first = preferred ?? panel?.querySelector<HTMLElement>(MODAL_FOCUSABLE_SELECTOR);
+      first?.focus();
+    };
+    const animationFrame = window.requestAnimationFrame(focusInitialControl);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && onCloseRef.current) {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !panel) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(MODAL_FOCUSABLE_SELECTOR));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      if (previousFocus && document.contains(previousFocus)) previousFocus.focus();
+    };
+  }, []);
+
+  return panelRef;
 }
 
 function StatCard({ icon: Icon, label, value, detail, tone, menuItems = [] }: StatCardProps) {
@@ -1449,7 +1531,7 @@ function OverviewPage({
 
       <section className="content-grid">
         <div className="main-column">
-          <SectionHeading eyebrow="KEEP GOING" title="Continue learning" action={{ label: "Open study", onClick: onStartReview }} />
+          <SectionHeading eyebrow="KEEP GOING" title="Continue learning" action={{ label: dueCards.length > 0 ? "Open study" : "Open practice", onClick: onStartReview }} />
           <article className="continue-card">
             <div className="continue-card__content">
               <div className="continue-card__topline">
@@ -1461,7 +1543,7 @@ function OverviewPage({
               <div className="mini-progress"><span style={{ width: `${courseProgress}%` }} /></div>
               <div className="continue-card__footer">
                 <span>{courseProgress}% complete</span>
-                <button type="button" className="inline-button" onClick={onStartReview}>Continue <ArrowRight size={15} aria-hidden="true" /></button>
+                <button type="button" className="inline-button" onClick={onStartReview}>{dueCards.length > 0 ? "Continue" : "Open practice"} <ArrowRight size={15} aria-hidden="true" /></button>
               </div>
             </div>
             <div className="flashcard-preview" aria-label="Flashcard preview">
@@ -1531,19 +1613,19 @@ function OverviewPage({
               ))}
             </div>
             <button type="button" className="button button--outline button--full" onClick={onStartReview}>
-              Start review
+              {dueCards.length > 0 ? "Start review" : "Open practice"}
               <ArrowRight size={16} aria-hidden="true" />
             </button>
           </article>
 
-          <article className="source-card">
+          <button type="button" className="source-card" onClick={onOpenLibrary} aria-label="Open the Menschen PDF in your library">
             <div className="source-card__icon" aria-hidden="true"><FileText size={18} /></div>
             <div>
               <strong>Menschen PDF</strong>
               <span>{state.sourceFileName || "Attach your course PDF in Library"}</span>
             </div>
-            <Info size={16} aria-hidden="true" />
-          </article>
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
         </aside>
       </section>
     </div>
@@ -1835,6 +1917,12 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
     setIsCorrect(false);
   };
 
+  const handleNextKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    nextCard();
+  };
+
   return (
     <div className="page-stack practice-page">
       <section className="page-intro practice-page__intro">
@@ -1860,7 +1948,7 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
           </form>
 
           {submitted && <div className="practice-result" role="status"><div className="practice-result__icon" aria-hidden="true">{isCorrect ? <CheckCircle2 size={21} /> : <Info size={21} />}</div><div><strong>{isCorrect ? "Sehr gut!" : "Almost, keep this one visible."}</strong><span>{isCorrect ? "That answer matches the card." : `Expected: ${expectedLabel}`}</span></div>{!isCorrect && <PronunciationButton text={expectedAudio} />}</div>}
-          {submitted && <button ref={nextButtonRef} type="button" className="button button--outline practice-next" onClick={nextCard}><ArrowRight size={15} aria-hidden="true" /> Next drill</button>}
+          {submitted && <button ref={nextButtonRef} type="button" className="button button--outline practice-next" onClick={nextCard} onKeyDown={handleNextKeyDown} aria-keyshortcuts="Enter"><ArrowRight size={15} aria-hidden="true" /> Next drill</button>}
         </article>
 
         <aside className="practice-aside"><div className="practice-aside__heading"><div className="practice-aside__icon"><Languages size={19} aria-hidden="true" /></div><span className="section-eyebrow">ACTIVE RECALL</span></div><h2>Small answer, strong memory.</h2><p>Typing the article, plural, or meaning makes the detail easier to retrieve later in a real conversation.</p><div className="practice-aside__tips"><div><strong>1</strong><span>Try before looking.</span></div><div><strong>2</strong><span>Say it out loud.</span></div><div><strong>3</strong><span>Move on gently.</span></div></div></aside>
@@ -2011,7 +2099,7 @@ function PdfCandidatesCard({
             <span>Preview extracted text</span>
             <ChevronDown size={15} aria-hidden="true" />
           </button>
-          <div id="pdf-text-preview" className="pdf-preview-details__content" aria-hidden={!previewOpen}><pre>{sourcePreview}</pre></div>
+          <div id="pdf-text-preview" className="pdf-preview-details__content" aria-hidden={!previewOpen} inert={!previewOpen}><pre>{sourcePreview}</pre></div>
         </div>
       )}
     </section>
@@ -2028,7 +2116,7 @@ function ResourceShelf() {
         <span><strong>German resource shelf</strong><small>Extra practice and grammar references selected for this course</small></span>
         <ChevronDown className="resource-shelf__chevron" size={15} aria-hidden="true" />
       </button>
-      <div id="resource-shelf-links" className={`resource-shelf__content${open ? " resource-shelf__content--open" : ""}`} aria-hidden={!open}>
+      <div id="resource-shelf-links" className={`resource-shelf__content${open ? " resource-shelf__content--open" : ""}`} aria-hidden={!open} inert={!open}>
         <div className="resource-shelf__links">{germanResourceLinks.map((resource) => <a key={resource.href} href={resource.href} target="_blank" rel="noreferrer">{resource.label}<ExternalLink size={12} aria-hidden="true" /></a>)}</div>
       </div>
     </section>
@@ -2164,7 +2252,7 @@ function LibraryPage({
         <label className="library-filter"><span>Lesson</span><select value={lessonFilter} onChange={(event) => setLessonFilter(event.target.value)}><option value="all">All lessons</option>{lessons.map((lesson) => <option key={lesson} value={lesson}>{lesson}</option>)}</select></label>
         <label className="library-filter"><span>Article</span><select value={articleFilter} onChange={(event) => setArticleFilter(event.target.value as "all" | Article)}><option value="all">All articles</option><option value="der">der</option><option value="die">die</option><option value="das">das</option><option value="plural">die · plural</option><option value="none">Phrase</option></select></label>
         <label className="library-filter"><span>State</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | CardStatus)}><option value="all">All states</option><option value="new">New</option><option value="learning">Learning</option><option value="review">Review</option></select></label>
-        {tags.length > 0 && <span className="library-filters__tags" aria-label={`${tags.length} tags available`}>{tags.slice(0, 3).map((tag) => <button type="button" key={tag} className={`filter-chip${searchQuery.toLowerCase() === tag.toLowerCase() ? " filter-chip--active" : ""}`} onClick={() => onSearch(tag)}><Tag size={12} aria-hidden="true" />{tag}</button>)}{tags.length > 3 && <span className="filter-chip__more">+{tags.length - 3}</span>}</span>}
+        {tags.length > 0 && <span className="library-filters__tags" aria-label={`${tags.length} tags available`}>{tags.slice(0, 3).map((tag) => <button type="button" key={tag} className={`filter-chip${searchQuery.toLowerCase() === tag.toLowerCase() ? " filter-chip--active" : ""}`} onClick={() => onSearch(tag)} aria-pressed={searchQuery.toLowerCase() === tag.toLowerCase()}><Tag size={12} aria-hidden="true" />{tag}</button>)}{tags.length > 3 && <span className="filter-chip__more">+{tags.length - 3}</span>}</span>}
         <label className="filter-check"><input type="checkbox" checked={needsCheckOnly} onChange={(event) => setNeedsCheckOnly(event.target.checked)} /><span>Needs check</span></label>
         <label className="filter-check"><input type="checkbox" checked={weakCardsOnly} onChange={(event) => onWeakCardsOnlyChange(event.target.checked)} /><span>Weak cards</span></label>
         {hasFilters && <button type="button" className="text-button" onClick={clearFilters}>Clear filters</button>}
@@ -2179,8 +2267,8 @@ function LibraryPage({
       {lessons.length > 0 && <section className="lesson-strip" aria-label="Menschen lessons">
         <div className="lesson-strip__heading"><BookText size={17} aria-hidden="true" /><div><span className="section-eyebrow">COURSE MAP</span><h2>Jump into a lesson</h2></div></div>
         <div className="lesson-strip__items">
-          <button type="button" className={`lesson-chip${lessonFilter === "all" ? " lesson-chip--active" : ""}`} onClick={() => setLessonFilter("all")}><strong>All</strong><span>{cards.length} cards</span></button>
-          {lessons.map((lesson) => <button type="button" className={`lesson-chip${lessonFilter === lesson ? " lesson-chip--active" : ""}`} key={lesson} onClick={() => setLessonFilter(lesson)}><strong>{lesson}</strong><span>{cards.filter((card) => card.lesson === lesson).length} cards</span></button>)}
+          <button type="button" className={`lesson-chip${lessonFilter === "all" ? " lesson-chip--active" : ""}`} onClick={() => setLessonFilter("all")} aria-pressed={lessonFilter === "all"}><strong>All</strong><span>{cards.length} cards</span></button>
+          {lessons.map((lesson) => <button type="button" className={`lesson-chip${lessonFilter === lesson ? " lesson-chip--active" : ""}`} key={lesson} onClick={() => setLessonFilter(lesson)} aria-pressed={lessonFilter === lesson}><strong>{lesson}</strong><span>{cards.filter((card) => card.lesson === lesson).length} cards</span></button>)}
         </div>
       </section>}
 
@@ -2209,17 +2297,11 @@ function LibraryPage({
 }
 
 function ResetProgressModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: () => void }) {
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  const panelRef = useModalFocus<HTMLElement>(onClose);
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="modal-panel reset-progress-modal" role="dialog" aria-modal="true" aria-labelledby="reset-progress-title">
+      <section ref={panelRef} className="modal-panel reset-progress-modal" role="dialog" aria-modal="true" aria-labelledby="reset-progress-title">
         <div className="modal-panel__heading"><div><span className="section-eyebrow">FRESH START</span><h2 id="reset-progress-title">Start from zero?</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close reset progress dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
         <p className="modal-panel__intro">Keep your cards and PDF, but clear the learning history so you can begin the review journey again.</p>
         <div className="reset-progress-list">
@@ -2233,17 +2315,11 @@ function ResetProgressModal({ onClose, onConfirm }: { onClose: () => void; onCon
 }
 
 function DeleteCardModal({ card, onClose, onConfirm }: { card: Flashcard; onClose: () => void; onConfirm: () => void }) {
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  const panelRef = useModalFocus<HTMLElement>(onClose);
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="modal-panel delete-card-modal" role="dialog" aria-modal="true" aria-labelledby="delete-card-title">
+      <section ref={panelRef} className="modal-panel delete-card-modal" role="dialog" aria-modal="true" aria-labelledby="delete-card-title">
         <div className="modal-panel__heading"><div><span className="section-eyebrow">REMOVE FROM LIBRARY</span><h2 id="delete-card-title">Delete this card?</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close delete card dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
         <p className="modal-panel__intro">This removes the card and its review history from your library. You can add it again later, but this action cannot be undone here.</p>
         <div className="delete-card-summary"><ArticleBadge article={card.article} compact /><div className="delete-card-summary__copy"><strong>{card.german}</strong><span>{card.translation}</span></div></div>
@@ -2288,7 +2364,7 @@ function ProgressBreakdownSection({ eyebrow, title, icon: Icon, id, children }: 
         <span><span className="section-eyebrow">{eyebrow}</span><span className="progress-breakdown-card__title" role="heading" aria-level={2}>{title}</span></span>
         <span className="progress-breakdown-card__toggle" aria-hidden="true"><Icon size={19} /><ChevronDown size={16} /></span>
       </button>
-      <div id={id} className="progress-breakdown-card__body" aria-hidden={!open}>
+      <div id={id} className="progress-breakdown-card__body" aria-hidden={!open} inert={!open}>
         <div>{children}</div>
       </div>
     </article>
@@ -2486,7 +2562,7 @@ function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogl
   const [step, setStep] = useState<ProfileOnboardingStep>(() => user ? "google-confirm" : "choice");
   const [draftName, setDraftName] = useState("");
   const [error, setError] = useState("");
-  const panelRef = useRef<HTMLElement | null>(null);
+  const panelRef = useModalFocus<HTMLElement>();
 
   useEffect(() => {
     if (!user) return;
@@ -2686,6 +2762,7 @@ function ProfileModal({
 }: ProfileModalProps) {
   const [draftName, setDraftName] = useState(name);
   const backupInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useModalFocus<HTMLElement>(onClose);
   const previewAvatar = getDailyAvatar(draftName.trim() || PROFILE_DISPLAY_FALLBACK, getDayKey());
   const notificationCopy = notificationPermission === "granted"
     ? "Browser alerts are on for review reminders."
@@ -2704,17 +2781,9 @@ function ProfileModal({
           ? "Open the browser menu and choose Install app."
           : "Use the install icon or browser menu when it becomes available.";
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="modal-panel profile-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <section ref={panelRef} className="modal-panel profile-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <div className="modal-panel__heading"><div><span className="section-eyebrow">YOUR LEARNING SPACE</span><h2 id="settings-title">Settings</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close settings" title="Close"><X size={19} aria-hidden="true" /></button></div>
         <p className="modal-panel__intro">Keep your profile, study rhythm, appearance, and local data in one calm place.</p>
 
@@ -2810,17 +2879,11 @@ function SyncModal({
   onClose: () => void;
   onSave: () => void;
 }) {
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  const panelRef = useModalFocus<HTMLElement>(onClose);
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="modal-panel sync-modal" role="dialog" aria-modal="true" aria-labelledby="sync-title">
+      <section ref={panelRef} className="modal-panel sync-modal" role="dialog" aria-modal="true" aria-labelledby="sync-title">
         <div className="modal-panel__heading">
           <div><span className="section-eyebrow">PRIVATE DEVICE SYNC</span><h2 id="sync-title">Connect your devices</h2></div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close sync settings" title="Close"><X size={19} aria-hidden="true" /></button>
@@ -2856,6 +2919,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiChecking, setAiChecking] = useState(false);
   const germanInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useModalFocus<HTMLElement>(onClose, () => germanInputRef.current);
   const wordSuggestions = useMemo(() => {
     if (editing || draft.kind !== "word" || normalizeGermanTerm(draft.german).length < 2) return [];
     return searchGermanWords(draft.german, 5);
@@ -2864,15 +2928,6 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
     if (!draft.german.trim()) return null;
     return findCardMatch(existingCards, prepareCardDraft(draft));
   }, [draft, existingCards]);
-
-  useEffect(() => {
-    germanInputRef.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
 
   const update = <K extends keyof CardDraft>(key: K, value: CardDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -2970,7 +3025,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="add-card-title">
+      <section ref={panelRef} className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="add-card-title">
         <div className="modal-panel__heading"><div><span className="section-eyebrow">PERSONAL LIBRARY</span><h2 id="add-card-title">{editing ? "Edit a flashcard" : "Add a flashcard"}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close add card dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
         <p className="modal-panel__intro">Add a word, phrase, or grammar item. Deutschly checks your entry for duplicates and common issues before it joins the review queue.</p>
         {liveMatch && <div className={`card-live-match card-live-match--${liveMatch.type}`} role="status"><Info size={15} aria-hidden="true" /><span><strong>{liveMatch.type === "exact" ? "This card is already saved." : "A card with this headword already exists."}</strong><small>{liveMatch.card.german} · {liveMatch.card.translation}. Press Check card to compare the meaning.</small></span></div>}
@@ -3320,6 +3375,11 @@ export default function App() {
   };
 
   const handleStartReview = () => {
+    if (dueCards.length === 0) {
+      setActiveTab("practice");
+      setShowAnswer(false);
+      return;
+    }
     setStudySession({ reviewed: 0, total: dueCards.length });
     setActiveTab("study");
     setShowAnswer(false);

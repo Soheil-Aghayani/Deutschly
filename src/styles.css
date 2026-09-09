@@ -1775,7 +1775,23 @@ svg {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
+  width: 100%;
   padding: 13px;
+  color: inherit;
+  text-align: left;
+  background: var(--surface);
+  appearance: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.source-card:hover {
+  border-color: rgba(79, 70, 229, 0.28);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.source-card:active {
+  transform: translateY(0);
 }
 
 .source-card__icon {
@@ -1787,6 +1803,12 @@ svg {
 
 .source-card > svg {
   color: var(--text-muted);
+  transition: color 180ms ease, transform 180ms ease;
+}
+
+.source-card:hover > svg {
+  color: var(--primary);
+  transform: translateX(2px);
 }
 
 .study-page {
