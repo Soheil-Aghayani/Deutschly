@@ -139,6 +139,7 @@ interface AppState {
   pdfImport?: PdfImportSummary;
   lastReviewDay?: string;
   lastStudyDay?: string;
+  progressResetAt?: string;
   lastSyncedAt: string;
 }
 
@@ -217,6 +218,12 @@ function formatDate(date = new Date()): string {
   }).format(date);
 }
 
+const CLOCK_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+};
+
 function getGreeting(date = new Date()): string {
   const hour = date.getHours();
   if (hour >= 5 && hour < 12) return "Guten Morgen";
@@ -229,11 +236,11 @@ function formatTimeLabel(value: string): string {
   const [hours, minutes] = value.split(":").map(Number);
   const date = new Date();
   date.setHours(Number.isFinite(hours) ? hours : 19, Number.isFinite(minutes) ? minutes : 0, 0, 0);
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat("en-GB", CLOCK_FORMAT_OPTIONS).format(date);
 }
 
 function formatClockLabel(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat("en-GB", CLOCK_FORMAT_OPTIONS).format(date);
 }
 
 function getNextReminderAt(reminderTime: string, now = new Date()): Date {
@@ -513,6 +520,39 @@ function createInitialState(): AppState {
   };
 }
 
+function resetLearningProgress(state: AppState, todayKey: string, resetAt: string): AppState {
+  return {
+    ...state,
+    cards: state.cards.map((card) => ({
+      ...card,
+      due: todayKey,
+      interval: 0,
+      status: "new",
+      ease: undefined,
+      repetitions: 0,
+      lapses: 0,
+      stability: 0.7,
+      difficulty: 5,
+      lastReviewedAt: undefined,
+      updatedAt: resetAt,
+    })),
+    reviewsToday: 0,
+    streak: 0,
+    mastered: 0,
+    studyMinutes: 0,
+    xp: 0,
+    totalReviews: 0,
+    correctReviews: 0,
+    bestStreak: 0,
+    achievements: [],
+    weeklyReviews: Array.from({ length: 7 }, () => 0),
+    lastReviewDay: undefined,
+    lastStudyDay: undefined,
+    progressResetAt: resetAt,
+    lastSyncedAt: resetAt,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -621,6 +661,7 @@ function normalizeAppState(value: unknown): AppState {
     pdfImport,
     lastReviewDay: typeof value.lastReviewDay === "string" ? value.lastReviewDay : fallback.lastReviewDay,
     lastStudyDay: typeof value.lastStudyDay === "string" ? value.lastStudyDay : fallback.lastStudyDay,
+    progressResetAt: typeof value.progressResetAt === "string" ? value.progressResetAt : fallback.progressResetAt,
     lastSyncedAt: typeof value.lastSyncedAt === "string" ? value.lastSyncedAt : fallback.lastSyncedAt,
   };
 }
@@ -696,7 +737,14 @@ function mergeCards(localCards: Flashcard[], remoteCards: Flashcard[]): Flashcar
 
 function mergeAppStates(local: AppState, remote: AppState): AppState {
   const latestReviewState = (local.lastReviewDay ?? "") >= (remote.lastReviewDay ?? "") ? local : remote;
-  const weeklyReviews = Array.from({ length: 7 }, (_, index) => Math.max(local.weeklyReviews[index] ?? 0, remote.weeklyReviews[index] ?? 0));
+  const localResetAt = timestamp(local.progressResetAt);
+  const remoteResetAt = timestamp(remote.progressResetAt);
+  const hasDifferentReset = localResetAt !== remoteResetAt;
+  const resetState = localResetAt >= remoteResetAt ? local : remote;
+  const progressState = hasDifferentReset ? resetState : latestReviewState;
+  const weeklyReviews = hasDifferentReset
+    ? [...progressState.weeklyReviews]
+    : Array.from({ length: 7 }, (_, index) => Math.max(local.weeklyReviews[index] ?? 0, remote.weeklyReviews[index] ?? 0));
   const localPdf = local.pdfImport;
   const remotePdf = remote.pdfImport;
   const pdfImport = localPdf && remotePdf
@@ -706,20 +754,25 @@ function mergeAppStates(local: AppState, remote: AppState): AppState {
   return {
     ...local,
     cards: mergeCards(local.cards, remote.cards),
-    reviewsToday: local.lastReviewDay === remote.lastReviewDay ? Math.max(local.reviewsToday, remote.reviewsToday) : latestReviewState.reviewsToday,
-    streak: Math.max(local.streak, remote.streak),
-    mastered: Math.max(local.mastered, remote.mastered),
-    studyMinutes: Math.max(local.studyMinutes, remote.studyMinutes),
-    xp: Math.max(local.xp, remote.xp),
-    totalReviews: Math.max(local.totalReviews, remote.totalReviews),
-    correctReviews: Math.max(local.correctReviews, remote.correctReviews),
-    bestStreak: Math.max(local.bestStreak, remote.bestStreak),
-    achievements: [...new Set([...local.achievements, ...remote.achievements])].slice(0, 24),
+    reviewsToday: hasDifferentReset
+      ? progressState.reviewsToday
+      : local.lastReviewDay === remote.lastReviewDay ? Math.max(local.reviewsToday, remote.reviewsToday) : latestReviewState.reviewsToday,
+    streak: hasDifferentReset ? progressState.streak : Math.max(local.streak, remote.streak),
+    mastered: hasDifferentReset ? progressState.mastered : Math.max(local.mastered, remote.mastered),
+    studyMinutes: hasDifferentReset ? progressState.studyMinutes : Math.max(local.studyMinutes, remote.studyMinutes),
+    xp: hasDifferentReset ? progressState.xp : Math.max(local.xp, remote.xp),
+    totalReviews: hasDifferentReset ? progressState.totalReviews : Math.max(local.totalReviews, remote.totalReviews),
+    correctReviews: hasDifferentReset ? progressState.correctReviews : Math.max(local.correctReviews, remote.correctReviews),
+    bestStreak: hasDifferentReset ? progressState.bestStreak : Math.max(local.bestStreak, remote.bestStreak),
+    achievements: hasDifferentReset
+      ? [...progressState.achievements]
+      : [...new Set([...local.achievements, ...remote.achievements])].slice(0, 24),
     weeklyReviews,
     sourceFileName: pdfImport?.fileName ?? local.sourceFileName,
     pdfImport,
-    lastReviewDay: latestReviewState.lastReviewDay,
-    lastStudyDay: (local.lastStudyDay ?? "") >= (remote.lastStudyDay ?? "") ? local.lastStudyDay : remote.lastStudyDay,
+    lastReviewDay: progressState.lastReviewDay,
+    lastStudyDay: progressState.lastStudyDay,
+    progressResetAt: hasDifferentReset ? progressState.progressResetAt : local.progressResetAt ?? remote.progressResetAt,
     lastSyncedAt: local.lastSyncedAt,
   };
 }
@@ -1147,8 +1200,8 @@ function OverviewPage({
 
           <SectionHeading eyebrow="YOUR COLLECTION" title="Your decks" action={{ label: "View library", onClick: onOpenLibrary }} />
           <div className="deck-grid">
-            <DeckCard icon={BookOpen} title="Menschen A1.1" subtitle="Course vocabulary" progress={36} count="180 cards" tone="indigo" />
-            <DeckCard icon={Headphones} title="Everyday listening" subtitle="Phrases & dialogues" progress={12} count="42 cards" tone="mint" />
+            <DeckCard icon={BookOpen} title="Menschen A1.1" subtitle="Course vocabulary" progress={36} count="180 cards" tone="indigo" onClick={onOpenLibrary} />
+            <DeckCard icon={Headphones} title="Everyday listening" subtitle="Phrases & dialogues" progress={12} count="42 cards" tone="mint" onClick={onOpenLibrary} />
             <button type="button" className="new-deck-card" onClick={onAddCard}>
               <span className="new-deck-card__icon"><Plus size={20} aria-hidden="true" /></span>
               <strong>Add your own cards</strong>
@@ -1222,16 +1275,16 @@ function OverviewPage({
   );
 }
 
-function DeckCard({ icon: Icon, title, subtitle, progress, count, tone }: { icon: LucideIcon; title: string; subtitle: string; progress: number; count: string; tone: "indigo" | "mint" }) {
+function DeckCard({ icon: Icon, title, subtitle, progress, count, tone, onClick }: { icon: LucideIcon; title: string; subtitle: string; progress: number; count: string; tone: "indigo" | "mint"; onClick: () => void }) {
   return (
-    <article className="deck-card">
+    <button type="button" className="deck-card" onClick={onClick} aria-label={`Open ${title} in your library`}>
       <div className={`deck-card__icon deck-card__icon--${tone}`} aria-hidden="true"><Icon size={19} /></div>
-      <span className="icon-button icon-button--small deck-card__menu" aria-hidden="true"><MoreHorizontal size={17} /></span>
+      <span className="deck-card__menu" aria-hidden="true"><MoreHorizontal size={17} /></span>
       <span className="deck-card__subtitle">{subtitle}</span>
       <h3>{title}</h3>
       <div className="deck-card__progress"><span style={{ width: `${progress}%` }} /></div>
       <div className="deck-card__footer"><span>{progress}% mastered</span><span>{count}</span></div>
-    </article>
+    </button>
   );
 }
 
@@ -1565,6 +1618,8 @@ function PdfCandidatesCard({
   error: string | null;
   onUseCandidate: (candidate: PdfCandidate) => void;
 }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+
   if (!loading && !error && candidates.length === 0 && !sourcePreview) return null;
 
   return (
@@ -1593,21 +1648,32 @@ function PdfCandidatesCard({
       {!loading && candidates.length === 0 && !error && <div className="pdf-import-card__empty"><Sparkles size={17} aria-hidden="true" /><span>No article + noun patterns were detected. You can still add cards manually.</span></div>}
 
       {sourcePreview && (
-        <details className="pdf-preview-details">
-          <summary>Preview extracted text</summary>
-          <pre>{sourcePreview}</pre>
-        </details>
+        <div className={`pdf-preview-details${previewOpen ? " pdf-preview-details--open" : ""}`}>
+          <button type="button" className="pdf-preview-details__summary" aria-expanded={previewOpen} aria-controls="pdf-text-preview" onClick={() => setPreviewOpen((current) => !current)}>
+            <span>Preview extracted text</span>
+            <ChevronDown size={15} aria-hidden="true" />
+          </button>
+          <div id="pdf-text-preview" className="pdf-preview-details__content" aria-hidden={!previewOpen}><pre>{sourcePreview}</pre></div>
+        </div>
       )}
     </section>
   );
 }
 
 function ResourceShelf() {
+  const [open, setOpen] = useState(false);
+
   return (
-    <details className="resource-shelf">
-      <summary><BookText size={16} aria-hidden="true" /><span><strong>German resource shelf</strong><small>Extra practice and grammar references selected for this course</small></span><ChevronDown size={15} aria-hidden="true" /></summary>
-      <div className="resource-shelf__links">{germanResourceLinks.map((resource) => <a key={resource.href} href={resource.href} target="_blank" rel="noreferrer">{resource.label}<ExternalLink size={12} aria-hidden="true" /></a>)}</div>
-    </details>
+    <section className={`resource-shelf${open ? " resource-shelf--open" : ""}`}>
+      <button type="button" className="resource-shelf__summary" aria-expanded={open} aria-controls="resource-shelf-links" onClick={() => setOpen((current) => !current)}>
+        <BookText size={16} aria-hidden="true" />
+        <span><strong>German resource shelf</strong><small>Extra practice and grammar references selected for this course</small></span>
+        <ChevronDown className="resource-shelf__chevron" size={15} aria-hidden="true" />
+      </button>
+      <div id="resource-shelf-links" className={`resource-shelf__content${open ? " resource-shelf__content--open" : ""}`} aria-hidden={!open}>
+        <div className="resource-shelf__links">{germanResourceLinks.map((resource) => <a key={resource.href} href={resource.href} target="_blank" rel="noreferrer">{resource.label}<ExternalLink size={12} aria-hidden="true" /></a>)}</div>
+      </div>
+    </section>
   );
 }
 
@@ -1744,7 +1810,31 @@ function LibraryPage({
   );
 }
 
-function ProgressPage({ state, onViewWeakCards, onAdjustReminder }: { state: AppState; onViewWeakCards: () => void; onAdjustReminder: () => void }) {
+function ResetProgressModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="modal-panel reset-progress-modal" role="dialog" aria-modal="true" aria-labelledby="reset-progress-title">
+        <div className="modal-panel__heading"><div><span className="section-eyebrow">FRESH START</span><h2 id="reset-progress-title">Start from zero?</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close reset progress dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
+        <p className="modal-panel__intro">Keep your cards and PDF, but clear the learning history so you can begin the review journey again.</p>
+        <div className="reset-progress-list">
+          <div><RefreshCw size={16} aria-hidden="true" /><span>Cards become new and are due today.</span></div>
+          <div><Target size={16} aria-hidden="true" /><span>XP, streaks, mastery, achievements, and weekly activity return to zero.</span></div>
+        </div>
+        <div className="modal-panel__footer"><span><Info size={15} aria-hidden="true" /> Your library and reminder settings stay saved.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Cancel</button><button type="button" className="button button--primary" onClick={onConfirm}>Reset progress</button></div></div>
+      </section>
+    </div>
+  );
+}
+
+function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgress }: { state: AppState; onViewWeakCards: () => void; onAdjustReminder: () => void; onResetProgress: () => void }) {
   const maxValue = Math.max(...state.weeklyReviews, 1);
   const average = Math.round(state.weeklyReviews.reduce((sum, value) => sum + value, 0) / state.weeklyReviews.length);
   const level = getLevelProgress(state.xp);
@@ -1759,7 +1849,7 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder }: { state: App
   };
   return (
     <div className="page-stack progress-page">
-      <section className="page-intro"><div><span className="page-kicker">KEEP THE MOMENTUM</span><h1>Your progress<span className="title-dot">.</span></h1><p>Consistency beats cramming. Here is the shape of your week.</p></div><div className="progress-summary"><span>Weekly average</span><strong>{average} reviews</strong></div></section>
+      <section className="page-intro"><div><span className="page-kicker">KEEP THE MOMENTUM</span><h1>Your progress<span className="title-dot">.</span></h1><p>Consistency beats cramming. Here is the shape of your week.</p></div><div className="progress-page__actions"><div className="progress-summary"><span>Weekly average</span><strong>{average} reviews</strong></div><button type="button" className="button button--ghost progress-reset-button" onClick={onResetProgress}><RefreshCw size={15} aria-hidden="true" /> Start from zero</button></div></section>
       <section className="progress-level-grid">
         <article className="level-card"><div className="level-card__topline"><div className="level-card__icon"><Medal size={18} aria-hidden="true" /></div><span>LEARNER LEVEL</span><strong>Level {level.level}</strong></div><div className="level-card__score"><b>{state.xp}</b><span>XP earned</span></div><div className="level-progress" aria-label={`${level.percent}% to level ${level.level + 1}`}><span style={{ width: `${level.percent}%` }} /></div><div className="level-card__footer"><span>{level.current} / {level.needed} XP to next level</span><span>{level.percent}%</span></div></article>
         <article className="achievement-card"><div className="achievement-card__heading"><div><span className="section-eyebrow">SMALL WINS</span><h2>Achievements</h2></div><Trophy size={19} aria-hidden="true" /></div><div className="achievement-list">{state.achievements.map((achievement) => { const item = achievementLabels[achievement] ?? { title: "New milestone", detail: achievement }; return <div className="achievement-item" key={achievement}><span className="achievement-item__icon"><CheckCheck size={14} aria-hidden="true" /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span></div>; })}</div></article>
@@ -2132,6 +2222,7 @@ export default function App() {
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [profileName, setProfileName] = useState(() => loadLocalSetting(PROFILE_NAME_KEY) || PROFILE_NAME);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [resetProgressOpen, setResetProgressOpen] = useState(false);
   const [reminderSnoozedUntil, setReminderSnoozedUntil] = useState<number | null>(() => {
     const value = loadLocalNumberSetting(REMINDER_SNOOZE_KEY);
     return value && value > Date.now() ? value : null;
@@ -2182,14 +2273,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const modalOpen = addCardOpen || profileOpen || syncOpen;
+    const modalOpen = addCardOpen || profileOpen || syncOpen || resetProgressOpen;
     document.documentElement.classList.toggle("modal-open", modalOpen);
     document.body.classList.toggle("modal-open", modalOpen);
     return () => {
       document.documentElement.classList.remove("modal-open");
       document.body.classList.remove("modal-open");
     };
-  }, [addCardOpen, profileOpen, syncOpen]);
+  }, [addCardOpen, profileOpen, syncOpen, resetProgressOpen]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -2647,6 +2738,15 @@ export default function App() {
     setActiveTab("library");
     showToast("Showing cards that need another gentle pass.");
   };
+  const handleResetProgress = () => {
+    const resetAt = new Date().toISOString();
+    const cardCount = stateRef.current.cards.length;
+    setState((current) => resetLearningProgress(current, todayKey, resetAt));
+    setStudySession({ reviewed: 0, total: cardCount });
+    setShowAnswer(false);
+    setResetProgressOpen(false);
+    showToast("Progress reset. Your cards are ready to learn from the beginning.");
+  };
   const toggleTheme = () => setState((current) => ({ ...current, theme: current.theme === "light" ? "dark" : "light" }));
 
   return (
@@ -2689,7 +2789,7 @@ export default function App() {
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
-          {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} />}
+          {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} />}
         </main>
       </div>
 
@@ -2704,6 +2804,7 @@ export default function App() {
       {addCardOpen && <AddCardModal onClose={handleCloseAddCard} onSave={handleSaveCard} existingCards={state.cards.filter((card) => card.id !== editingCardId)} initialDraft={addCardSeed} editing={Boolean(editingCardId)} geminiEndpoint={syncEndpoint} />}
       {profileOpen && <ProfileModal name={profileName} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
       {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} testingConnection={testingConnection} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
+      {resetProgressOpen && <ResetProgressModal onClose={() => setResetProgressOpen(false)} onConfirm={handleResetProgress} />}
       {toast && <div className="toast" role="status"><Check size={16} aria-hidden="true" /> {toast}</div>}
     </div>
   );
