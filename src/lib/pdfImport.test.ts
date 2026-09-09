@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findArticleCandidates } from "./pdfImport";
+import { findArticleCandidates, getMenschenLesson } from "./pdfImport";
 
 describe("findArticleCandidates", () => {
   it("finds unique article+noun suggestions and keeps their source page", () => {
@@ -13,5 +13,13 @@ describe("findArticleCandidates", () => {
       { german: "Wohnung", article: "die", page: 2 },
       { german: "Kind", article: "das", page: 4 },
     ]);
+  });
+
+  it("adds the Menschen lesson when the page is in the course section", () => {
+    const candidates = findArticleCandidates([{ page: 25, text: "Der Tisch ist schön." }]);
+
+    expect(candidates[0]?.lesson).toBe("Lesson 4");
+    expect(getMenschenLesson(8)).toBeUndefined();
+    expect(getMenschenLesson(72)).toBe("Lesson 12");
   });
 });

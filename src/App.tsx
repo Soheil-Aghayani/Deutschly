@@ -61,7 +61,7 @@ import type { LucideIcon } from "lucide-react";
 import { getDailyAvatar } from "./lib/avatar";
 import { reviewCardWithGemini } from "./lib/gemini";
 import type { GeminiCardReview, GeminiCardReviewInput } from "./lib/gemini";
-import { extractMenschenPdf } from "./lib/pdfImport";
+import { extractMenschenPdf, getMenschenLesson } from "./lib/pdfImport";
 import type { PdfCandidate } from "./lib/pdfImport";
 import { checkSyncHealth, createSyncRoom, normalizeSyncRoom, pullSync, pushSync } from "./lib/sync";
 import {
@@ -589,6 +589,7 @@ function isPdfCandidate(value: unknown): value is PdfCandidate {
     && typeof value.german === "string"
     && (value.article === "der" || value.article === "die" || value.article === "das")
     && typeof value.page === "number"
+    && (value.lesson === undefined || typeof value.lesson === "string")
     && typeof value.context === "string";
 }
 
@@ -636,14 +637,22 @@ function normalizeAppState(value: unknown): AppState {
     && typeof pdfImportValue.textPreview === "string"
     && typeof pdfImportValue.extractedAt === "string"
     && Array.isArray(pdfImportValue.candidates)
-    ? {
-      fileName: pdfImportValue.fileName,
-      pageCount: pdfImportValue.pageCount,
-      candidateCount: pdfImportValue.candidateCount,
-      textPreview: pdfImportValue.textPreview,
-      extractedAt: pdfImportValue.extractedAt,
-      candidates: pdfImportValue.candidates.filter(isPdfCandidate),
-    }
+    ? (() => {
+      const candidates = pdfImportValue.candidates.filter(isPdfCandidate).map((candidate) => ({
+        ...candidate,
+        lesson: candidate.lesson?.trim() || getMenschenLesson(candidate.page),
+      }));
+      const courseCandidates = candidates.filter((candidate) => candidate.lesson);
+      const normalizedCandidates = courseCandidates.length > 0 ? courseCandidates : candidates;
+      return {
+        fileName: pdfImportValue.fileName,
+        pageCount: pdfImportValue.pageCount,
+        candidateCount: normalizedCandidates.length,
+        textPreview: pdfImportValue.textPreview,
+        extractedAt: pdfImportValue.extractedAt,
+        candidates: normalizedCandidates,
+      };
+    })()
     : undefined;
 
   return {
@@ -899,6 +908,7 @@ function prepareCardDraft(draft: CardDraft): CardDraft {
     example: draft.example.trim(),
     note: draft.note.trim(),
     tags: draft.tags.trim(),
+    lesson: draft.lesson.trim() || "Personal cards",
     sourcePage: typeof draft.sourcePage === "number" && Number.isFinite(draft.sourcePage) && draft.sourcePage > 0
       ? Math.floor(draft.sourcePage)
       : undefined,
@@ -1632,6 +1642,16 @@ function PdfCandidatesCard({
   onUseCandidate: (candidate: PdfCandidate) => void;
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [lessonFilter, setLessonFilter] = useState("all");
+  const [visibleCount, setVisibleCount] = useState(12);
+
+  const lessons = [...new Set(candidates.map((candidate) => candidate.lesson).filter((lesson): lesson is string => Boolean(lesson)))];
+  const filteredCandidates = candidates.filter((candidate) => lessonFilter === "all" || candidate.lesson === lessonFilter);
+
+  useEffect(() => {
+    setLessonFilter("all");
+    setVisibleCount(12);
+  }, [candidates]);
 
   if (!loading && !error && candidates.length === 0 && !sourcePreview) return null;
 
@@ -1646,18 +1666,26 @@ function PdfCandidatesCard({
       {error && <div className="pdf-import-card__error" role="alert"><Info size={16} aria-hidden="true" /><span>{error}</span></div>}
 
       {!loading && candidates.length > 0 && (
-        <div className="pdf-candidate-list">
-          {candidates.slice(0, 12).map((candidate) => (
-            <div className="pdf-candidate-row" key={candidate.id}>
-              <ArticleBadge article={candidate.article} compact />
-              <div className="pdf-candidate-row__copy"><strong>{candidate.german}</strong><span>Page {candidate.page} · {candidate.context}</span></div>
-              <button type="button" className="button button--ghost" onClick={() => onUseCandidate(candidate)}>Use word <ArrowRight size={14} aria-hidden="true" /></button>
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="pdf-candidate-tools">
+            <label className="library-filter" htmlFor="pdf-lesson-filter"><span>Course lesson</span><select id="pdf-lesson-filter" value={lessonFilter} onChange={(event) => setLessonFilter(event.target.value)}><option value="all">All lessons</option>{lessons.map((lesson) => <option value={lesson} key={lesson}>{lesson}</option>)}</select></label>
+            <span>{filteredCandidates.length} suggestions</span>
+          </div>
+          <div className="pdf-candidate-list">
+            {filteredCandidates.slice(0, visibleCount).map((candidate) => (
+              <div className="pdf-candidate-row" key={candidate.id}>
+                <ArticleBadge article={candidate.article} compact />
+                <div className="pdf-candidate-row__copy"><strong>{candidate.german}</strong><span>{candidate.lesson ? `${candidate.lesson} · ` : ""}Page {candidate.page} · {candidate.context}</span></div>
+                <button type="button" className="button button--ghost" onClick={() => onUseCandidate(candidate)}>Use word <ArrowRight size={14} aria-hidden="true" /></button>
+              </div>
+            ))}
+          </div>
+          {filteredCandidates.length === 0 && <div className="pdf-import-card__empty"><Info size={17} aria-hidden="true" /><span>No suggestions were found for this lesson.</span></div>}
+          {filteredCandidates.length > visibleCount && <button type="button" className="button button--ghost pdf-candidate-more" onClick={() => setVisibleCount((count) => count + 12)}>Show 12 more</button>}
+        </>
       )}
 
-      {!loading && candidates.length > 12 && <span className="pdf-import-card__more">Showing 12 of {candidates.length} suggestions. Search the source preview or add another word manually.</span>}
+      {!loading && filteredCandidates.length > 0 && <span className="pdf-import-card__more">Showing {Math.min(visibleCount, filteredCandidates.length)} of {filteredCandidates.length} suggestions. Every word is reviewed before it becomes a card.</span>}
       {!loading && candidates.length === 0 && !error && <div className="pdf-import-card__empty"><Sparkles size={17} aria-hidden="true" /><span>No article + noun patterns were detected. You can still add cards manually.</span></div>}
 
       {sourcePreview && (
@@ -1788,7 +1816,7 @@ function LibraryPage({
       <section className="library-source-card">
         <div className="library-source-card__icon" aria-hidden="true"><FileText size={22} /></div>
         <div className="library-source-card__copy"><span className="section-eyebrow">COURSE SOURCE</span><h2>Menschen A1.1</h2><p>{sourceFileName ? `${sourceFileName} attached · text extracted locally for lesson-based card creation` : "Attach your PDF to keep lesson references beside every card."}</p></div>
-        <div className="library-source-card__stats"><div><strong>6</strong><span>lessons</span></div><div><strong>{sourcePageCount || "n/a"}</strong><span>PDF pages</span></div><div><strong>{sourceCandidateCount || "n/a"}</strong><span>suggestions</span></div></div>
+        <div className="library-source-card__stats"><div><strong>12</strong><span>lessons</span></div><div><strong>{sourcePageCount || "n/a"}</strong><span>PDF pages</span></div><div><strong>{sourceCandidateCount || "n/a"}</strong><span>suggestions</span></div></div>
       </section>
 
       {lessons.length > 0 && <section className="lesson-strip" aria-label="Menschen lessons">
@@ -2191,8 +2219,9 @@ function AddCardModal({ onClose, onSave, existingCards, initialDraft, editing = 
           </div>
           <label className="form-field" htmlFor="card-example"><span>Example sentence</span><textarea id="card-example" value={draft.example} onChange={(event) => update("example", event.target.value)} placeholder="Write a sentence you can imagine using..." rows={2} /></label>
           <label className="form-field" htmlFor="card-note"><span>Personal note</span><textarea id="card-note" value={draft.note} onChange={(event) => update("note", event.target.value)} placeholder="A memory hint, related word, or pronunciation note" rows={2} /></label>
-          <div className="form-grid form-grid--two">
+          <div className="form-grid form-grid--three">
             <label className="form-field" htmlFor="card-tags"><span>Tags</span><input id="card-tags" value={draft.tags} onChange={(event) => update("tags", event.target.value)} placeholder="e.g. lesson-1, difficult, travel" /></label>
+            <label className="form-field" htmlFor="card-lesson"><span>Lesson or collection</span><input id="card-lesson" value={draft.lesson} onChange={(event) => update("lesson", event.target.value)} placeholder="e.g. Lesson 1" /></label>
             <label className="form-field" htmlFor="card-source-page"><span>PDF page <small>(optional)</small></span><input id="card-source-page" type="number" min="1" value={draft.sourcePage ?? ""} onChange={(event) => update("sourcePage", event.target.value ? Number(event.target.value) : undefined)} placeholder="e.g. 14" /></label>
           </div>
           {checkResult && <CardCheckPanel result={checkResult} referenceChecked={referenceChecked} onReferenceChecked={setReferenceChecked} onApplySuggestion={applySuggestion} aiReview={aiReview} aiError={aiError} aiChecking={aiChecking} onAiCheck={() => void handleAiCheck()} onApplyAiReview={applyAiReview} />}
@@ -2706,8 +2735,9 @@ export default function App() {
       german: candidate.german,
       article: candidate.article,
       sourcePage: candidate.page,
+      lesson: candidate.lesson ?? "Personal cards",
       tags: "Menschen, PDF",
-      note: `Suggested from ${state.sourceFileName || "Menschen PDF"}, page ${candidate.page}. ${candidate.context}`,
+      note: `Suggested from ${state.sourceFileName || "Menschen PDF"}, ${candidate.lesson ? `${candidate.lesson}, ` : ""}page ${candidate.page}. ${candidate.context}`,
     });
   };
 
