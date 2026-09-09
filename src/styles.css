@@ -664,7 +664,7 @@ svg {
   display: grid;
   grid-template-columns: minmax(0, 1.42fr) minmax(270px, 0.58fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .hero-card,
