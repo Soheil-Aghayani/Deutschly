@@ -1935,11 +1935,11 @@ function LibraryPage({
 
       <section className="library-tools">
         <label className="search-box"><Search size={18} aria-hidden="true" /><span className="sr-only">Search cards</span><input type="search" value={searchQuery} onChange={(event) => onSearch(event.target.value)} placeholder="Search words, translations, lessons..." /></label>
-        <input ref={pdfInputRef} type="file" accept=".pdf,application/pdf" className="visually-hidden" onChange={onPdfUpload} />
+        <input ref={pdfInputRef} type="file" accept=".pdf,application/pdf" className="visually-hidden" onChange={onPdfUpload} aria-hidden="true" tabIndex={-1} />
         <div className="library-tools__actions">
           <button type="button" className="button button--outline" onClick={() => pdfInputRef.current?.click()} disabled={pdfLoading}><UploadCloud size={17} aria-hidden="true" /> {pdfLoading ? "Reading PDF..." : sourceFileName ? "Replace PDF" : "Attach Menschen PDF"}</button>
           <button type="button" className="button button--ghost" onClick={onExportBackup}><Download size={16} aria-hidden="true" /> Export backup</button>
-          <input ref={backupInputRef} type="file" accept=".json,application/json" className="visually-hidden" onChange={onImportBackup} />
+          <input ref={backupInputRef} type="file" accept=".json,application/json" className="visually-hidden" onChange={onImportBackup} aria-hidden="true" tabIndex={-1} />
           <button type="button" className="button button--ghost" onClick={() => backupInputRef.current?.click()}><Upload size={16} aria-hidden="true" /> Import backup</button>
         </div>
       </section>
