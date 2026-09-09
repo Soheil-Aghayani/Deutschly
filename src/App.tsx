@@ -100,6 +100,8 @@ type VerificationStatus = "unverified" | "reference-checked";
 type PracticeMode = "article" | "plural" | "translation" | "cloze";
 type SyncStatus = "idle" | "syncing" | "synced" | "offline" | "error";
 type NotificationPermissionState = NotificationPermission | "unsupported";
+type ProfileMode = "guest" | "google";
+type ProfileOnboardingStep = "choice" | "guest" | "google-confirm";
 
 interface Flashcard {
   id: string;
@@ -199,6 +201,7 @@ const AUTO_SYNC_KEY = "deutschly:sync:auto:v1";
 const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v3";
 const PWA_INSTALL_DISMISSED_KEY = "deutschly:pwa:install-dismissed:v1";
 const PROFILE_NAME_KEY = "deutschly:profile:name:v1";
+const PROFILE_MODE_KEY = "deutschly:profile:mode:v1";
 const PROFILE_NAME_MAX_LENGTH = 32;
 const PROFILE_DISPLAY_FALLBACK = "Learner";
 const LATIN_PROFILE_NAME_PATTERN = /^[\p{Script=Latin}]+(?:[\s.'’'-]+[\p{Script=Latin}]+)*$/u;
@@ -215,6 +218,12 @@ function isValidProfileName(value: string): boolean {
 function loadProfileName(): string {
   const name = normalizeProfileName(loadLocalSetting(PROFILE_NAME_KEY));
   return isValidProfileName(name) ? name : "";
+}
+
+function getGoogleFirstName(user: FirebaseUserSummary): string {
+  const firstToken = user.displayName.trim().split(/\s+/)[0] ?? "";
+  const firstName = normalizeProfileName(firstToken);
+  return isValidProfileName(firstName) ? firstName : "";
 }
 
 function firebaseErrorMessage(error: unknown): string {
@@ -2463,9 +2472,26 @@ function CardCheckPanel({ result, referenceChecked, onReferenceChecked, onApplyS
   );
 }
 
-function ProfileOnboardingModal({ onSave }: { onSave: (name: string) => void }) {
+interface ProfileOnboardingModalProps {
+  configured: boolean;
+  user: FirebaseUserSummary | null;
+  busy: boolean;
+  firebaseError: string | null;
+  onGoogleSignIn: () => void;
+  onComplete: (name: string, mode: ProfileMode) => void;
+}
+
+function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogleSignIn, onComplete }: ProfileOnboardingModalProps) {
+  const [step, setStep] = useState<ProfileOnboardingStep>(() => user ? "google-confirm" : "choice");
   const [draftName, setDraftName] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    setStep("google-confirm");
+    setDraftName(getGoogleFirstName(user));
+    setError("");
+  }, [user?.uid, user?.displayName]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2474,22 +2500,78 @@ function ProfileOnboardingModal({ onSave }: { onSave: (name: string) => void }) 
       setError("Use Latin letters only, for example Anna or Jean-Luc.");
       return;
     }
-    onSave(normalized);
+    onComplete(normalized, step === "google-confirm" ? "google" : "guest");
   };
+
+  const handleGoogleAction = () => {
+    if (user) {
+      setStep("google-confirm");
+      setDraftName(getGoogleFirstName(user));
+      setError("");
+      return;
+    }
+    onGoogleSignIn();
+  };
+
+  const renderStepIndicator = (currentStep: number) => (
+    <div className="onboarding-modal__step-indicator" aria-label={`Step ${currentStep} of 2`}>
+      <span className={currentStep === 1 ? "is-active" : "is-complete"}>1</span>
+      <i aria-hidden="true" />
+      <span className={currentStep === 2 ? "is-active" : ""}>2</span>
+      <small>of 2</small>
+    </div>
+  );
 
   return (
     <div className="modal-backdrop modal-backdrop--onboarding" role="presentation">
       <section className="modal-panel onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" aria-describedby="onboarding-intro">
         <div className="onboarding-modal__icon" aria-hidden="true"><Sparkles size={21} /></div>
         <span className="section-eyebrow">WELCOME TO DEUTSCHLY</span>
-        <h2 id="onboarding-title">Make this learning space yours.</h2>
-        <p id="onboarding-intro" className="onboarding-modal__intro">Before we begin, tell us what to call you. Your name stays private on this device.</p>
-        <form onSubmit={handleSubmit} noValidate>
-          <label className="form-field" htmlFor="onboarding-name"><span>Your name</span><input id="onboarding-name" value={draftName} onChange={(event) => { setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH)); setError(""); }} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="name" spellCheck={false} inputMode="text" aria-invalid={Boolean(error)} aria-describedby={error ? "onboarding-name-error" : "onboarding-name-help"} /></label>
-          <small id="onboarding-name-help" className="onboarding-modal__helper">Latin letters are required so your profile works consistently across devices.</small>
-          {error && <div id="onboarding-name-error" className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
-          <button type="submit" className="button button--primary onboarding-modal__submit"><span>Continue</span><ArrowRight size={16} aria-hidden="true" /></button>
-        </form>
+        {step === "choice" && (
+          <>
+            <h2 id="onboarding-title">How do you want to start?</h2>
+            <p id="onboarding-intro" className="onboarding-modal__intro">Choose an account so we can keep your learning space safe and available on the devices you use.</p>
+            <div className="onboarding-modal__choices">
+              {configured && <button type="button" className="button button--primary onboarding-modal__choice" onClick={handleGoogleAction} disabled={busy}><Cloud size={17} aria-hidden="true" /><span>{busy ? "Opening Google..." : user ? "Review Google name" : "Continue with Google"}</span><ArrowRight size={16} aria-hidden="true" /></button>}
+              <button type="button" className="button button--outline onboarding-modal__choice" onClick={() => { setStep("guest"); setError(""); }} disabled={busy}><span>Continue as guest</span><ArrowRight size={16} aria-hidden="true" /></button>
+            </div>
+            {configured && <small className="onboarding-modal__helper">Google sign-in keeps your cards available on your phone and computer. You can change your profile name later.</small>}
+            {!configured && <div className="onboarding-modal__notice" role="status"><Info size={15} aria-hidden="true" /><span>Google sign-in is not available in this build yet. You can start as a guest and connect an account later from Settings.</span></div>}
+            {firebaseError && <div className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {firebaseError}</div>}
+          </>
+        )}
+
+        {step === "guest" && (
+          <>
+            {renderStepIndicator(1)}
+            <button type="button" className="text-button onboarding-modal__back" onClick={() => { setStep("choice"); setError(""); }}>Back to account choice</button>
+            <h2 id="onboarding-title">Start as a guest.</h2>
+            <p id="onboarding-intro" className="onboarding-modal__intro">Tell us what to call you and begin learning right away.</p>
+            <div className="onboarding-modal__notice onboarding-modal__notice--local"><Info size={15} aria-hidden="true" /><span><strong>Guest mode stays on this device.</strong> Your cards are stored locally, so browser data can be cleared or lost. Automatic cloud sync and backup are not available until you connect Google from Settings.</span></div>
+            <form onSubmit={handleSubmit} noValidate>
+              <label className="form-field" htmlFor="onboarding-name"><span>Your first name</span><input id="onboarding-name" value={draftName} onChange={(event) => { setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH)); setError(""); }} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="given-name" spellCheck={false} inputMode="text" aria-invalid={Boolean(error)} aria-describedby={error ? "onboarding-name-error" : "onboarding-name-help"} /></label>
+              <small id="onboarding-name-help" className="onboarding-modal__helper">Use Latin letters, for example Anna or Jean-Luc. You can edit this later.</small>
+              {error && <div id="onboarding-name-error" className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
+              <button type="submit" className="button button--primary onboarding-modal__submit"><span>Start as guest</span><ArrowRight size={16} aria-hidden="true" /></button>
+            </form>
+          </>
+        )}
+
+        {step === "google-confirm" && user && (
+          <>
+            {renderStepIndicator(2)}
+            <button type="button" className="text-button onboarding-modal__back" onClick={() => { setStep("choice"); setError(""); }}>Back to account choice</button>
+            <h2 id="onboarding-title">Is this your name?</h2>
+            <p id="onboarding-intro" className="onboarding-modal__intro">Google found your account successfully. We suggested your first name below, and you can change it before continuing.</p>
+            <div className="onboarding-modal__account"><Cloud size={16} aria-hidden="true" /><span><strong>{user.email || "Google account connected"}</strong><small>Signed in with Google</small></span></div>
+            <form onSubmit={handleSubmit} noValidate>
+              <label className="form-field" htmlFor="onboarding-google-name"><span>Name in Deutschly</span><input id="onboarding-google-name" value={draftName} onChange={(event) => { setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH)); setError(""); }} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="given-name" spellCheck={false} inputMode="text" aria-invalid={Boolean(error)} aria-describedby={error ? "onboarding-google-name-error" : "onboarding-google-name-help"} /></label>
+              <small id="onboarding-google-name-help" className="onboarding-modal__helper">Only the first name is used from Google. Latin letters are required, and you can change it any time in Settings.</small>
+              {error && <div id="onboarding-google-name-error" className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
+              <button type="submit" className="button button--primary onboarding-modal__submit"><span>Yes, continue</span><ArrowRight size={16} aria-hidden="true" /></button>
+            </form>
+          </>
+        )}
       </section>
     </div>
   );
@@ -2969,6 +3051,7 @@ export default function App() {
   const [weakCardsOnly, setWeakCardsOnly] = useState(false);
   const toastTimerRef = useRef<number | undefined>(undefined);
   const stateRef = useRef(state);
+  const profileNameRef = useRef(profileName);
   const syncInFlightRef = useRef(false);
   const autoSyncReadyRef = useRef(false);
   const lastAutoSyncFingerprintRef = useRef("");
@@ -2978,6 +3061,7 @@ export default function App() {
 
   const todayKey = getDayKey();
   stateRef.current = state;
+  profileNameRef.current = profileName;
   const cardPendingDeletion = deleteCardId ? state.cards.find((card) => card.id === deleteCardId) : undefined;
   const profileDisplayName = profileName || PROFILE_DISPLAY_FALLBACK;
   const profileAvatar = getDailyAvatar(profileDisplayName, todayKey);
@@ -3437,9 +3521,11 @@ export default function App() {
       const remoteState = remote ? normalizeAppState(remote.state) : null;
       const mergedState = remoteState ? mergeAppStates(localState, remoteState) : localState;
       const remoteProfileName = remote?.profileName ? normalizeProfileName(remote.profileName) : "";
-      const mergedProfileName = profileName || (isValidProfileName(remoteProfileName) ? remoteProfileName : "");
-      if (mergedProfileName && mergedProfileName !== profileName) {
+      const currentProfileName = profileNameRef.current;
+      const mergedProfileName = currentProfileName || (isValidProfileName(remoteProfileName) ? remoteProfileName : "");
+      if (mergedProfileName && mergedProfileName !== currentProfileName && !profileOnboardingOpen) {
         setProfileName(mergedProfileName);
+        profileNameRef.current = mergedProfileName;
         window.localStorage.setItem(PROFILE_NAME_KEY, mergedProfileName);
         setProfileOnboardingOpen(false);
       }
@@ -3494,16 +3580,22 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!firebaseConfigured || !firebaseUser || firebaseAuthSyncUserRef.current === firebaseUser.uid) return;
+    if (!firebaseConfigured || !firebaseUser || profileOnboardingOpen || firebaseAuthSyncUserRef.current === firebaseUser.uid) return;
     firebaseAuthSyncUserRef.current = firebaseUser.uid;
     void handleFirebaseSync({ silent: true });
-  }, [firebaseConfigured, firebaseUser?.uid]);
+  }, [firebaseConfigured, firebaseUser?.uid, profileOnboardingOpen]);
 
   useEffect(() => {
     if (!firebaseConfigured || !firebaseUser || !lastFirebaseSyncFingerprintRef.current || lastFirebaseSyncFingerprintRef.current === syncFingerprint) return undefined;
     const timer = window.setTimeout(() => void handleFirebaseSync({ silent: true }), 900);
     return () => window.clearTimeout(timer);
   }, [firebaseConfigured, firebaseUser?.uid, syncFingerprint]);
+
+  useEffect(() => {
+    if (!firebaseConfigured || !firebaseUser || !profileName || !lastFirebaseSyncFingerprintRef.current) return undefined;
+    const timer = window.setTimeout(() => void handleFirebaseSync({ silent: true }), 900);
+    return () => window.clearTimeout(timer);
+  }, [firebaseConfigured, firebaseUser?.uid, profileName]);
 
   const handleTestConnection = async () => {
     if (testingConnection || !syncEndpoint.trim()) return;
@@ -3754,13 +3846,15 @@ export default function App() {
     setProfileOpen(false);
     showToast("Profile updated.");
   };
-  const handleCompleteProfileOnboarding = (nextName: string) => {
+  const handleCompleteProfileOnboarding = (nextName: string, mode: ProfileMode) => {
     const trimmedName = normalizeProfileName(nextName);
     if (!isValidProfileName(trimmedName)) return;
+    profileNameRef.current = trimmedName;
     setProfileName(trimmedName);
     window.localStorage.setItem(PROFILE_NAME_KEY, trimmedName);
+    window.localStorage.setItem(PROFILE_MODE_KEY, mode);
     setProfileOnboardingOpen(false);
-    showToast(`Welcome to Deutschly, ${trimmedName}.`);
+    showToast(mode === "google" ? `Welcome to Deutschly, ${trimmedName}. Your cards can now sync across devices.` : `Welcome to Deutschly, ${trimmedName}. Guest mode is saved on this device.`);
   };
   const handleViewWeakCards = () => {
     setWeakCardsOnly(true);
@@ -3894,7 +3988,7 @@ export default function App() {
         onFirebaseSignOut={() => { void handleFirebaseSignOut(); }}
         onFirebaseSync={() => { void handleFirebaseSync(); }}
       />}
-      {profileOnboardingOpen && <ProfileOnboardingModal onSave={handleCompleteProfileOnboarding} />}
+      {profileOnboardingOpen && <ProfileOnboardingModal configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} firebaseError={firebaseError} onGoogleSignIn={() => { void handleFirebaseSignIn("google"); }} onComplete={handleCompleteProfileOnboarding} />}
       {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} isOnline={isOnline} testingConnection={testingConnection} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
       {resetProgressOpen && <ResetProgressModal onClose={() => setResetProgressOpen(false)} onConfirm={handleResetProgress} />}
       {showInstallPrompt && <InstallPrompt canInstall={installPrompt.canInstall} isIos={installPrompt.isIos} isMobile={installPrompt.isMobile} onInstall={() => { void handleInstallApp(); }} onDismiss={handleDismissInstallPrompt} />}

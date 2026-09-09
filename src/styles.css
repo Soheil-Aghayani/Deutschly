@@ -3986,6 +3986,128 @@ kbd {
   line-height: 1.65;
 }
 
+.onboarding-modal__step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 2px 0 10px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.onboarding-modal__step-indicator span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border-radius: 50%;
+}
+
+.onboarding-modal__step-indicator span.is-active,
+.onboarding-modal__step-indicator span.is-complete {
+  color: #ffffff;
+  background: var(--primary);
+}
+
+.onboarding-modal__step-indicator i {
+  display: block;
+  width: 26px;
+  height: 1px;
+  background: var(--border-strong);
+}
+
+.onboarding-modal__step-indicator small {
+  margin-left: 1px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.onboarding-modal__back {
+  margin: 0 0 2px;
+}
+
+.onboarding-modal__choices {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+
+.onboarding-modal__choice {
+  width: 100%;
+  min-height: 50px;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.onboarding-modal__choice svg:last-child {
+  margin-left: auto;
+}
+
+.onboarding-modal__notice,
+.onboarding-modal__account {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.55;
+  background: var(--primary-soft);
+  border: 1px solid rgba(79, 70, 229, 0.12);
+  border-radius: 10px;
+}
+
+.onboarding-modal__notice > svg,
+.onboarding-modal__account > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--primary);
+}
+
+.onboarding-modal__notice span,
+.onboarding-modal__account span {
+  min-width: 0;
+}
+
+.onboarding-modal__notice strong,
+.onboarding-modal__account strong {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.onboarding-modal__notice--local {
+  margin-bottom: 18px;
+  color: var(--text-strong);
+  background: var(--orange-soft);
+  border-color: rgba(227, 122, 40, 0.2);
+}
+
+.onboarding-modal__notice--local > svg {
+  color: var(--orange);
+}
+
+.onboarding-modal__account {
+  margin: 0 0 18px;
+  background: var(--surface-soft);
+  border-color: var(--border);
+}
+
+.onboarding-modal__account span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.onboarding-modal__account small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
 .onboarding-modal__helper {
   display: block;
   margin-top: -4px;
