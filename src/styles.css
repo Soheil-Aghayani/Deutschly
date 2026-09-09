@@ -565,6 +565,23 @@ svg {
   transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
 }
 
+.google-logo {
+  display: inline-flex;
+  flex: 0 0 26px;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: #ffffff;
+  border: 1px solid rgba(16, 24, 40, 0.1);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12);
+}
+
+.google-logo svg {
+  display: block;
+}
+
 .sync-button {
   color: var(--success);
   background: var(--success-soft);
