@@ -1,133 +1,60 @@
-<div dir="rtl" align="center">
-  <img src="public/readme-hero.svg" alt="تصویر قهرمان باغ Apricity" width="100%">
+# Deutschly
 
-  <img src="public/icon.svg" width="112" alt="آیکون باغ Apricity">
+Deutschly is a focused German flashcard PWA for Fatemeh’s Menschen A1.1 learning journey. It works in a desktop browser, on a phone, or as an installed app.
 
-  <h1>🌤️ Apricity · Gamify Garden</h1>
+Live site: <https://soheil-aghayani.github.io/Gamify-Garden/>
 
-  <p><strong>یک باغ کوچک برای قدم‌های کوچک؛ برای فاطمه، گرمای نور خورشید در زمستان.</strong></p>
-  <p>اپی آرام، گوگولی و پاستیلی برای شروع‌کردن کارهای روزانه، بدون فشار و بدون حس شکست.</p>
+## What is included
 
-  <p>
-    <a href="https://soheil-aghayani.github.io/Gamify-Garden/"><strong>🌷 ورود به باغ</strong></a>
-    &nbsp; · &nbsp;
-    <a href="IMPLEMENTATION_PLAN.md">🗺️ نقشه‌ی ساخت</a>
-  </p>
+- Adaptive review scheduling: recall first, reveal the answer, then rate it as Again, Hard, Good, or Easy.
+- Menschen A1.1 starter cards plus personal cards for vocabulary, phrases, and grammar.
+- German article colors: `der` blue, `die` feminine red, `das` green, and plural orange.
+- Add-card verification that normalizes entries such as `Das Eis`, blocks exact duplicates, flags possible duplicates, and keeps reference links beside the check.
+- Local Menschen PDF extraction. Selectable text is read in the browser and suggestions keep their source page and context. The PDF itself is never committed to this repository.
+- Daily reminder time with browser notifications when permission is granted. The in-app reminder works while Deutschly is open.
+- Responsive layout, installable PWA shell, light/dark themes, keyboard shortcuts, and local persistence.
+- A private-room sync server for moving cards between a computer and a phone on the same Wi-Fi network.
 
-  <p>
-    <img src="https://img.shields.io/badge/RTL-فارسی-6FAE8B?style=flat-square&labelColor=FFF8F0" alt="رابط فارسی و راست به چپ">
-    <img src="https://img.shields.io/badge/mobile--first-پاستیلی-E5A3B5?style=flat-square&labelColor=FFF8F0" alt="طراحی موبایل محور">
-    <img src="https://img.shields.io/badge/no--pressure-آرام-C9A7E8?style=flat-square&labelColor=FFF8F0" alt="بدون فشار">
-  </p>
-</div>
+## Use it
 
-<table dir="rtl" align="center">
-  <tr>
-    <td align="center">🌱<br><strong>قدم‌های کوچک</strong><br><sub>سه مأموریت کافی است</sub></td>
-    <td align="center">🫧<br><strong>بدون امتیاز منفی</strong><br><sub>هیچ روزی خراب نمی‌شود</sub></td>
-    <td align="center">🌼<br><strong>رشد قابل‌دیدن</strong><br><sub>هر قدم، یک دانه</sub></td>
-    <td align="center">🔒<br><strong>خصوصی و محلی</strong><br><sub>ذخیره فقط در مرورگر</sub></td>
-  </tr>
-</table>
+Open the live site above. To install it as an app:
 
-## 🌤️ Apricity یعنی چی؟
+- On Chrome or Edge desktop: use the install icon in the address bar or the browser menu.
+- On Android: use the browser menu and choose **Install app** or **Add to Home screen**.
+- On iPhone/iPad: use Safari’s **Share → Add to Home Screen**.
 
-Apricity یعنی **گرمای نور خورشید در زمستان**؛ همان گرمایی که در روزهای سخت کمک می‌کند دوباره سرپا بایستی. این باغ برای فاطمه ساخته شده تا انجام‌دادن کارها بیشتر شبیه مراقبت از یک جوانه باشد تا تیک‌زدن یک فهرست بلندبالا.
+For reminders, open **Overview**, turn on **Smart reminder**, choose a review time, then click the bell and allow notifications. On GitHub Pages, the current reminder is intentionally browser-based; keep the installed app or tab open for the scheduled check.
 
-> اینجا قرار نیست بیشتر از توانت بخواهد؛ فقط کمک می‌کند قدم بعدی را ببینی. 🌷
-
-## 🌿 چرخه‌ی کوچک امروز
-
-| مرحله | در باغ چه اتفاقی می‌افتد؟ |
-|:---:|---|
-| ۱ | حال امروزت را بین آرام، معمولی و پرانرژی انتخاب می‌کنی. |
-| ۲ | چند کار کوچک را انتخاب می‌کنی؛ پنج دقیقه هم کاملاً حساب است. |
-| ۳ | با هر کار، یک دانه می‌گیری و جوانه‌ات کمی رشد می‌کند. |
-| ۴ | با سه دانه، گل روزت باز می‌شود و یک جایزه‌ی کوچک انتخاب می‌کنی. |
-
-## 🍬 چیزهای دوست‌داشتنی داخل باغ
-
-| قابلیت | حس و کاربرد |
-|---|---|
-| 🧭 راهنمای نرم | بار اول یک راهنمای کوتاه باز می‌شود؛ بعد از آن، flow سریع و آزاد است. |
-| 🪴 صحنه‌ی رشد | دانه، جوانه، گل و درخت کوچک؛ پیشرفتت فقط عدد نیست و دیده می‌شود. |
-| 🧩 تسک‌های قابل‌تغییر | کارهای آماده را کم‌وزیاد کن یا یک کار شخصی با عنوان، توضیح و آیکون بساز. |
-| ↩️ حذفِ قابل‌برگشت | اگر تسکی را اشتباهی حذف کردی، چند ثانیه فرصت Undo داری. |
-| 🎁 جایزه‌های هر روز | کتابخانه‌ی جایزه‌ها متنوع است و هر روز چند پیشنهاد تازه و deterministic نشان می‌دهد؛ جایزه‌ی شخصی هم می‌توانی اضافه کنی. |
-| 🪩 آواتار Apricity | آواتار SVG روزانه‌ی فاطمه با seed و variant متغیر و [Boring Avatars](https://github.com/boringdesigners/boring-avatars) ساخته می‌شود. |
-| 🗓️ تقویم باغ | امروز را با تاریخ شمسی و نام روز هفته می‌بینی تا باغ حس روزانه‌تری داشته باشد. |
-| 🌼 یادگار هفته | گل‌های هفت روز اخیر را می‌بینی؛ بدون امتیاز منفی و بدون فشار استریک. |
-| 🌙 تم‌های شب | حالت روشن، شب آرام و هماهنگ با تنظیمات گوشی؛ با سه پالت پاستیلی قابل ترکیب است. |
-| 📱 حس اپ واقعی | PWA با حالت standalone، safe area، install prompt، آیکون نصب و cache آفلاین. |
-
-## 📲 نصب روی صفحه‌ی اصلی
-
-وقتی باغ را با گوشی باز کنی، یک دعوت کوچک برای نصب Apricity می‌بینی. در Chrome یا Android با زدن **نصب**، پنجره‌ی واقعی نصب مرورگر باز می‌شود. در iPhone و Safari، از منوی **Share** گزینه‌ی **Add to Home Screen** را انتخاب کن. بعد از نصب، باغ بدون نوار مرورگر و شبیه یک اپ مستقل باز می‌شود.
-
-## 🎨 حال‌وهوای بصری
-
-کرم گرم برای پس‌زمینه، سبز نعنایی برای رشد، یاسی برای خیال، هلویی برای مهربانی و زرد ملایم برای نور. گوشه‌های گرد، آیکون‌های بزرگ، متن‌های کوتاه و انیمیشن‌های نرم کمک می‌کنند تجربه بیشتر شبیه یک کارت پاستیلی زنده باشد تا یک داشبورد خشک.
-
-| رنگ | نقش |
-|:---:|---|
-| `#FFF8F0` | کرم گرم و پس‌زمینه‌ی باغ |
-| `#E1F4EA` | سبز نعنایی و حالت کامل‌شده |
-| `#E8E0FF` | یاسی و بخش‌های خیال‌انگیز |
-| `#FFD9C9` | هلویی و پیام‌های صمیمی |
-| `#FFE7A6` | زرد ملایم و جایزه‌ها |
-
-## 🛠️ اجرا روی سیستم خودت
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-برای بررسی نسخه‌ی نهایی:
+The production checks are:
 
 ```bash
 npm run typecheck
-npm test
+npm test -- --run
 npm run build
 ```
 
-## 🗂️ نقشه‌ی کوچک پروژه
+## Sync phone and computer
 
-| مسیر | مسئولیت |
-|---|---|
-| [`src/App.tsx`](src/App.tsx) | حلقه‌ی اصلی flow و وضعیت روز |
-| [`src/components/ApricityAvatar.tsx`](src/components/ApricityAvatar.tsx) | آواتار SVG فاطمه |
-| [`src/lib/avatar.ts`](src/lib/avatar.ts) | آواتار deterministic هر روز |
-| [`src/lib/date.ts`](src/lib/date.ts) | تاریخ شمسی و روز هفته |
-| [`src/components/InstallPrompt.tsx`](src/components/InstallPrompt.tsx) | پیشنهاد نصب روی گوشی |
-| [`src/components/GrowthScene.tsx`](src/components/GrowthScene.tsx) | صحنه‌ی رشد گیاه و حلقه‌ی پیشرفت |
-| [`src/components/TaskManagerDrawer.tsx`](src/components/TaskManagerDrawer.tsx) | اضافه، کم و مدیریت‌کردن تسک‌ها |
-| [`src/components/WeekMemory.tsx`](src/components/WeekMemory.tsx) | یادگار آرام هفت روز اخیر |
-| [`public/manifest.webmanifest`](public/manifest.webmanifest) | تنظیمات نصب PWA |
-| [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) | انتشار خودکار روی GitHub Pages |
+On the computer, from the project folder, keep these two commands running:
 
-## 🚀 انتشار
+```bash
+npm run sync-server
+npm run dev:network
+```
 
-با هر `push` به شاخه‌ی `main`، Workflow موجود در `.github/workflows/deploy.yml` پروژه را build می‌کند و روی GitHub Pages منتشر می‌کند. برای فعال‌سازی اولیه، در تنظیمات ریپو بخش **Pages** را روی **GitHub Actions** بگذار.
+Open the network URL printed by Vite on both devices. In Deutschly, open **Set up sync**, use `/api/sync` as the server URL, and enter the same room code on both devices. Keep both devices on the same private Wi-Fi network.
 
-نسخه‌ی آنلاین اینجاست:
+The sync server stores its room data in the ignored `.deutschly/sync.json` file on the computer. The static GitHub Pages site is shareable, but it does not host this private sync server. A production cloud sync service would still need HTTPS, authentication, encrypted storage, conflict history, and a hosted backend.
 
-<div dir="rtl" align="center">
+## GitHub Pages
 
-### [🌷 بازکردن باغ Apricity](https://soheil-aghayani.github.io/Gamify-Garden/)
+`.github/workflows/deploy.yml` builds `dist` and deploys it to GitHub Pages whenever `main` is updated. The repository should have Pages configured with **GitHub Actions** as its build source.
 
-</div>
-
-## 🤍 حریم خصوصی و قوانین باغ
-
-- هیچ حساب کاربری، API خارجی یا بک‌اندی وجود ندارد.
-- پیشرفت با کلید `gamify-garden:v1` فقط در `localStorage` همان مرورگر نگه‌داری می‌شود.
-- بعد از نصب، باغ با manifest و service worker در حالت standalone و تا حد امکان آفلاین کار می‌کند.
-- از دست‌دادن یک روز، سطح یا پیشرفت قبلی را پاک نمی‌کند.
-- انیمیشن‌ها به تنظیم `prefers-reduced-motion` احترام می‌گذارند.
-
-<div dir="rtl" align="center">
-  <br>
-  <p><strong>ساخته‌شده با 🌱، رنگ‌های پاستیلی و کمی نور زمستانی برای فاطمه</strong></p>
-  <sub>هر روز لازم نیست بزرگ باشد؛ فقط کافی است یک جوانه‌ی کوچک داشته باشد.</sub>
-</div>
+The app is designed to keep Fatemeh’s cards in the browser by default. Use **Export backup** before moving data to a new browser, or use the private-room sync flow when both devices are available on the same network.

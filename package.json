@@ -1,10 +1,12 @@
 {
-  "name": "gamify-garden",
+  "name": "deutschly",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:network": "vite --host 0.0.0.0",
+    "sync-server": "node server.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -15,6 +17,7 @@
     "@fontsource-variable/vazirmatn": "^5.3.0",
     "boring-avatars": "^2.0.4",
     "lucide-react": "^0.468.0",
+    "pdfjs-dist": "^4.10.38",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

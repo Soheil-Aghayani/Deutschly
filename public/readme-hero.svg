@@ -1,1 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc"><title id="title">Apricity Gamify Garden</title><desc id="desc">A gentle pastel garden for small daily steps.</desc><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff8f0"/><stop offset="1" stop-color="#e8e0ff"/></linearGradient><linearGradient id="g" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#6fae8b"/><stop offset="1" stop-color="#e5a3b5"/></linearGradient></defs><rect width="1200" height="360" rx="28" fill="url(#bg)"/><circle cx="1010" cy="105" r="70" fill="#ffe7a6"/><path d="M700 360c70-100 132-135 200-104 70 32 110 0 300-45v149Z" fill="#e1f4ea"/><g fill="none" stroke="#6fae8b" stroke-width="8" stroke-linecap="round"><path d="M936 300c4-84 16-132 48-179"/><path d="M962 230c-42-25-63-55-68-94"/><path d="M975 205c42-16 65-40 78-76"/></g><g fill="#e5a3b5"><circle cx="905" cy="126" r="20"/><circle cx="1054" cy="123" r="18"/><circle cx="976" cy="85" r="16"/></g><g fill="#4d5d58" font-family="Arial,Helvetica,sans-serif"><text x="72" y="84" font-size="16" letter-spacing="5" fill="#6fae8b">A SMALL GARDEN / FOR SMALL STEPS</text><text x="72" y="150" font-size="58" font-weight="700">APRICITY</text><text x="72" y="192" font-size="20" fill="#68736f">Visible growth · gentle RTL · no pressure</text><rect x="72" y="248" width="265" height="42" rx="21" fill="#6fae8b"/><text x="96" y="275" font-size="13" font-weight="700" fill="#fff8f0" letter-spacing="2">OPEN THE GARDEN →</text></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Deutschly German flashcards</title>
+  <desc id="desc">A calm adaptive flashcard workspace for learning German.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f2f3ff"/>
+      <stop offset="0.58" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e9faf2"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#5b55e8"/>
+      <stop offset="1" stop-color="#3f38bd"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="360" rx="28" fill="url(#bg)"/>
+  <circle cx="1090" cy="64" r="74" fill="#ffe8c7" fill-opacity="0.68"/>
+  <circle cx="95" cy="350" r="120" fill="#e2f7ec" fill-opacity="0.8"/>
+  <g transform="translate(72 84)">
+    <rect width="116" height="116" rx="28" fill="url(#mark)"/>
+    <path d="M28 28h25c9 0 16 7 16 16v45c-5-4-11-6-17-6H28c-4 0-7-3-7-7V35c0-4 3-7 7-7Z" fill="none" stroke="#fff" stroke-linejoin="round" stroke-width="6"/>
+    <path d="M88 28H63c-9 0-16 7-16 16v45c5-4 11-6 17-6h24c4 0 7-3 7-7V35c0-4-3-7-7-7Z" fill="none" stroke="#fff" stroke-linejoin="round" stroke-width="6"/>
+    <path d="M58 43v43" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="4"/>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="246" y="112" fill="#5659c8" font-size="16" font-weight="800" letter-spacing="4">GERMAN FLASHCARDS / MENSCHEN A1.1</text>
+    <text x="246" y="181" fill="#171c38" font-size="57" font-weight="800">Deutschly</text>
+    <text x="246" y="223" fill="#555c76" font-size="22" font-weight="600">German that sticks — one focused review at a time.</text>
+    <rect x="246" y="263" width="300" height="42" rx="21" fill="#5b55e8"/>
+    <text x="396" y="290" text-anchor="middle" fill="#fff" font-size="14" font-weight="800" letter-spacing="1">OPEN THE FLASHCARDS →</text>
+    <g transform="translate(840 130)">
+      <rect width="86" height="42" rx="12" fill="#eef0ff"/><text x="43" y="28" text-anchor="middle" fill="#5659c8" font-size="18" font-weight="800">der</text>
+      <rect x="98" width="86" height="42" rx="12" fill="#fff0f1"/><text x="141" y="28" text-anchor="middle" fill="#c94c60" font-size="18" font-weight="800">die</text>
+      <rect x="196" width="86" height="42" rx="12" fill="#e7faf3"/><text x="239" y="28" text-anchor="middle" fill="#14977e" font-size="18" font-weight="800">das</text>
+    </g>
+    <text x="840" y="221" fill="#777e96" font-size="17">Adaptive recall · reminders · phone + desktop</text>
+  </g>
+</svg>

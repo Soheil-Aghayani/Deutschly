@@ -16,7 +16,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("Apricity failed to render", error, info);
+    console.error("Deutschly failed to render", error, info);
   }
 
   private handleRetry = () => {
@@ -27,14 +27,14 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
     if (!this.state.hasError) return this.props.children;
 
     return (
-      <main className="app-crash-fallback" dir="rtl" lang="fa">
+      <main className="app-crash-fallback" lang="en">
         <div className="app-crash-fallback__card">
-          <div className="app-crash-fallback__icon" aria-hidden="true">🌱</div>
-          <p className="eyebrow">یک لحظه...</p>
-          <h1>باغت درست باز نشد</h1>
-          <p>یک بار دوباره امتحان کنیم؟ اگر صفحه‌ی قدیمی مانده باشد، باغ خودش تازه می‌شود.</p>
+          <div className="app-crash-fallback__icon" aria-hidden="true">📚</div>
+          <p className="eyebrow">One moment...</p>
+          <h1>Deutschly needs a refresh</h1>
+          <p>Something interrupted the study space. Reload once and your locally saved cards should still be there.</p>
           <button type="button" className="primary-button" onClick={this.handleRetry}>
-            تلاش دوباره
+            Reload Deutschly
           </button>
         </div>
       </main>
