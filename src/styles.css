@@ -44,6 +44,7 @@ html {
   min-height: 100%;
   background: #f5f6fb;
   scroll-padding-top: 96px;
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -4855,7 +4856,7 @@ kbd {
   }
 
   .main-content {
-    padding: 22px 13px 28px;
+    padding: 22px 16px 28px;
   }
 
   .page-stack {
