@@ -168,7 +168,7 @@ const STORAGE_KEY = "deutschly:state:v1";
 const SYNC_ENDPOINT_KEY = "deutschly:sync:endpoint:v1";
 const SYNC_ROOM_KEY = "deutschly:sync:room:v1";
 const AUTO_SYNC_KEY = "deutschly:sync:auto:v1";
-const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v1";
+const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v2";
 const PROFILE_NAME_KEY = "deutschly:profile:name:v1";
 const PROFILE_NAME = "Fatemeh";
 const PROFILE_AVATAR_COLORS = ["#EEF0FF", "#8D8BFF", "#56C39E", "#F6A261", "#F2B4BE"];
@@ -230,6 +230,23 @@ function formatTimeLabel(value: string): string {
   const date = new Date();
   date.setHours(Number.isFinite(hours) ? hours : 19, Number.isFinite(minutes) ? minutes : 0, 0, 0);
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+function formatClockLabel(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+function getNextReminderAt(reminderTime: string, now = new Date()): Date {
+  const [hoursValue, minutesValue] = reminderTime.split(":").map(Number);
+  const target = new Date(now);
+  target.setHours(Number.isFinite(hoursValue) ? hoursValue : 19, Number.isFinite(minutesValue) ? minutesValue : 0, 0, 0);
+  if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
+  return target;
+}
+
+function formatReminderTarget(date: Date, now = new Date()): string {
+  const time = formatClockLabel(date);
+  return getDayKey(date) === getDayKey(now) ? `at ${time}` : `tomorrow at ${time}`;
 }
 
 function formatSyncLabel(timestamp: string): string {
@@ -1018,6 +1035,8 @@ function OverviewPage({
   const progress = Math.min(100, Math.round((state.reviewsToday / state.dailyGoal) * 100));
   const dateLabel = formatDate(currentTime);
   const greeting = getGreeting(currentTime);
+  const reminderTarget = reminderSnoozedUntil ? new Date(reminderSnoozedUntil) : getNextReminderAt(state.reminderTime, currentTime);
+  const reminderTargetLabel = formatReminderTarget(reminderTarget, currentTime);
   const week = [
     { label: "M", value: state.weeklyReviews[0] ?? 0 },
     { label: "T", value: state.weeklyReviews[1] ?? 0 },
@@ -1089,9 +1108,8 @@ function OverviewPage({
           </label>
           <div className="reminder-card__actions">
             <button type="button" className="button button--ghost" onClick={onAddReminderToCalendar}><CalendarPlus size={14} aria-hidden="true" /> Calendar</button>
-            <button type="button" className="button button--ghost" onClick={onSnoozeReminder} disabled={!state.reminderEnabled}><Clock3 size={14} aria-hidden="true" /> {reminderSnoozedUntil ? "Snoozed" : "Snooze 1h"}</button>
+            <button type="button" className="button button--ghost" onClick={onSnoozeReminder} disabled={!state.reminderEnabled} aria-label={`${reminderSnoozedUntil ? "Reminder scheduled" : "Snooze reminder"} ${reminderTargetLabel}`} title={`${reminderSnoozedUntil ? "Reminder scheduled" : "Snooze reminder"} ${reminderTargetLabel}`}><Clock3 size={14} aria-hidden="true" /> {reminderSnoozedUntil ? "Scheduled" : "Snooze"}</button>
           </div>
-          {reminderSnoozedUntil && <span className="reminder-card__snooze">Paused until {new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(reminderSnoozedUntil))}</span>}
         </aside>
       </section>
 
@@ -2582,10 +2600,10 @@ export default function App() {
     window.localStorage.removeItem(REMINDER_SNOOZE_KEY);
   };
   const handleSnoozeReminder = () => {
-    const until = Date.now() + 60 * 60_000;
+    const until = getNextReminderAt(state.reminderTime).getTime();
     setReminderSnoozedUntil(until);
     window.localStorage.setItem(REMINDER_SNOOZE_KEY, String(until));
-    showToast("Reminder snoozed for one hour.");
+    showToast(`Okay — I'll remind you ${formatReminderTarget(new Date(until))}.`);
   };
   const handleAddReminderToCalendar = () => {
     downloadReminderCalendar(state.reminderTime);

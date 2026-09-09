@@ -618,6 +618,7 @@ svg {
   display: grid;
   grid-template-columns: minmax(0, 1.42fr) minmax(270px, 0.58fr);
   gap: 18px;
+  align-items: start;
 }
 
 .hero-card,
@@ -644,8 +645,10 @@ svg {
 
 .hero-card {
   position: relative;
+  display: flex;
+  flex-direction: column;
   min-height: 266px;
-  padding: 27px 30px 21px;
+  padding: 24px 30px;
   overflow: hidden;
   color: #ffffff;
   background: linear-gradient(135deg, #5851de 0%, #433cb7 100%);
@@ -713,6 +716,7 @@ svg {
   position: relative;
   z-index: 1;
   display: grid;
+  flex: 1;
   grid-template-columns: minmax(0, 1fr) 154px;
   gap: 28px;
   align-items: center;
@@ -871,14 +875,6 @@ svg {
   min-height: 32px;
   padding: 0 9px;
   font-size: 10px;
-}
-
-.reminder-card__snooze {
-  display: block;
-  margin-top: 8px;
-  color: var(--orange);
-  font-size: 10px;
-  font-weight: 700;
 }
 
 .switch {
@@ -4515,7 +4511,7 @@ kbd {
 
   .hero-card {
     min-height: 258px;
-    padding: 21px 20px 18px;
+    padding: 20px;
   }
 
   .hero-card__body {
@@ -4645,7 +4641,7 @@ kbd {
   }
 
   .hero-card {
-    padding: 18px 17px 15px;
+    padding: 18px 17px;
   }
 
   .hero-card__goal {
