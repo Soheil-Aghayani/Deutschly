@@ -60,6 +60,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getDailyAvatar } from "./lib/avatar";
+import { reviewCardWithGemini } from "./lib/gemini";
+import type { GeminiCardReview, GeminiCardReviewInput } from "./lib/gemini";
 import { extractMenschenPdf } from "./lib/pdfImport";
 import type { PdfCandidate } from "./lib/pdfImport";
 import { checkSyncHealth, createSyncRoom, normalizeSyncRoom, pullSync, pushSync } from "./lib/sync";
@@ -1767,7 +1769,17 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder }: { state: App
   );
 }
 
-function CardCheckPanel({ result, referenceChecked, onReferenceChecked, onApplySuggestion }: { result: CardCheckResult; referenceChecked: boolean; onReferenceChecked: (checked: boolean) => void; onApplySuggestion: () => void }) {
+function CardCheckPanel({ result, referenceChecked, onReferenceChecked, onApplySuggestion, aiReview, aiError, aiChecking, onAiCheck, onApplyAiReview }: {
+  result: CardCheckResult;
+  referenceChecked: boolean;
+  onReferenceChecked: (checked: boolean) => void;
+  onApplySuggestion: () => void;
+  aiReview: GeminiCardReview | null;
+  aiError: string | null;
+  aiChecking: boolean;
+  onAiCheck: () => void;
+  onApplyAiReview: () => void;
+}) {
   const blocked = result.match?.type === "exact";
 
   return (
@@ -1807,6 +1819,29 @@ function CardCheckPanel({ result, referenceChecked, onReferenceChecked, onApplyS
           <button type="button" className="button button--ghost" onClick={onApplySuggestion}><CheckCheck size={14} aria-hidden="true" /> Apply hint</button>
         </div>
       )}
+
+      <div className="card-check__ai">
+        <div className="card-check__ai-heading">
+          <div><Sparkles size={16} aria-hidden="true" /><span><strong>Optional Gemini review</strong><small>Check tricky articles, plurals, meanings, and duplicate clues.</small></span></div>
+          <button type="button" className="button button--ghost" onClick={onAiCheck} disabled={aiChecking}>{aiChecking ? <RefreshCw size={14} className="spin" aria-hidden="true" /> : <Sparkles size={14} aria-hidden="true" />}{aiChecking ? "Checking..." : "Ask Gemini"}</button>
+        </div>
+        <small className="card-check__ai-note">The local checker stays the source of truth. Gemini suggestions are never saved automatically.</small>
+        {aiError && <div className="card-check__ai-error" role="alert"><Info size={14} aria-hidden="true" /><span>{aiError}</span></div>}
+        {aiReview && (
+          <div className={`card-check__ai-result card-check__ai-result--${aiReview.verdict}`}>
+            <div className="card-check__ai-result-heading"><span className={`ai-verdict ai-verdict--${aiReview.verdict}`}>{aiReview.verdict === "looks-good" ? "Looks good" : "Needs a closer look"}</span><span>Article: {aiReview.articleConfidence} · plural: {aiReview.pluralConfidence}</span></div>
+            <div className="card-check__ai-fields">
+              <div><span>Article</span><ArticleBadge article={aiReview.article} compact /></div>
+              <div><span>Plural</span><strong>{aiReview.plural || "—"}</strong></div>
+              <div><span>Meaning</span><strong>{aiReview.translation}</strong></div>
+            </div>
+            <p>{aiReview.explanation}</p>
+            {aiReview.example && <div className="card-check__ai-example"><strong>Example</strong><span>{aiReview.example}</span></div>}
+            {aiReview.duplicateHint && <div className="card-check__ai-duplicate"><strong>Duplicate clue</strong><span>{aiReview.duplicateHint}</span></div>}
+            <div className="card-check__ai-footer"><small>Review the suggestions against a reference before using them.</small><button type="button" className="button button--ghost" onClick={onApplyAiReview}>Use suggestions</button></div>
+          </div>
+        )}
+      </div>
 
       <div className="card-check__references">
         <span>Check references</span>
@@ -1894,7 +1929,7 @@ function SyncModal({
           <div><span className="section-eyebrow">PRIVATE DEVICE SYNC</span><h2 id="sync-title">Connect your devices</h2></div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close sync settings" title="Close"><X size={19} aria-hidden="true" /></button>
         </div>
-        <p className="modal-panel__intro">Run the Deutschly sync server on your PC, then use the same room code on your phone. Your cards stay in this private room instead of going to a third-party service.</p>
+        <p className="modal-panel__intro">Run the Deutschly sync server on your PC, then use the same room code on your phone. Your cards stay in this private room instead of going to a third-party service. If the server starts with <code>GEMINI_API_FILE</code>, it also powers the optional Gemini card review without putting the key in your browser.</p>
         <div className="sync-modal__steps" aria-label="Sync setup steps">
           <div><strong>1</strong><span>On the PC, run <code>npm run sync-server -- --host 0.0.0.0</code> so the phone can reach it.</span></div>
           <div><strong>2</strong><span>Open the app on both devices over the same Wi-Fi network.</span></div>
@@ -1917,10 +1952,13 @@ function SyncModal({
   );
 }
 
-function AddCardModal({ onClose, onSave, existingCards, initialDraft, editing = false }: { onClose: () => void; onSave: (draft: CardDraft) => void; existingCards: Flashcard[]; initialDraft?: Partial<CardDraft>; editing?: boolean }) {
+function AddCardModal({ onClose, onSave, existingCards, initialDraft, editing = false, geminiEndpoint }: { onClose: () => void; onSave: (draft: CardDraft) => void; existingCards: Flashcard[]; initialDraft?: Partial<CardDraft>; editing?: boolean; geminiEndpoint: string }) {
   const [draft, setDraft] = useState<CardDraft>(() => createCardDraft(initialDraft));
   const [checkResult, setCheckResult] = useState<CardCheckResult | null>(null);
   const [referenceChecked, setReferenceChecked] = useState(false);
+  const [aiReview, setAiReview] = useState<GeminiCardReview | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiChecking, setAiChecking] = useState(false);
   const germanInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1936,6 +1974,8 @@ function AddCardModal({ onClose, onSave, existingCards, initialDraft, editing = 
     setDraft((current) => ({ ...current, [key]: value }));
     setCheckResult(null);
     setReferenceChecked(false);
+    setAiReview(null);
+    setAiError(null);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -1945,6 +1985,52 @@ function AddCardModal({ onClose, onSave, existingCards, initialDraft, editing = 
     setDraft(result.draft);
     setCheckResult(result);
     setReferenceChecked(false);
+    setAiReview(null);
+    setAiError(null);
+  };
+
+  const handleAiCheck = async () => {
+    if (!checkResult || aiChecking) return;
+    setAiChecking(true);
+    setAiError(null);
+    const checkedDraft = checkResult.draft;
+    const germanTerm = normalizeGermanTerm(checkedDraft.german);
+    const input: GeminiCardReviewInput = {
+      german: checkedDraft.german,
+      translation: checkedDraft.translation,
+      article: checkedDraft.article,
+      plural: checkedDraft.plural,
+      example: checkedDraft.example,
+      note: checkedDraft.note,
+      kind: checkedDraft.kind,
+      existingMatches: existingCards
+        .filter((card) => normalizeGermanTerm(card.german) === germanTerm)
+        .slice(0, 20)
+        .map((card) => ({ german: card.german, article: card.article, translation: card.translation })),
+    };
+
+    try {
+      setAiReview(await reviewCardWithGemini(geminiEndpoint, input));
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "Gemini could not review this card.");
+    } finally {
+      setAiChecking(false);
+    }
+  };
+
+  const applyAiReview = () => {
+    if (!aiReview) return;
+    setDraft((current) => ({
+      ...current,
+      article: aiReview.article,
+      plural: aiReview.plural,
+      translation: aiReview.translation,
+      example: aiReview.example,
+    }));
+    setCheckResult(null);
+    setReferenceChecked(false);
+    setAiReview(null);
+    setAiError(null);
   };
 
   const handleConfirm = () => {
@@ -1987,7 +2073,7 @@ function AddCardModal({ onClose, onSave, existingCards, initialDraft, editing = 
             <label className="form-field" htmlFor="card-tags"><span>Tags</span><input id="card-tags" value={draft.tags} onChange={(event) => update("tags", event.target.value)} placeholder="e.g. lesson-1, difficult, travel" /></label>
             <label className="form-field" htmlFor="card-source-page"><span>PDF page <small>(optional)</small></span><input id="card-source-page" type="number" min="1" value={draft.sourcePage ?? ""} onChange={(event) => update("sourcePage", event.target.value ? Number(event.target.value) : undefined)} placeholder="e.g. 14" /></label>
           </div>
-          {checkResult && <CardCheckPanel result={checkResult} referenceChecked={referenceChecked} onReferenceChecked={setReferenceChecked} onApplySuggestion={applySuggestion} />}
+          {checkResult && <CardCheckPanel result={checkResult} referenceChecked={referenceChecked} onReferenceChecked={setReferenceChecked} onApplySuggestion={applySuggestion} aiReview={aiReview} aiError={aiError} aiChecking={aiChecking} onAiCheck={() => void handleAiCheck()} onApplyAiReview={applyAiReview} />}
           <div className="modal-panel__footer">
             <span><Info size={15} aria-hidden="true" /> {checkResult ? "Confirm the details after checking the references." : "A quick check helps keep your library clean."}</span>
             <div>
@@ -2586,7 +2672,7 @@ export default function App() {
         ))}
       </nav>
 
-      {addCardOpen && <AddCardModal onClose={handleCloseAddCard} onSave={handleSaveCard} existingCards={state.cards.filter((card) => card.id !== editingCardId)} initialDraft={addCardSeed} editing={Boolean(editingCardId)} />}
+      {addCardOpen && <AddCardModal onClose={handleCloseAddCard} onSave={handleSaveCard} existingCards={state.cards.filter((card) => card.id !== editingCardId)} initialDraft={addCardSeed} editing={Boolean(editingCardId)} geminiEndpoint={syncEndpoint} />}
       {profileOpen && <ProfileModal name={profileName} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
       {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} testingConnection={testingConnection} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
       {toast && <div className="toast" role="status"><Check size={16} aria-hidden="true" /> {toast}</div>}

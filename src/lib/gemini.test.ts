@@ -1,0 +1,62 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { geminiReviewUrl, parseGeminiCardReview, reviewCardWithGemini } from "./gemini";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+const review = {
+  verdict: "needs-review",
+  article: "das",
+  article_confidence: "high",
+  plural: "Eissorten",
+  plural_confidence: "medium",
+  translation: "ice cream",
+  example: "Ich esse gern Eis.",
+  explanation: "The everyday meaning is usually uncountable; a plural is only needed for types or servings.",
+  duplicate_hint: "No exact local match was supplied.",
+};
+
+describe("Gemini card review bridge", () => {
+  it("maps the sync server URL to the review route", () => {
+    expect(geminiReviewUrl("")).toBe("/api/gemini/check-card");
+    expect(geminiReviewUrl("/api/sync")).toBe("/api/gemini/check-card");
+    expect(geminiReviewUrl("http://192.168.1.20:8787/api/sync")).toBe("http://192.168.1.20:8787/api/gemini/check-card");
+  });
+
+  it("normalizes the validated review shape for the UI", () => {
+    expect(parseGeminiCardReview({ review })).toEqual({
+      verdict: "needs-review",
+      article: "das",
+      articleConfidence: "high",
+      plural: "Eissorten",
+      pluralConfidence: "medium",
+      translation: "ice cream",
+      example: "Ich esse gern Eis.",
+      explanation: review.explanation,
+      duplicateHint: review.duplicate_hint,
+    });
+  });
+
+  it("posts only card data to the local bridge and parses its response", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ review }), { status: 200 }));
+    const result = await reviewCardWithGemini("/api/sync", {
+      german: "Eis",
+      translation: "ice cream",
+      article: "das",
+      plural: "",
+      example: "Ich esse gern Eis.",
+      note: "",
+      kind: "word",
+      existingMatches: [],
+    });
+
+    expect(result.article).toBe("das");
+    expect(fetchMock).toHaveBeenCalledWith("/api/gemini/check-card", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("headers.x-goog-api-key");
+  });
+
+  it("rejects a response with an unsupported article", () => {
+    expect(() => parseGeminiCardReview({ review: { ...review, article: "ein" } })).toThrow("invalid article");
+  });
+});

@@ -55,6 +55,19 @@ Open the network URL printed by Vite on both devices. In Deutschly, open **Set u
 
 The sync server stores its room data in the ignored `.deutschly/sync.json` file on the computer. The static GitHub Pages site is shareable, but it does not host this private sync server. A production cloud sync service would still need HTTPS, authentication, encrypted storage, conflict history, and a hosted backend.
 
+## Optional Gemini card review
+
+The **Ask Gemini** action in the card checker is an optional assistant for uncertain articles, plurals, meanings, and duplicate clues. The local duplicate checker remains the source of truth, and Gemini suggestions are never saved automatically.
+
+Keep the Gemini key on the PC that runs the local server. Either set `GEMINI_API_KEY`, or point `GEMINI_API_FILE` at a local text file containing the key. Do not add the key to the repository, browser code, or a public API relay:
+
+```powershell
+$env:GEMINI_API_FILE = 'C:\path\to\Gemini API.txt'
+npm run sync-server -- --host 0.0.0.0
+```
+
+If the sync URL is configured in Deutschly, the app uses the same private server for card review. On the phone, use the PC LAN address in the sync settings. Stop the server when you are finished, and keep it on a trusted Wi-Fi network; this starter bridge is intentionally not a public production service.
+
 ## GitHub Pages
 
 `.github/workflows/deploy.yml` builds `dist` and deploys it to GitHub Pages whenever `main` is updated. The repository should have Pages configured with **GitHub Actions** as its build source.

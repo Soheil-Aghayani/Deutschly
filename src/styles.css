@@ -237,7 +237,7 @@ svg {
   color: var(--text-strong);
   font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
 }
 
 .brand__beta {
@@ -245,7 +245,7 @@ svg {
   padding: 3px 5px;
   color: var(--primary);
   font-size: 8px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.1em;
   background: var(--primary-soft);
   border-radius: 5px;
@@ -278,7 +278,7 @@ svg {
   overflow: hidden;
   color: var(--text-strong);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -319,7 +319,7 @@ svg {
 .hero-card__eyebrow {
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -369,7 +369,7 @@ svg {
   margin-left: auto;
   color: #ffffff;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   background: var(--primary);
   border-radius: 7px;
 }
@@ -410,7 +410,7 @@ svg {
   justify-content: center;
   overflow: hidden;
   color: #ffffff;
-  font-weight: 800;
+  font-weight: 700;
   background: linear-gradient(145deg, #7774ed, #4d49c5);
   border-radius: 50%;
   line-height: 0;
@@ -522,7 +522,7 @@ svg {
   min-height: 42px;
   padding: 0 16px;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
   border-radius: 11px;
   transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
 }
@@ -574,7 +574,7 @@ svg {
   color: var(--text-strong);
   font-size: clamp(28px, 3vw, 39px);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.1;
 }
 
@@ -723,7 +723,7 @@ svg {
   margin: 0 0 7px;
   font-size: clamp(24px, 3vw, 34px);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.1;
 }
 
@@ -775,7 +775,7 @@ svg {
 .progress-ring__inner strong {
   font-size: 32px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .progress-ring__inner span {
@@ -837,7 +837,7 @@ svg {
 .card-label {
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -848,7 +848,7 @@ svg {
   color: var(--text-strong);
   font-size: 17px;
   font-weight: 700;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
   line-height: 1.25;
 }
 
@@ -924,7 +924,7 @@ svg {
 .time-field span {
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .time-field input {
@@ -932,7 +932,7 @@ svg {
   padding: 7px 0 7px 6px;
   color: var(--text-strong);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
   text-align: right;
   background: transparent;
   border: 0;
@@ -997,7 +997,7 @@ svg {
   color: var(--text-strong);
   font-size: 22px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .stat-card__content small {
@@ -1045,7 +1045,7 @@ svg {
   color: var(--text-strong);
   font-size: 18px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .text-button,
@@ -1057,7 +1057,7 @@ svg {
   padding: 4px 0;
   color: var(--primary);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
   background: transparent;
   border: 0;
 }
@@ -1091,7 +1091,7 @@ svg {
   gap: 6px;
   color: var(--primary);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .muted-label {
@@ -1105,7 +1105,7 @@ svg {
   color: var(--text-strong);
   font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .continue-card p {
@@ -1185,7 +1185,7 @@ svg {
   color: var(--text-strong);
   font-size: 25px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .flashcard-preview > span:not(.flashcard-preview__topline) {
@@ -1252,8 +1252,8 @@ svg {
   margin: 4px 0 16px;
   color: var(--text-strong);
   font-size: 14px;
-  font-weight: 800;
-  letter-spacing: -0.025em;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 .deck-card__progress {
@@ -1303,7 +1303,7 @@ svg {
 .new-deck-card strong {
   color: currentColor;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .new-deck-card > span:last-child {
@@ -1324,7 +1324,7 @@ svg {
   margin-right: 4px;
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .article-badge {
@@ -1334,7 +1334,7 @@ svg {
   min-height: 28px;
   padding: 5px 8px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -1342,7 +1342,7 @@ svg {
 
 .article-badge small {
   font-size: 9px;
-  font-weight: 750;
+  font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   opacity: 0.78;
@@ -1464,7 +1464,7 @@ svg {
   color: var(--text-strong);
   font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .week-card__footer span {
@@ -1482,7 +1482,7 @@ svg {
   padding: 0 7px;
   color: var(--primary);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   background: var(--primary-soft);
   border-radius: 8px;
 }
@@ -1613,7 +1613,7 @@ svg {
 .study-counter strong {
   color: var(--primary);
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .study-progress-bar {
@@ -1706,7 +1706,7 @@ svg {
   padding: 4px 7px;
   color: var(--orange);
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   background: var(--orange-soft);
@@ -1715,7 +1715,7 @@ svg {
 
 .study-card__plural strong {
   color: var(--text);
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .study-card__audio {
@@ -1820,7 +1820,7 @@ svg {
   color: var(--text-strong);
   font-size: 23px;
   font-weight: 700;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
 }
 
 .study-answer__example {
@@ -1837,7 +1837,7 @@ svg {
 .study-answer__example span {
   color: var(--text-muted);
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -1916,7 +1916,7 @@ svg {
 .rating-button strong {
   color: var(--text-strong);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .rating-button small {
@@ -1998,7 +1998,7 @@ kbd {
   height: 28px;
   color: var(--text-muted);
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
   background: var(--surface-muted);
   border-radius: 8px;
 }
@@ -2018,7 +2018,7 @@ kbd {
 .memory-step strong {
   color: var(--text-strong);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .memory-step span:not(.memory-step__number) {
@@ -2056,7 +2056,7 @@ kbd {
 .next-window-card strong {
   color: var(--text-strong);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .study-page--complete {
@@ -2300,8 +2300,8 @@ kbd {
 .library-source-card__stats strong {
   color: var(--text-strong);
   font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 .library-source-card__stats span {
@@ -2336,7 +2336,7 @@ kbd {
   color: var(--text-strong);
   font-size: 16px;
   font-weight: 700;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
 }
 
 .lesson-strip__items {
@@ -2372,7 +2372,7 @@ kbd {
 .lesson-chip strong {
   color: var(--text-strong);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .lesson-chip--active strong {
@@ -2415,7 +2415,7 @@ kbd {
 .resource-shelf summary strong {
   color: var(--text-strong);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .resource-shelf summary small {
@@ -2488,7 +2488,7 @@ kbd {
   padding: 0 9px;
   color: var(--primary);
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
   background: var(--primary-soft);
   border-radius: 10px;
 }
@@ -2565,7 +2565,7 @@ kbd {
   overflow: hidden;
   color: var(--text-strong);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2602,7 +2602,7 @@ kbd {
   color: var(--primary);
   cursor: pointer;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .pdf-preview-details pre {
@@ -2640,7 +2640,7 @@ kbd {
   padding: 0 9px 10px;
   color: var(--text-muted);
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2663,7 +2663,7 @@ kbd {
   overflow: hidden;
   color: var(--text-strong);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2680,7 +2680,7 @@ kbd {
 
 .library-row__word .verification-note {
   color: var(--orange);
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
@@ -2701,7 +2701,7 @@ kbd {
   min-height: 24px;
   padding: 0 8px;
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
   border-radius: 7px;
 }
 
@@ -2740,13 +2740,13 @@ kbd {
 .progress-summary span {
   color: var(--text-muted);
   font-size: 9px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .progress-summary strong {
   color: var(--text-strong);
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .progress-overview-grid {
@@ -2813,7 +2813,7 @@ kbd {
 
 .large-chart__column--today .large-chart__value {
   color: var(--primary);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .large-chart__column--today .large-chart__track span {
@@ -2853,8 +2853,8 @@ kbd {
 .mastery-card__ring strong {
   color: var(--text-strong);
   font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.07em;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 .mastery-card__ring span {
@@ -2965,7 +2965,7 @@ kbd {
 .form-field > span {
   color: var(--text-strong);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .form-field input,
@@ -3044,7 +3044,7 @@ kbd {
   margin: 5px 0 0;
   color: var(--text-strong);
   font-size: 16px;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .card-check__preview {
@@ -3061,7 +3061,7 @@ kbd {
 .card-check__preview-line strong {
   color: var(--text-strong);
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .card-check__preview > span,
@@ -3129,6 +3129,200 @@ kbd {
   font-size: 9px;
 }
 
+.card-check__ai {
+  padding: 11px;
+  margin-top: 10px;
+  background: color-mix(in srgb, var(--primary-soft) 62%, var(--surface) 38%);
+  border: 1px solid rgba(79, 70, 229, 0.14);
+  border-radius: 10px;
+}
+
+.card-check__ai-heading,
+.card-check__ai-heading > div,
+.card-check__ai-result-heading,
+.card-check__ai-footer {
+  display: flex;
+  align-items: center;
+}
+
+.card-check__ai-heading {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.card-check__ai-heading > div {
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  color: var(--primary);
+}
+
+.card-check__ai-heading > div > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-check__ai-heading strong {
+  color: var(--text-strong);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.card-check__ai-heading small,
+.card-check__ai-note,
+.card-check__ai-footer small {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.card-check__ai-heading .button,
+.card-check__ai-footer .button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 9px;
+}
+
+.card-check__ai-note {
+  display: block;
+  margin: 7px 0 0 23px;
+}
+
+.card-check__ai-error {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 7px 0 0;
+  color: #bd4055;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.card-check__ai-result {
+  padding: 10px;
+  margin-top: 9px;
+  background: var(--surface);
+  border: 1px solid rgba(79, 70, 229, 0.14);
+  border-radius: 9px;
+}
+
+.card-check__ai-result--needs-review {
+  border-color: rgba(227, 122, 40, 0.28);
+  background: color-mix(in srgb, var(--orange-soft) 40%, var(--surface) 60%);
+}
+
+.card-check__ai-result-heading {
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-check__ai-result-heading > span:last-child {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.ai-verdict {
+  display: inline-flex;
+  padding: 4px 7px;
+  color: var(--success);
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--success-soft);
+  border-radius: 6px;
+}
+
+.ai-verdict--needs-review {
+  color: var(--orange);
+  background: var(--orange-soft);
+}
+
+.card-check__ai-fields {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 9px;
+  align-items: center;
+  padding: 9px 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.card-check__ai-fields > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.card-check__ai-fields > div > span {
+  color: var(--text-muted);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.card-check__ai-fields strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-check__ai-result > p {
+  margin: 9px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.card-check__ai-example {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px;
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.45;
+  background: var(--surface-soft);
+  border-radius: 7px;
+}
+
+.card-check__ai-example strong {
+  color: var(--text-strong);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.card-check__ai-duplicate {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px;
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.45;
+  background: var(--surface-soft);
+  border-radius: 7px;
+}
+
+.card-check__ai-duplicate strong {
+  color: var(--text-strong);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.card-check__ai-footer {
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+}
+
 .card-check__item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -3151,7 +3345,7 @@ kbd {
 .card-check__item strong {
   color: var(--text-strong);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .card-check__item span {
@@ -3188,7 +3382,7 @@ kbd {
 .card-check__references > span {
   color: var(--text-muted);
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -3205,7 +3399,7 @@ kbd {
   padding: 5px 7px;
   color: var(--primary);
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
   background: var(--primary-soft);
   border-radius: 7px;
 }
@@ -3276,7 +3470,7 @@ kbd {
   color: var(--text-strong);
   font-family: "Segoe UI", ui-sans-serif, sans-serif;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   background: var(--surface);
   border-radius: 5px;
 }
@@ -3284,7 +3478,7 @@ kbd {
 .sync-modal__steps em {
   color: var(--text-strong);
   font-style: normal;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .sync-modal__warning,
@@ -3348,7 +3542,7 @@ kbd {
 .sync-auto-option strong {
   color: var(--text-strong);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .sync-auto-option small {
@@ -3419,7 +3613,7 @@ kbd {
 .profile-preview strong {
   color: var(--text-strong);
   font-size: 16px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .profile-preview small {
@@ -3519,7 +3713,7 @@ kbd {
 .level-card__topline {
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 700;
   letter-spacing: 0.09em;
 }
 
@@ -3556,7 +3750,7 @@ kbd {
   color: var(--text-strong);
   font-size: 29px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .level-card__score span {
@@ -3605,7 +3799,7 @@ kbd {
   color: var(--text-strong);
   font-size: 18px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .achievement-list {
@@ -3800,7 +3994,7 @@ kbd {
   justify-content: space-between;
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -3819,7 +4013,7 @@ kbd {
   color: var(--text-strong);
   font-size: clamp(28px, 5vw, 48px);
   font-weight: 700;
-  letter-spacing: -0.018em;
+  letter-spacing: 0;
   line-height: 1.12;
   overflow-wrap: anywhere;
 }
@@ -3957,7 +4151,7 @@ kbd {
   color: var(--text-strong);
   font-size: 18px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.25;
 }
 
@@ -4178,7 +4372,7 @@ kbd {
 
   .mobile-nav__item small {
     font-size: 9px;
-    font-weight: 750;
+    font-weight: 700;
   }
 
   .mobile-nav__icon {
@@ -4198,7 +4392,7 @@ kbd {
     padding: 0 3px;
     color: #ffffff;
     font-size: 8px;
-    font-weight: 800;
+    font-weight: 700;
     background: var(--primary);
     border-radius: 99px;
   }
@@ -4717,6 +4911,32 @@ kbd {
 
   .modal-panel h2 {
     font-size: 21px;
+  }
+
+  .card-check__ai-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .card-check__ai-heading > div {
+    width: 100%;
+  }
+
+  .card-check__ai-heading > .button {
+    align-self: flex-start;
+  }
+
+  .card-check__ai-fields {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .card-check__ai-fields > div:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .card-check__ai-footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .form-grid--two,

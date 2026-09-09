@@ -22,15 +22,15 @@
     <path d="M58 43v43" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="4"/>
   </g>
   <g font-family="Segoe UI, Arial, sans-serif">
-    <text x="246" y="112" fill="#5659c8" font-size="16" font-weight="800" letter-spacing="4">GERMAN FLASHCARDS / MENSCHEN A1.1</text>
-    <text x="246" y="181" fill="#171c38" font-size="57" font-weight="800">Deutschly</text>
+    <text x="246" y="112" fill="#5659c8" font-size="16" font-weight="700" letter-spacing="4">GERMAN FLASHCARDS / MENSCHEN A1.1</text>
+    <text x="246" y="181" fill="#171c38" font-size="57" font-weight="700">Deutschly</text>
     <text x="246" y="223" fill="#555c76" font-size="22" font-weight="600">German that sticks — one focused review at a time.</text>
     <rect x="246" y="263" width="300" height="42" rx="21" fill="#5b55e8"/>
-    <text x="396" y="290" text-anchor="middle" fill="#fff" font-size="14" font-weight="800" letter-spacing="1">OPEN THE FLASHCARDS →</text>
+    <text x="396" y="290" text-anchor="middle" fill="#fff" font-size="14" font-weight="700" letter-spacing="1">OPEN THE FLASHCARDS →</text>
     <g transform="translate(840 130)">
-      <rect width="86" height="42" rx="12" fill="#eef0ff"/><text x="43" y="28" text-anchor="middle" fill="#5659c8" font-size="18" font-weight="800">der</text>
-      <rect x="98" width="86" height="42" rx="12" fill="#fff0f1"/><text x="141" y="28" text-anchor="middle" fill="#c94c60" font-size="18" font-weight="800">die</text>
-      <rect x="196" width="86" height="42" rx="12" fill="#e7faf3"/><text x="239" y="28" text-anchor="middle" fill="#14977e" font-size="18" font-weight="800">das</text>
+      <rect width="86" height="42" rx="12" fill="#eef0ff"/><text x="43" y="28" text-anchor="middle" fill="#5659c8" font-size="18" font-weight="700">der</text>
+      <rect x="98" width="86" height="42" rx="12" fill="#fff0f1"/><text x="141" y="28" text-anchor="middle" fill="#c94c60" font-size="18" font-weight="700">die</text>
+      <rect x="196" width="86" height="42" rx="12" fill="#e7faf3"/><text x="239" y="28" text-anchor="middle" fill="#14977e" font-size="18" font-weight="700">das</text>
     </g>
     <text x="840" y="221" fill="#777e96" font-size="17">Adaptive recall · reminders · phone + desktop</text>
   </g>

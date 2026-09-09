@@ -28,20 +28,20 @@
   </g>
 
   <g font-family="Segoe UI, Arial, sans-serif">
-    <text x="370" y="178" fill="#5659c8" font-size="22" font-weight="800" letter-spacing="5">GERMAN FLASHCARDS / A1.1</text>
-    <text x="370" y="258" fill="#171c38" font-size="74" font-weight="800">Deutschly</text>
+    <text x="370" y="178" fill="#5659c8" font-size="22" font-weight="700" letter-spacing="5">GERMAN FLASHCARDS / A1.1</text>
+    <text x="370" y="258" fill="#171c38" font-size="74" font-weight="700">Deutschly</text>
     <text x="370" y="314" fill="#555c76" font-size="31" font-weight="600">German that sticks.</text>
     <text x="370" y="368" fill="#777e96" font-size="22">Adaptive review for Fatemeh’s Menschen learning journey.</text>
 
     <g transform="translate(370 425)">
       <rect width="100" height="48" rx="14" fill="#eef0ff"/>
-      <text x="50" y="32" text-anchor="middle" fill="#5659c8" font-size="21" font-weight="800">der</text>
+      <text x="50" y="32" text-anchor="middle" fill="#5659c8" font-size="21" font-weight="700">der</text>
       <rect x="116" width="100" height="48" rx="14" fill="#fff0f1"/>
-      <text x="166" y="32" text-anchor="middle" fill="#c94c60" font-size="21" font-weight="800">die</text>
+      <text x="166" y="32" text-anchor="middle" fill="#c94c60" font-size="21" font-weight="700">die</text>
       <rect x="232" width="100" height="48" rx="14" fill="#e7faf3"/>
-      <text x="282" y="32" text-anchor="middle" fill="#14977e" font-size="21" font-weight="800">das</text>
+      <text x="282" y="32" text-anchor="middle" fill="#14977e" font-size="21" font-weight="700">das</text>
       <rect x="348" width="124" height="48" rx="14" fill="#fff1df"/>
-      <text x="410" y="32" text-anchor="middle" fill="#c46a10" font-size="21" font-weight="800">plural</text>
+      <text x="410" y="32" text-anchor="middle" fill="#c46a10" font-size="21" font-weight="700">plural</text>
     </g>
   </g>
 </svg>
