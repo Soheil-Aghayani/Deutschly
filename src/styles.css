@@ -754,34 +754,12 @@ svg {
   min-height: 182px;
 }
 
-.hero-card__streak {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-  color: var(--orange);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.hero-card__streak svg {
-  fill: currentColor;
-}
-
 .hero-card__copy h2 {
   margin: 0 0 7px;
   font-size: clamp(24px, 3vw, 34px);
   font-weight: 700;
   letter-spacing: 0;
   line-height: 1.1;
-}
-
-.hero-card__copy p {
-  max-width: 360px;
-  margin: 0 0 18px;
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 .button--light {
@@ -848,60 +826,6 @@ svg {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 650;
-}
-
-.hero-card__path {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 8px;
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  border: 1px solid rgba(22, 138, 104, 0.13);
-  border-radius: 13px;
-}
-
-.hero-path__step {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 0;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 650;
-}
-
-.hero-path__dot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  color: var(--text-muted);
-  font-size: 9px;
-  background: var(--surface-muted);
-  border-radius: 50%;
-}
-
-.hero-path__step--current {
-  color: var(--text-strong);
-}
-
-.hero-path__step--current .hero-path__dot {
-  color: #ffffff;
-  background: var(--primary);
-  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.14);
-}
-
-.hero-path__step--complete {
-  color: var(--text-strong);
-}
-
-.hero-path__step--complete .hero-path__dot {
-  color: #ffffff;
-  background: #20a676;
 }
 
 .reminder-card {
@@ -3959,13 +3883,19 @@ kbd {
   padding: 32px;
 }
 
+.onboarding-modal__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
 .onboarding-modal__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 44px;
   height: 44px;
-  margin-bottom: 17px;
   color: var(--primary);
   background: var(--primary-soft);
   border-radius: 13px;
@@ -3973,7 +3903,7 @@ kbd {
 
 .onboarding-modal h2 {
   max-width: 330px;
-  margin-top: 7px;
+  margin-top: 0;
   font-size: 27px;
   line-height: 1.18;
 }
@@ -5039,6 +4969,10 @@ kbd {
 
 .firebase-account__actions .button {
   min-height: 42px;
+}
+
+.firebase-account__connect svg {
+  flex: 0 0 auto;
 }
 
 .firebase-account__signed-in {
@@ -6428,10 +6362,6 @@ kbd {
     font-size: 25px;
   }
 
-  .hero-card__copy p {
-    font-size: 12px;
-  }
-
   .stats-grid,
   .progress-metrics {
     gap: 9px;
@@ -6564,11 +6494,6 @@ kbd {
 
   .hero-card__copy h2 {
     font-size: 27px;
-  }
-
-  .hero-card__copy p {
-    margin-bottom: 13px;
-    font-size: 11px;
   }
 
   .button {
@@ -6941,6 +6866,21 @@ kbd {
 
   .firebase-account__actions .button {
     flex: 1 1 160px;
+  }
+
+  .firebase-account__connect {
+    flex: 0 0 46px !important;
+    width: 46px;
+    padding: 0;
+  }
+
+  .firebase-account__connect span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 
   .settings-row--stack-mobile {
