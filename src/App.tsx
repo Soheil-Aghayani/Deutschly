@@ -40,7 +40,6 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  RotateCcw,
   Search,
   Settings,
   SlidersHorizontal,
@@ -1431,6 +1430,7 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
   const [score, setScore] = useState(0);
   const [attempts, setAttempts] = useState(0);
   const answerRef = useRef<HTMLInputElement>(null);
+  const nextButtonRef = useRef<HTMLButtonElement>(null);
 
   const eligibleCards = useMemo(() => cards.filter((card) => mode !== "plural" || Boolean(card.plural)), [cards, mode]);
   const card = eligibleCards.length > 0 ? eligibleCards[index % eligibleCards.length] : undefined;
@@ -1444,7 +1444,8 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
   }, [mode]);
 
   useEffect(() => {
-    if (!submitted) answerRef.current?.focus();
+    if (submitted) nextButtonRef.current?.focus();
+    else answerRef.current?.focus();
   }, [index, submitted, mode]);
 
   if (!card) {
@@ -1511,7 +1512,7 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
           </form>
 
           {submitted && <div className="practice-result" role="status"><div className="practice-result__icon" aria-hidden="true">{isCorrect ? <CheckCircle2 size={21} /> : <Info size={21} />}</div><div><strong>{isCorrect ? "Sehr gut!" : "Almost — keep this one visible."}</strong><span>{isCorrect ? "That answer matches the card." : `Expected: ${expectedLabel}`}</span></div>{!isCorrect && <PronunciationButton text={expectedAudio} />}</div>}
-          {submitted && <button type="button" className="button button--outline practice-next" onClick={nextCard}><RotateCcw size={15} aria-hidden="true" /> Next drill</button>}
+          {submitted && <button ref={nextButtonRef} type="button" className="button button--outline practice-next" onClick={nextCard}><ArrowRight size={15} aria-hidden="true" /> Next drill</button>}
         </article>
 
         <aside className="practice-aside"><div className="practice-aside__heading"><div className="practice-aside__icon"><Languages size={19} aria-hidden="true" /></div><span className="section-eyebrow">ACTIVE RECALL</span></div><h2>Small answer, strong memory.</h2><p>Typing the article, plural, or meaning makes the detail easier to retrieve later in a real conversation.</p><div className="practice-aside__tips"><div><strong>1</strong><span>Try before looking.</span></div><div><strong>2</strong><span>Say it out loud.</span></div><div><strong>3</strong><span>Move on gently.</span></div></div></aside>
