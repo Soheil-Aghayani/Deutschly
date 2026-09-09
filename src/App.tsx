@@ -2214,9 +2214,82 @@ function CardCheckPanel({ result, referenceChecked, onReferenceChecked, onApplyS
   );
 }
 
-function ProfileModal({ name, onClose, onSave }: { name: string; onClose: () => void; onSave: (name: string) => void }) {
+interface ProfileModalProps {
+  name: string;
+  theme: Theme;
+  reminderEnabled: boolean;
+  reminderTime: string;
+  notificationPermission: NotificationPermissionState;
+  reminderSnoozedUntil: number | null;
+  currentTime: Date;
+  cardCount: number;
+  syncConfigured: boolean;
+  canInstall: boolean;
+  isInstalled: boolean;
+  isIos: boolean;
+  isMobile: boolean;
+  onClose: () => void;
+  onSave: (name: string) => void;
+  onThemeChange: (theme: Theme) => void;
+  onReminderToggle: () => void;
+  onReminderTimeChange: (value: string) => void;
+  onEnableNotifications: () => void;
+  onSnoozeReminder: () => void;
+  onAddReminderToCalendar: () => void;
+  onExportBackup: () => void;
+  onImportBackup: (event: ChangeEvent<HTMLInputElement>) => void;
+  onOpenSync: () => void;
+  onResetProgress: () => void;
+  onInstallApp: () => void;
+}
+
+function ProfileModal({
+  name,
+  theme,
+  reminderEnabled,
+  reminderTime,
+  notificationPermission,
+  reminderSnoozedUntil,
+  currentTime,
+  cardCount,
+  syncConfigured,
+  canInstall,
+  isInstalled,
+  isIos,
+  isMobile,
+  onClose,
+  onSave,
+  onThemeChange,
+  onReminderToggle,
+  onReminderTimeChange,
+  onEnableNotifications,
+  onSnoozeReminder,
+  onAddReminderToCalendar,
+  onExportBackup,
+  onImportBackup,
+  onOpenSync,
+  onResetProgress,
+  onInstallApp,
+}: ProfileModalProps) {
   const [draftName, setDraftName] = useState(name);
+  const backupInputRef = useRef<HTMLInputElement>(null);
   const previewAvatar = getDailyAvatar(draftName.trim() || PROFILE_NAME, getDayKey());
+  const notificationCopy = notificationPermission === "granted"
+    ? "Browser alerts are on for review reminders."
+    : notificationPermission === "default"
+      ? "Allow alerts when cards are ready for review."
+      : notificationPermission === "denied"
+        ? "Notifications are blocked. Calendar still works when closed."
+        : "This browser supports the in-app reminder only.";
+  const installCopy = isInstalled
+    ? "Installed on this device."
+    : canInstall
+      ? "Install it for quick access from your home screen."
+      : isIos
+        ? "In Safari, use Share, then Add to Home Screen."
+        : isMobile
+          ? "Open the browser menu and choose Install app."
+          : "Use the install icon or browser menu when it becomes available.";
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -2228,12 +2301,56 @@ function ProfileModal({ name, onClose, onSave }: { name: string; onClose: () => 
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="modal-panel profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">
-        <div className="modal-panel__heading"><div><span className="section-eyebrow">YOUR LEARNING SPACE</span><h2 id="profile-title">Profile settings</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close profile settings" title="Close"><X size={19} aria-hidden="true" /></button></div>
-        <p className="modal-panel__intro">Personalize the name Deutschly uses on your dashboard. Your avatar is generated locally and changes gently each day.</p>
-        <div className="profile-preview"><div className="profile-preview__avatar"><Avatar name={previewAvatar.seed} variant={previewAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={58} title={false} aria-hidden="true" /></div><div><span className="section-eyebrow">LEARNER</span><strong>{draftName.trim() || "Your name"}</strong><small>Private on this device</small></div></div>
-        <label className="form-field" htmlFor="profile-name"><span>Display name</span><input id="profile-name" value={draftName} onChange={(event) => setDraftName(event.target.value.slice(0, 32))} placeholder="e.g. Fatemeh" maxLength={32} autoComplete="name" /></label>
-        <div className="modal-panel__footer"><span><Settings size={15} aria-hidden="true" /> You can change this any time.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Cancel</button><button type="button" className="button button--primary" onClick={() => onSave(draftName)}>Save profile</button></div></div>
+      <section className="modal-panel profile-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div className="modal-panel__heading"><div><span className="section-eyebrow">YOUR LEARNING SPACE</span><h2 id="settings-title">Settings</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close settings" title="Close"><X size={19} aria-hidden="true" /></button></div>
+        <p className="modal-panel__intro">Keep your profile, study rhythm, appearance, and local data in one calm place.</p>
+
+        <div className="settings-sections">
+          <section className="settings-section" aria-labelledby="settings-profile-title">
+            <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Settings size={16} /></span><div><h3 id="settings-profile-title">Profile</h3><p>Personal details used across your learning space.</p></div></div>
+            <div className="profile-preview"><div className="profile-preview__avatar"><Avatar name={previewAvatar.seed} variant={previewAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={58} title={false} aria-hidden="true" /></div><div><span className="section-eyebrow">LEARNER</span><strong>{draftName.trim() || "Your name"}</strong><small>Private on this device</small></div></div>
+            <label className="form-field" htmlFor="profile-name"><span>Display name</span><input id="profile-name" value={draftName} onChange={(event) => setDraftName(event.target.value.slice(0, 32))} placeholder="e.g. Fatemeh" maxLength={32} autoComplete="name" /></label>
+          </section>
+
+          <section className="settings-section" aria-labelledby="settings-appearance-title">
+            <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--indigo" aria-hidden="true">{theme === "light" ? <Sun size={16} /> : <Moon size={16} />}</span><div><h3 id="settings-appearance-title">Appearance</h3><p>Choose the surface that feels easiest to study in.</p></div></div>
+            <div className="settings-row settings-row--stack-mobile">
+              <div className="settings-row__copy"><strong>Theme</strong><small>Apply instantly across the app.</small></div>
+              <div className="settings-choice-group" role="group" aria-label="Theme">
+                <button type="button" className={`settings-choice${theme === "light" ? " settings-choice--active" : ""}`} onClick={() => onThemeChange("light")} aria-pressed={theme === "light"}><Sun size={14} aria-hidden="true" /> Light</button>
+                <button type="button" className={`settings-choice${theme === "dark" ? " settings-choice--active" : ""}`} onClick={() => onThemeChange("dark")} aria-pressed={theme === "dark"}><Moon size={14} aria-hidden="true" /> Dark</button>
+              </div>
+            </div>
+          </section>
+
+          <section className="settings-section" aria-labelledby="settings-reminder-title">
+            <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--orange" aria-hidden="true"><Bell size={16} /></span><div><h3 id="settings-reminder-title">Study reminders</h3><p>Choose when Deutschly should bring your review back to mind.</p></div></div>
+            <div className="settings-row">
+              <div className="settings-row__copy"><strong>Smart reminder</strong><small>{reminderEnabled ? "Your daily review window is active." : "Reminders are currently paused."}</small></div>
+              <button type="button" className={`switch${reminderEnabled ? " switch--on" : ""}`} onClick={onReminderToggle} aria-pressed={reminderEnabled} aria-label="Toggle daily reminder"><span /></button>
+            </div>
+            <div className="settings-reminder-grid">
+              <label className="form-field settings-time-field" htmlFor="settings-reminder-time"><span>Daily review time</span><input id="settings-reminder-time" type="time" value={reminderTime} onChange={(event) => onReminderTimeChange(event.target.value)} disabled={!reminderEnabled} /></label>
+              <button type="button" className="button button--outline" onClick={onAddReminderToCalendar}><CalendarPlus size={15} aria-hidden="true" /> Add to calendar</button>
+            </div>
+            <div className={`settings-notification settings-notification--${notificationPermission}`} role="status" aria-live="polite"><span className="settings-notification__copy"><Bell size={14} aria-hidden="true" /><span><strong>Browser notifications</strong><small>{notificationCopy}</small></span></span>{notificationPermission === "default" && <button type="button" className="text-button" onClick={onEnableNotifications}>Enable</button>}</div>
+            {reminderSnoozedUntil && <div className="settings-snooze"><span><Clock3 size={14} aria-hidden="true" /> Snoozed until {formatReminderTarget(new Date(reminderSnoozedUntil), currentTime)}.</span><button type="button" className="text-button" onClick={onSnoozeReminder}>Cancel snooze</button></div>}
+          </section>
+
+          <section className="settings-section" aria-labelledby="settings-data-title">
+            <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--mint" aria-hidden="true"><Cloud size={16} /></span><div><h3 id="settings-data-title">Data and sync</h3><p>Your cards stay local unless you choose to export or sync them.</p></div></div>
+            <div className="settings-data-summary"><strong>{cardCount} cards</strong><span>{syncConfigured ? "Sync setup saved" : "Sync not configured yet"}</span></div>
+            <input ref={backupInputRef} type="file" accept=".json,application/json" className="visually-hidden" onChange={onImportBackup} aria-hidden="true" tabIndex={-1} />
+            <div className="settings-action-grid"><button type="button" className="button button--outline" onClick={onExportBackup}><Download size={15} aria-hidden="true" /> Export backup</button><button type="button" className="button button--outline" onClick={() => backupInputRef.current?.click()}><Upload size={15} aria-hidden="true" /> Import backup</button><button type="button" className="button button--outline" onClick={onOpenSync}><Cloud size={15} aria-hidden="true" /> Sync devices</button><button type="button" className="button button--ghost settings-danger-action" onClick={onResetProgress}><RefreshCw size={15} aria-hidden="true" /> Reset progress</button></div>
+          </section>
+
+          <section className="settings-section" aria-labelledby="settings-app-title">
+            <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Download size={16} /></span><div><h3 id="settings-app-title">App</h3><p>Make Deutschly easy to return to on your phone or computer.</p></div></div>
+            <div className="settings-row settings-app-row"><div className="settings-row__copy"><strong>Install Deutschly</strong><small>{installCopy}</small></div>{!isInstalled && canInstall && <button type="button" className="button button--outline" onClick={onInstallApp}>Install app</button>}{isInstalled && <span className="settings-status settings-status--success"><CheckCircle2 size={14} aria-hidden="true" /> Installed</span>}</div>
+          </section>
+        </div>
+
+        <div className="modal-panel__footer"><span><Settings size={15} aria-hidden="true" /> Name changes are saved with your profile.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Cancel</button><button type="button" className="button button--primary" onClick={() => onSave(draftName)}>Save profile</button></div></div>
       </section>
     </div>
   );
@@ -3094,7 +3211,16 @@ export default function App() {
     setResetProgressOpen(false);
     showToast("Progress reset. Your cards are ready to learn from the beginning.");
   };
-  const toggleTheme = () => setState((current) => ({ ...current, theme: current.theme === "light" ? "dark" : "light" }));
+  const handleThemeChange = (theme: Theme) => setState((current) => ({ ...current, theme }));
+  const toggleTheme = () => handleThemeChange(state.theme === "light" ? "dark" : "light");
+  const handleOpenSyncFromSettings = () => {
+    setProfileOpen(false);
+    setSyncOpen(true);
+  };
+  const handleResetProgressFromSettings = () => {
+    setProfileOpen(false);
+    setResetProgressOpen(true);
+  };
   const handleDismissInstallPrompt = () => {
     setInstallDismissed(true);
     window.localStorage.setItem(PWA_INSTALL_DISMISSED_KEY, "true");
@@ -3164,7 +3290,34 @@ export default function App() {
       </nav>
 
       {addCardOpen && <AddCardModal onClose={handleCloseAddCard} onSave={handleSaveCard} existingCards={state.cards.filter((card) => card.id !== editingCardId)} initialDraft={addCardSeed} editing={Boolean(editingCardId)} geminiEndpoint={syncEndpoint} />}
-      {profileOpen && <ProfileModal name={profileName} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
+      {profileOpen && <ProfileModal
+        name={profileName}
+        theme={state.theme}
+        reminderEnabled={state.reminderEnabled}
+        reminderTime={state.reminderTime}
+        notificationPermission={notificationPermission}
+        reminderSnoozedUntil={reminderSnoozedUntil}
+        currentTime={currentTime}
+        cardCount={state.cards.length}
+        syncConfigured={syncConfigured}
+        canInstall={installPrompt.canInstall}
+        isInstalled={installPrompt.isInstalled}
+        isIos={installPrompt.isIos}
+        isMobile={installPrompt.isMobile}
+        onClose={() => setProfileOpen(false)}
+        onSave={handleSaveProfile}
+        onThemeChange={handleThemeChange}
+        onReminderToggle={handleReminderToggle}
+        onReminderTimeChange={handleReminderTimeChange}
+        onEnableNotifications={handleEnableNotifications}
+        onSnoozeReminder={handleSnoozeReminder}
+        onAddReminderToCalendar={handleAddReminderToCalendar}
+        onExportBackup={handleExportBackup}
+        onImportBackup={handleImportBackup}
+        onOpenSync={handleOpenSyncFromSettings}
+        onResetProgress={handleResetProgressFromSettings}
+        onInstallApp={() => { void handleInstallApp(); }}
+      />}
       {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} testingConnection={testingConnection} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
       {resetProgressOpen && <ResetProgressModal onClose={() => setResetProgressOpen(false)} onConfirm={handleResetProgress} />}
       {showInstallPrompt && <InstallPrompt canInstall={installPrompt.canInstall} isIos={installPrompt.isIos} isMobile={installPrompt.isMobile} onInstall={() => { void handleInstallApp(); }} onDismiss={handleDismissInstallPrompt} />}
