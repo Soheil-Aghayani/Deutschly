@@ -49,6 +49,7 @@ import {
   Target,
   Tag,
   Timer,
+  Trash2,
   Trophy,
   Upload,
   UploadCloud,
@@ -126,6 +127,7 @@ interface PdfImportSummary {
 
 interface AppState {
   cards: Flashcard[];
+  deletedCardIds: Record<string, string>;
   reviewsToday: number;
   dailyGoal: number;
   streak: number;
@@ -524,6 +526,7 @@ function createInitialCards(): Flashcard[] {
 function createInitialState(): AppState {
   return {
     cards: createInitialCards(),
+    deletedCardIds: {},
     reviewsToday: 16,
     dailyGoal: 24,
     streak: 7,
@@ -656,11 +659,25 @@ function normalizeCard(card: Flashcard): Flashcard {
   };
 }
 
+function normalizeDeletedCardIds(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  const entries = Object.entries(value).filter((entry): entry is [string, string] => {
+    const [id, deletedAt] = entry;
+    return id.trim().length > 0 && typeof deletedAt === "string" && Number.isFinite(Date.parse(deletedAt));
+  });
+  return Object.fromEntries(entries.slice(-500));
+}
+
 function normalizeAppState(value: unknown): AppState {
   const fallback = createInitialState();
   if (!isRecord(value)) return fallback;
 
-  const cards = (Array.isArray(value.cards) ? value.cards.filter(isFlashcard) : fallback.cards).map(normalizeCard);
+  const normalizedCards = (Array.isArray(value.cards) ? value.cards.filter(isFlashcard) : fallback.cards).map(normalizeCard);
+  const deletedCardIds = normalizeDeletedCardIds(value.deletedCardIds);
+  const cards = normalizedCards.filter((card) => {
+    const deletedAt = deletedCardIds[card.id];
+    return !deletedAt || cardTimestamp(card) > timestamp(deletedAt);
+  });
   const normalizedWeeklyReviews = Array.isArray(value.weeklyReviews) && value.weeklyReviews.every((item) => typeof item === "number")
     ? value.weeklyReviews.map((item) => Math.max(0, Math.round(item))).slice(-7)
     : [];
@@ -696,6 +713,7 @@ function normalizeAppState(value: unknown): AppState {
   return {
     ...fallback,
     cards,
+    deletedCardIds,
     reviewsToday: typeof value.reviewsToday === "number" ? Math.max(0, Math.round(value.reviewsToday)) : fallback.reviewsToday,
     dailyGoal: typeof value.dailyGoal === "number" ? Math.max(1, Math.round(value.dailyGoal)) : fallback.dailyGoal,
     streak: typeof value.streak === "number" ? Math.max(0, Math.round(value.streak)) : fallback.streak,
@@ -790,6 +808,14 @@ function mergeCards(localCards: Flashcard[], remoteCards: Flashcard[]): Flashcar
   return [...byMeaning.values()];
 }
 
+function mergeDeletedCardIds(local: Record<string, string>, remote: Record<string, string>): Record<string, string> {
+  const merged = { ...local };
+  Object.entries(remote).forEach(([id, deletedAt]) => {
+    if (!merged[id] || timestamp(deletedAt) >= timestamp(merged[id])) merged[id] = deletedAt;
+  });
+  return merged;
+}
+
 function pdfCandidateStatusPriority(status: PdfCandidateStatus): number {
   if (status === "accepted") return 3;
   if (status === "skipped") return 2;
@@ -836,10 +862,16 @@ function mergeAppStates(local: AppState, remote: AppState): AppState {
   const pdfImport = localPdf && remotePdf
     ? mergePdfImportSummaries(localPdf, remotePdf)
     : localPdf ?? remotePdf;
+  const deletedCardIds = mergeDeletedCardIds(local.deletedCardIds, remote.deletedCardIds);
+  const mergedCards = mergeCards(local.cards, remote.cards).filter((card) => {
+    const deletedAt = deletedCardIds[card.id];
+    return !deletedAt || cardTimestamp(card) > timestamp(deletedAt);
+  });
 
   return {
     ...local,
-    cards: mergeCards(local.cards, remote.cards),
+    cards: mergedCards,
+    deletedCardIds,
     reviewsToday: hasDifferentReset
       ? progressState.reviewsToday
       : local.lastReviewDay === remote.lastReviewDay ? Math.max(local.reviewsToday, remote.reviewsToday) : latestReviewState.reviewsToday,
@@ -1011,6 +1043,11 @@ function findCardMatch(cards: Flashcard[], draft: CardDraft): CardMatch | null {
     type: "possible",
     card: matches.find((card) => card.article === draft.article) ?? matches[0],
   };
+}
+
+function isWeakCard(card: Flashcard): boolean {
+  return card.status === "learning"
+    || (card.status === "review" && (card.difficulty ?? 5) >= 6);
 }
 
 function getCardCheck(cards: Flashcard[], draft: CardDraft): CardCheckResult {
@@ -1914,7 +1951,7 @@ function LibraryPage({
     const matchesArticle = articleFilter === "all" || card.article === articleFilter;
     const matchesStatus = statusFilter === "all" || card.status === statusFilter;
     const matchesCheck = !needsCheckOnly || card.verification !== "reference-checked";
-    const matchesWeak = !weakCardsOnly || card.status !== "review" || (card.difficulty ?? 5) >= 6;
+    const matchesWeak = !weakCardsOnly || isWeakCard(card);
     return matchesSearch && matchesLesson && matchesArticle && matchesStatus && matchesCheck && matchesWeak;
   });
   const hasFilters = lessonFilter !== "all" || articleFilter !== "all" || statusFilter !== "all" || needsCheckOnly || weakCardsOnly;
@@ -2017,6 +2054,27 @@ function ResetProgressModal({ onClose, onConfirm }: { onClose: () => void; onCon
   );
 }
 
+function DeleteCardModal({ card, onClose, onConfirm }: { card: Flashcard; onClose: () => void; onConfirm: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="modal-panel delete-card-modal" role="dialog" aria-modal="true" aria-labelledby="delete-card-title">
+        <div className="modal-panel__heading"><div><span className="section-eyebrow">REMOVE FROM LIBRARY</span><h2 id="delete-card-title">Delete this card?</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close delete card dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
+        <p className="modal-panel__intro">This removes the card and its review history from your library. You can add it again later, but this action cannot be undone here.</p>
+        <div className="delete-card-summary"><ArticleBadge article={card.article} compact /><div className="delete-card-summary__copy"><strong>{card.german}</strong><span>{card.translation}</span></div></div>
+        <div className="modal-panel__footer"><span><Info size={15} aria-hidden="true" /> Your other cards and course PDF stay saved.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Cancel</button><button type="button" className="button button--danger" onClick={onConfirm}><Trash2 size={15} aria-hidden="true" /> Delete card</button></div></div>
+      </section>
+    </div>
+  );
+}
+
 interface ProgressBreakdownStats {
   total: number;
   due: number;
@@ -2044,14 +2102,24 @@ function getProgressBreakdownStats(cards: Flashcard[], todayKey: string): Progre
   };
 }
 
-function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgress }: { state: AppState; onViewWeakCards: () => void; onAdjustReminder: () => void; onResetProgress: () => void }) {
+function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgress, onStartReview }: { state: AppState; onViewWeakCards: () => void; onAdjustReminder: () => void; onResetProgress: () => void; onStartReview: () => void }) {
   const todayKey = getDayKey();
   const maxValue = Math.max(...state.weeklyReviews, 1);
   const average = Math.round(state.weeklyReviews.reduce((sum, value) => sum + value, 0) / state.weeklyReviews.length);
   const level = getLevelProgress(state.xp);
   const accuracy = state.totalReviews > 0 ? Math.round((state.correctReviews / state.totalReviews) * 100) : 0;
   const mastery = Math.round(state.cards.reduce((sum, card) => sum + getCardMastery(card), 0) / Math.max(state.cards.length, 1));
-  const weakCards = state.cards.filter((card) => card.status !== "review" || (card.difficulty ?? 5) >= 6).length;
+  const weakCards = state.cards.filter(isWeakCard).length;
+  const newCards = state.cards.filter((card) => card.status === "new").length;
+  const isFreshStart = state.cards.length > 0 && newCards === state.cards.length;
+  const masteryTitle = state.cards.length === 0 ? "Build your deck" : isFreshStart ? "Fresh start" : mastery >= 70 ? "Strong foundations" : "Keep building";
+  const masteryMessage = state.cards.length === 0
+    ? "Add your first card to start building mastery."
+    : isFreshStart
+      ? `${newCards} cards are ready for a fresh start.`
+      : weakCards > 0
+        ? `${weakCards} card${weakCards === 1 ? "" : "s"} could use another gentle pass.`
+        : "Your cards are holding steady.";
   const lessonStats = [...new Set(state.cards.map((card) => card.lesson).filter(Boolean))]
     .sort(compareLessonLabels)
     .map((lesson) => ({ lesson, stats: getProgressBreakdownStats(state.cards.filter((card) => card.lesson === lesson), todayKey) }));
@@ -2082,7 +2150,7 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgres
         </article>
         <article className="mastery-card">
           <div className="mastery-card__ring" aria-hidden="true"><div><strong>{mastery}%</strong><span>mastery</span></div></div>
-          <div><span className="section-eyebrow">COURSE MASTERY</span><h2>Strong foundations</h2><p>{weakCards} card{weakCards === 1 ? "" : "s"} could use another gentle pass.</p><button type="button" className="text-button" onClick={onViewWeakCards}>See weak cards <ChevronRight size={16} aria-hidden="true" /></button></div>
+          <div><span className="section-eyebrow">COURSE MASTERY</span><h2>{masteryTitle}</h2><p>{masteryMessage}</p>{weakCards > 0 ? <button type="button" className="text-button" onClick={onViewWeakCards}>See weak cards <ChevronRight size={16} aria-hidden="true" /></button> : isFreshStart ? <button type="button" className="text-button" onClick={onStartReview}>Start your first review <ChevronRight size={16} aria-hidden="true" /></button> : <span className="mastery-card__status">Nothing needs extra attention right now.</span>}</div>
         </article>
       </section>
       <section className="progress-breakdown-grid" aria-label="Progress by lesson and article">
@@ -2423,7 +2491,7 @@ function SyncModal({
   );
 }
 
-function AddCardModal({ onClose, onSave, existingCards, initialDraft, editing = false, geminiEndpoint }: { onClose: () => void; onSave: (draft: CardDraft) => void; existingCards: Flashcard[]; initialDraft?: Partial<CardDraft>; editing?: boolean; geminiEndpoint: string }) {
+function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, editing = false, geminiEndpoint }: { onClose: () => void; onSave: (draft: CardDraft) => void; onDelete?: () => void; existingCards: Flashcard[]; initialDraft?: Partial<CardDraft>; editing?: boolean; geminiEndpoint: string }) {
   const [draft, setDraft] = useState<CardDraft>(() => createCardDraft(initialDraft));
   const [checkResult, setCheckResult] = useState<CardCheckResult | null>(null);
   const [referenceChecked, setReferenceChecked] = useState(false);
@@ -2549,6 +2617,7 @@ function AddCardModal({ onClose, onSave, existingCards, initialDraft, editing = 
           <div className="modal-panel__footer">
             <span><Info size={15} aria-hidden="true" /> {checkResult ? "Confirm the details after checking the references." : "A quick check helps keep your library clean."}</span>
             <div>
+              {editing && !checkResult && onDelete && <button type="button" className="button button--ghost delete-card-button" onClick={onDelete}><Trash2 size={15} aria-hidden="true" /> Delete card</button>}
               {checkResult && <button type="button" className="button button--ghost" onClick={() => setCheckResult(null)}>Edit card</button>}
               <button type="button" className="button button--ghost" onClick={onClose}>Cancel</button>
               {!checkResult && <button type="submit" className="button button--primary"><CheckCircle2 size={16} aria-hidden="true" /> Check card</button>}
@@ -2586,6 +2655,7 @@ export default function App() {
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [addCardSeed, setAddCardSeed] = useState<Partial<CardDraft> | undefined>(undefined);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [deleteCardId, setDeleteCardId] = useState<string | null>(null);
   const [profileName, setProfileName] = useState(() => loadLocalSetting(PROFILE_NAME_KEY) || PROFILE_NAME);
   const [profileOpen, setProfileOpen] = useState(false);
   const [resetProgressOpen, setResetProgressOpen] = useState(false);
@@ -2602,6 +2672,7 @@ export default function App() {
 
   const todayKey = getDayKey();
   stateRef.current = state;
+  const cardPendingDeletion = deleteCardId ? state.cards.find((card) => card.id === deleteCardId) : undefined;
   const profileAvatar = getDailyAvatar(profileName, todayKey);
   const dueCards = useMemo(() => state.cards
     .filter((card) => card.due <= todayKey)
@@ -2654,14 +2725,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const modalOpen = addCardOpen || profileOpen || syncOpen || resetProgressOpen;
+    const modalOpen = addCardOpen || profileOpen || syncOpen || resetProgressOpen || Boolean(deleteCardId);
     document.documentElement.classList.toggle("modal-open", modalOpen);
     document.body.classList.toggle("modal-open", modalOpen);
     return () => {
       document.documentElement.classList.remove("modal-open");
       document.body.classList.remove("modal-open");
     };
-  }, [addCardOpen, profileOpen, syncOpen, resetProgressOpen]);
+  }, [addCardOpen, profileOpen, syncOpen, resetProgressOpen, deleteCardId]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -2772,6 +2843,34 @@ export default function App() {
     setAddCardOpen(false);
     setAddCardSeed(undefined);
     setEditingCardId(null);
+  };
+
+  const handleRequestDeleteCard = () => {
+    if (!editingCardId) return;
+    setAddCardOpen(false);
+    setAddCardSeed(undefined);
+    setDeleteCardId(editingCardId);
+    setEditingCardId(null);
+  };
+
+  const handleConfirmDeleteCard = () => {
+    const cardId = deleteCardId;
+    if (!cardId) return;
+    const deletedCard = stateRef.current.cards.find((card) => card.id === cardId);
+    if (!deletedCard) {
+      setDeleteCardId(null);
+      return;
+    }
+
+    const deletedAt = new Date().toISOString();
+    setState((current) => ({
+      ...current,
+      cards: current.cards.filter((card) => card.id !== cardId),
+      deletedCardIds: { ...current.deletedCardIds, [cardId]: deletedAt },
+      lastSyncedAt: deletedAt,
+    }));
+    setDeleteCardId(null);
+    showToast(`${deletedCard.german} was removed from your library.`);
   };
 
   const handleTabChange = (tab: Tab) => {
@@ -3208,6 +3307,7 @@ export default function App() {
     setState((current) => resetLearningProgress(current, todayKey, resetAt));
     setStudySession({ reviewed: 0, total: cardCount });
     setShowAnswer(false);
+    setWeakCardsOnly(false);
     setResetProgressOpen(false);
     showToast("Progress reset. Your cards are ready to learn from the beginning.");
   };
@@ -3277,7 +3377,7 @@ export default function App() {
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
-          {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} />}
+          {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} onStartReview={handleStartReview} />}
         </main>
       </div>
 
@@ -3289,7 +3389,8 @@ export default function App() {
         ))}
       </nav>
 
-      {addCardOpen && <AddCardModal onClose={handleCloseAddCard} onSave={handleSaveCard} existingCards={state.cards.filter((card) => card.id !== editingCardId)} initialDraft={addCardSeed} editing={Boolean(editingCardId)} geminiEndpoint={syncEndpoint} />}
+      {addCardOpen && <AddCardModal onClose={handleCloseAddCard} onSave={handleSaveCard} onDelete={editingCardId ? handleRequestDeleteCard : undefined} existingCards={state.cards.filter((card) => card.id !== editingCardId)} initialDraft={addCardSeed} editing={Boolean(editingCardId)} geminiEndpoint={syncEndpoint} />}
+      {cardPendingDeletion && <DeleteCardModal card={cardPendingDeletion} onClose={() => setDeleteCardId(null)} onConfirm={handleConfirmDeleteCard} />}
       {profileOpen && <ProfileModal
         name={profileName}
         theme={state.theme}

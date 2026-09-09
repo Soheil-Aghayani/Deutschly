@@ -115,6 +115,8 @@ svg {
   --primary-soft: #eef0ff;
   --success: #168a68;
   --success-soft: #e8f7f1;
+  --danger: #bd4055;
+  --danger-soft: #fff0f2;
   --orange: #e37a28;
   --orange-soft: #fff0e2;
   --sidebar: #ffffff;
@@ -143,6 +145,8 @@ svg {
   --primary-soft: #2a2b5a;
   --success: #56c39e;
   --success-soft: #1c3b37;
+  --danger: #b5475d;
+  --danger-soft: #4c2935;
   --orange: #f6a261;
   --orange-soft: #493228;
   --sidebar: #171c2d;
@@ -2991,6 +2995,66 @@ kbd {
   width: min(560px, 100%);
 }
 
+.delete-card-modal {
+  width: min(520px, 100%);
+}
+
+.delete-card-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  margin: 16px 0 20px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+}
+
+.delete-card-summary__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.delete-card-summary__copy strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.delete-card-summary__copy span {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.delete-card-button {
+  color: var(--danger);
+}
+
+.delete-card-button:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.button--danger {
+  color: #ffffff;
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 7px 16px rgba(189, 64, 85, 0.18);
+}
+
+.button--danger:hover {
+  color: #ffffff;
+  background: #a9344a;
+  border-color: #a9344a;
+  box-shadow: 0 9px 21px rgba(189, 64, 85, 0.24);
+}
+
 .reset-progress-list {
   display: grid;
   gap: 9px;
@@ -3280,6 +3344,13 @@ kbd {
   color: var(--text-muted);
   font-size: 11px;
   line-height: 1.55;
+}
+
+.mastery-card__status {
+  display: block;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .progress-breakdown-grid {
