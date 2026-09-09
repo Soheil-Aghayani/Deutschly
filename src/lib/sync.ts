@@ -29,6 +29,27 @@ export function normalizeSyncRoom(value: string): string {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 32);
 }
 
+export function syncHealthUrl(endpoint: string): string {
+  const normalizedEndpoint = endpoint.trim() || "/api/sync";
+  const fallbackOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost";
+
+  try {
+    const url = new URL(normalizedEndpoint, fallbackOrigin);
+    if (url.pathname.endsWith("/api/sync")) {
+      url.pathname = `${url.pathname.slice(0, -9)}/api/health`;
+    } else if (url.pathname === "/api" || url.pathname.endsWith("/api/")) {
+      url.pathname = `${url.pathname.replace(/\/$/, "")}/health`;
+    } else {
+      url.pathname = `${url.pathname.replace(/\/$/, "")}/api/health`;
+    }
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return normalizedEndpoint.replace(/\/api\/sync\/?$/, "/api/health");
+  }
+}
+
 function syncUrl(endpoint: string, room: string): string {
   const normalizedEndpoint = endpoint.trim() || "/api/sync";
   const separator = normalizedEndpoint.includes("?") ? "&" : "?";
@@ -86,4 +107,14 @@ export async function pushSync(endpoint: string, room: string, state: unknown): 
   });
 
   return parseSyncResponse(await readResponse(response));
+}
+
+export async function checkSyncHealth(endpoint: string): Promise<void> {
+  const response = await fetch(syncHealthUrl(endpoint), {
+    headers: { Accept: "application/json" },
+  });
+  const payload = await readResponse(response);
+  if (payload.status !== "ok") {
+    throw new SyncRequestError("The sync server is online but did not identify itself as Deutschly.");
+  }
 }

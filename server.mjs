@@ -89,14 +89,49 @@ function cardTimestamp(card) {
   return Math.max(valueTimestamp(card.updatedAt), valueTimestamp(card.lastReviewedAt));
 }
 
+function normalizeLookup(value) {
+  return String(value || "")
+    .trim()
+    .normalize("NFKC")
+    .toLocaleLowerCase("de-DE")
+    .replace(/[.,!?;:()[\]{}"']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeGermanTerm(value) {
+  return normalizeLookup(value).replace(/^(der|die|das)\s+/, "").trim();
+}
+
+function cardMergeKey(card) {
+  return `${normalizeGermanTerm(card.german)}|${card.article}|${normalizeLookup(card.translation)}`;
+}
+
+function mergeCardVersions(first, second) {
+  const newer = cardTimestamp(first) >= cardTimestamp(second) ? first : second;
+  const older = newer === first ? second : first;
+  return {
+    ...older,
+    ...newer,
+    tags: [...new Set([...(older.tags || []), ...(newer.tags || [])])].slice(0, 12),
+  };
+}
+
 function mergeCards(existingCards, incomingCards) {
-  const cards = new Map();
+  const byId = new Map();
   [...existingCards, ...incomingCards].forEach((card) => {
     if (!card || typeof card !== "object" || typeof card.id !== "string") return;
-    const current = cards.get(card.id);
-    if (!current || cardTimestamp(card) >= cardTimestamp(current)) cards.set(card.id, card);
+    const current = byId.get(card.id);
+    byId.set(card.id, current ? mergeCardVersions(card, current) : card);
   });
-  return [...cards.values()];
+
+  const byMeaning = new Map();
+  [...byId.values()].forEach((card) => {
+    const key = cardMergeKey(card);
+    const current = byMeaning.get(key);
+    byMeaning.set(key, current ? mergeCardVersions(card, current) : card);
+  });
+  return [...byMeaning.values()];
 }
 
 function mergeStates(existing, incoming) {
@@ -121,10 +156,16 @@ function mergeStates(existing, incoming) {
     streak: Math.max(existing.streak || 0, incoming.streak || 0),
     mastered: Math.max(existing.mastered || 0, incoming.mastered || 0),
     studyMinutes: Math.max(existing.studyMinutes || 0, incoming.studyMinutes || 0),
+    xp: Math.max(existing.xp || 0, incoming.xp || 0),
+    totalReviews: Math.max(existing.totalReviews || 0, incoming.totalReviews || 0),
+    correctReviews: Math.max(existing.correctReviews || 0, incoming.correctReviews || 0),
+    bestStreak: Math.max(existing.bestStreak || 0, incoming.bestStreak || 0),
+    achievements: [...new Set([...(existing.achievements || []), ...(incoming.achievements || [])])].slice(0, 24),
     weeklyReviews,
     sourceFileName: pdfImport?.fileName || incoming.sourceFileName || existing.sourceFileName || "",
     pdfImport,
     lastReviewDay: latestReviewState.lastReviewDay,
+    lastStudyDay: (existing.lastStudyDay || "") >= (incoming.lastStudyDay || "") ? existing.lastStudyDay : incoming.lastStudyDay,
   };
 }
 
