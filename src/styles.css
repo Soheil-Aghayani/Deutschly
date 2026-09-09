@@ -908,6 +908,17 @@ svg {
   font-size: 10px;
 }
 
+.reminder-card__actions .reminder-card__snooze-button[aria-pressed="true"] {
+  color: var(--orange);
+  background: var(--orange-soft);
+  border-color: rgba(227, 122, 40, 0.22);
+}
+
+.reminder-card__actions .reminder-card__snooze-button[aria-pressed="true"]:hover {
+  color: var(--orange);
+  background: color-mix(in srgb, var(--orange-soft) 78%, var(--surface) 22%);
+}
+
 .switch {
   position: relative;
   width: 45px;

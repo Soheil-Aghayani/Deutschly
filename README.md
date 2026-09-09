@@ -13,7 +13,7 @@ Live site: <https://soheil-aghayani.github.io/Deutschly/>
 - Practice Lab drills for articles, plurals, translations, and sentence gaps, with German text-to-speech and optional self-recording.
 - Lesson map, tags, weak-card filtering, editable cards, XP, levels, achievements, recall accuracy, and a seven-day activity view.
 - Local Menschen PDF extraction. Selectable text is read in the browser and suggestions keep their source page and context. The PDF itself is never committed to this repository.
-- Daily reminder time with browser notifications when permission is granted, one-hour snooze, and a downloadable recurring calendar event for reminders when the browser is closed.
+- Daily reminder time with browser notifications when permission is granted, a snooze that moves the next alert to the following clock hour, and a downloadable recurring calendar event for reminders when the browser is closed.
 - Responsive layout, installable PWA shell, light/dark themes, keyboard shortcuts, and local persistence.
 - A private-room sync server for moving cards between a computer and a phone on the same Wi-Fi network.
 

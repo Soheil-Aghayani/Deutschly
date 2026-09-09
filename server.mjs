@@ -361,7 +361,7 @@ async function handleRequest(request, response) {
   }
 
   if (request.method === "GET" && requestUrl.pathname === "/api/health") {
-    sendJson(request, response, 200, { app: "deutschly-sync", version: 1, status: "ok" });
+    sendJson(request, response, 200, { app: "deutschly-sync", version: 1, status: "ok", geminiConfigured: Boolean(await readGeminiApiKey()) });
     return;
   }
 

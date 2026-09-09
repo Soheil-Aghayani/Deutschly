@@ -169,7 +169,7 @@ const STORAGE_KEY = "deutschly:state:v1";
 const SYNC_ENDPOINT_KEY = "deutschly:sync:endpoint:v1";
 const SYNC_ROOM_KEY = "deutschly:sync:room:v1";
 const AUTO_SYNC_KEY = "deutschly:sync:auto:v1";
-const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v2";
+const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v3";
 const PROFILE_NAME_KEY = "deutschly:profile:name:v1";
 const PROFILE_NAME = "Fatemeh";
 const PROFILE_AVATAR_COLORS = ["#EEF0FF", "#8D8BFF", "#56C39E", "#F6A261", "#F2B4BE"];
@@ -187,7 +187,7 @@ const articleMeta: Record<Article, { label: string; detail: string }> = {
   die: { label: "die", detail: "feminine" },
   das: { label: "das", detail: "neuter" },
   plural: { label: "die", detail: "plural" },
-  none: { label: "—", detail: "no article" },
+  none: { label: "none", detail: "no article" },
 };
 
 const ratingMeta: Array<{ id: ReviewRating; label: string; detail: string; icon: LucideIcon }> = [
@@ -247,6 +247,14 @@ function getNextReminderAt(reminderTime: string, now = new Date()): Date {
   const [hoursValue, minutesValue] = reminderTime.split(":").map(Number);
   const target = new Date(now);
   target.setHours(Number.isFinite(hoursValue) ? hoursValue : 19, Number.isFinite(minutesValue) ? minutesValue : 0, 0, 0);
+  if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
+  return target;
+}
+
+function getNextSnoozeAt(reminderTime: string, now = new Date()): Date {
+  const [hoursValue, minutesValue] = reminderTime.split(":").map(Number);
+  const target = new Date(now);
+  target.setHours((Number.isFinite(hoursValue) ? hoursValue : 19) + 1, Number.isFinite(minutesValue) ? minutesValue : 0, 0, 0);
   if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
   return target;
 }
@@ -1090,6 +1098,8 @@ function OverviewPage({
   const greeting = getGreeting(currentTime);
   const reminderTarget = reminderSnoozedUntil ? new Date(reminderSnoozedUntil) : getNextReminderAt(state.reminderTime, currentTime);
   const reminderTargetLabel = formatReminderTarget(reminderTarget, currentTime);
+  const reminderActionLabel = reminderSnoozedUntil ? "Cancel snooze" : "Snooze";
+  const reminderActionDescription = reminderSnoozedUntil ? `Cancel snooze scheduled ${reminderTargetLabel}` : `Snooze reminder until ${reminderTargetLabel}`;
   const week = [
     { label: "M", value: state.weeklyReviews[0] ?? 0 },
     { label: "T", value: state.weeklyReviews[1] ?? 0 },
@@ -1161,7 +1171,10 @@ function OverviewPage({
           </label>
           <div className="reminder-card__actions">
             <button type="button" className="button button--ghost" onClick={onAddReminderToCalendar}><CalendarPlus size={14} aria-hidden="true" /> Calendar</button>
-            <button type="button" className="button button--ghost" onClick={onSnoozeReminder} disabled={!state.reminderEnabled} aria-label={`${reminderSnoozedUntil ? "Reminder scheduled" : "Snooze reminder"} ${reminderTargetLabel}`} title={`${reminderSnoozedUntil ? "Reminder scheduled" : "Snooze reminder"} ${reminderTargetLabel}`}><Clock3 size={14} aria-hidden="true" /> {reminderSnoozedUntil ? "Scheduled" : "Snooze"}</button>
+            <button type="button" className="button button--ghost reminder-card__snooze-button" onClick={onSnoozeReminder} disabled={!state.reminderEnabled} aria-pressed={Boolean(reminderSnoozedUntil)} aria-label={reminderActionDescription} title={reminderActionDescription}>
+              {reminderSnoozedUntil ? <X size={14} aria-hidden="true" /> : <Clock3 size={14} aria-hidden="true" />}
+              {reminderActionLabel}
+            </button>
           </div>
         </aside>
       </section>
@@ -1582,7 +1595,7 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
             <div className="practice-answer__row"><input ref={answerRef} id="practice-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder={mode === "article" ? "der / die / das" : mode === "plural" ? "Type the plural" : "Type your answer"} autoComplete="off" disabled={submitted} /><button type="submit" className="button button--primary" disabled={submitted || !answer.trim()}>{submitted ? "Checked" : "Check"} <Check size={16} aria-hidden="true" /></button></div>
           </form>
 
-          {submitted && <div className="practice-result" role="status"><div className="practice-result__icon" aria-hidden="true">{isCorrect ? <CheckCircle2 size={21} /> : <Info size={21} />}</div><div><strong>{isCorrect ? "Sehr gut!" : "Almost — keep this one visible."}</strong><span>{isCorrect ? "That answer matches the card." : `Expected: ${expectedLabel}`}</span></div>{!isCorrect && <PronunciationButton text={expectedAudio} />}</div>}
+          {submitted && <div className="practice-result" role="status"><div className="practice-result__icon" aria-hidden="true">{isCorrect ? <CheckCircle2 size={21} /> : <Info size={21} />}</div><div><strong>{isCorrect ? "Sehr gut!" : "Almost, keep this one visible."}</strong><span>{isCorrect ? "That answer matches the card." : `Expected: ${expectedLabel}`}</span></div>{!isCorrect && <PronunciationButton text={expectedAudio} />}</div>}
           {submitted && <button ref={nextButtonRef} type="button" className="button button--outline practice-next" onClick={nextCard}><ArrowRight size={15} aria-hidden="true" /> Next drill</button>}
         </article>
 
@@ -1775,7 +1788,7 @@ function LibraryPage({
       <section className="library-source-card">
         <div className="library-source-card__icon" aria-hidden="true"><FileText size={22} /></div>
         <div className="library-source-card__copy"><span className="section-eyebrow">COURSE SOURCE</span><h2>Menschen A1.1</h2><p>{sourceFileName ? `${sourceFileName} attached · text extracted locally for lesson-based card creation` : "Attach your PDF to keep lesson references beside every card."}</p></div>
-        <div className="library-source-card__stats"><div><strong>6</strong><span>lessons</span></div><div><strong>{sourcePageCount || "—"}</strong><span>PDF pages</span></div><div><strong>{sourceCandidateCount || "—"}</strong><span>suggestions</span></div></div>
+        <div className="library-source-card__stats"><div><strong>6</strong><span>lessons</span></div><div><strong>{sourcePageCount || "n/a"}</strong><span>PDF pages</span></div><div><strong>{sourceCandidateCount || "n/a"}</strong><span>suggestions</span></div></div>
       </section>
 
       {lessons.length > 0 && <section className="lesson-strip" aria-label="Menschen lessons">
@@ -1941,7 +1954,7 @@ function CardCheckPanel({ result, referenceChecked, onReferenceChecked, onApplyS
             <div className="card-check__ai-result-heading"><span className={`ai-verdict ai-verdict--${aiReview.verdict}`}>{aiReview.verdict === "looks-good" ? "Looks good" : "Needs a closer look"}</span><span>Article: {aiReview.articleConfidence} · plural: {aiReview.pluralConfidence}</span></div>
             <div className="card-check__ai-fields">
               <div><span>Article</span><ArticleBadge article={aiReview.article} compact /></div>
-              <div><span>Plural</span><strong>{aiReview.plural || "—"}</strong></div>
+              <div><span>Plural</span><strong>{aiReview.plural || "n/a"}</strong></div>
               <div><span>Meaning</span><strong>{aiReview.translation}</strong></div>
             </div>
             <p>{aiReview.explanation}</p>
@@ -2307,29 +2320,14 @@ export default function App() {
   useEffect(() => {
     if (!state.reminderEnabled || dueCards.length === 0) return undefined;
 
-    const checkReminder = () => {
-      const now = new Date();
-      if (reminderSnoozedUntil) {
-        if (Date.now() < reminderSnoozedUntil) return;
-        setReminderSnoozedUntil(null);
-        window.localStorage.removeItem(REMINDER_SNOOZE_KEY);
-      }
-      const [reminderHours, reminderMinutes] = state.reminderTime.split(":").map(Number);
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const targetMinutes = (Number.isFinite(reminderHours) ? reminderHours : 19) * 60 + (Number.isFinite(reminderMinutes) ? reminderMinutes : 0);
-      if (currentMinutes < targetMinutes) return;
-
-      const reminderKey = `deutschly:reminder:${getDayKey(now)}:${state.reminderTime}`;
-      if (window.localStorage.getItem(reminderKey)) return;
-      window.localStorage.setItem(reminderKey, "shown");
-
-      const message = `${dueCards.length} card${dueCards.length === 1 ? "" : "s"} ready for review.`;
+    const message = `${dueCards.length} card${dueCards.length === 1 ? "" : "s"} ready for review.`;
+    const showReminder = (tag: string) => {
       if ("Notification" in window && Notification.permission === "granted") {
         const showNotification = async () => {
           try {
             if ("serviceWorker" in navigator) {
               const registration = await navigator.serviceWorker.ready;
-              await registration.showNotification("Deutschly review reminder", { body: message, icon: "./icon-192.svg", tag: reminderKey });
+              await registration.showNotification("Deutschly review reminder", { body: message, icon: "./icon-192.svg", tag });
               return;
             }
           } catch {
@@ -2345,6 +2343,32 @@ export default function App() {
       } else {
         showToast(message);
       }
+    };
+
+    const checkReminder = () => {
+      const now = new Date();
+      if (reminderSnoozedUntil) {
+        if (Date.now() < reminderSnoozedUntil) return;
+        const snoozedTarget = new Date(reminderSnoozedUntil);
+        const reminderKey = `deutschly:reminder:${getDayKey(snoozedTarget)}:${state.reminderTime}`;
+        const snoozeKey = `deutschly:reminder:snooze:${reminderSnoozedUntil}`;
+        setReminderSnoozedUntil(null);
+        window.localStorage.removeItem(REMINDER_SNOOZE_KEY);
+        if (window.localStorage.getItem(snoozeKey)) return;
+        window.localStorage.setItem(snoozeKey, "shown");
+        window.localStorage.setItem(reminderKey, "shown");
+        showReminder(snoozeKey);
+        return;
+      }
+      const [reminderHours, reminderMinutes] = state.reminderTime.split(":").map(Number);
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const targetMinutes = (Number.isFinite(reminderHours) ? reminderHours : 19) * 60 + (Number.isFinite(reminderMinutes) ? reminderMinutes : 0);
+      if (currentMinutes < targetMinutes) return;
+
+      const reminderKey = `deutschly:reminder:${getDayKey(now)}:${state.reminderTime}`;
+      if (window.localStorage.getItem(reminderKey)) return;
+      window.localStorage.setItem(reminderKey, "shown");
+      showReminder(reminderKey);
     };
 
     checkReminder();
@@ -2694,6 +2718,10 @@ export default function App() {
       if (permission === "denied") showToast("Browser notifications are blocked; the in-app reminder will still be saved.");
     }
     setState((current) => ({ ...current, reminderEnabled: nextEnabled }));
+    if (!nextEnabled) {
+      setReminderSnoozedUntil(null);
+      window.localStorage.removeItem(REMINDER_SNOOZE_KEY);
+    }
   };
   const handleReminderTimeChange = (reminderTime: string) => {
     setState((current) => ({ ...current, reminderTime }));
@@ -2701,10 +2729,16 @@ export default function App() {
     window.localStorage.removeItem(REMINDER_SNOOZE_KEY);
   };
   const handleSnoozeReminder = () => {
-    const until = getNextReminderAt(state.reminderTime).getTime();
+    if (reminderSnoozedUntil) {
+      setReminderSnoozedUntil(null);
+      window.localStorage.removeItem(REMINDER_SNOOZE_KEY);
+      showToast(`Snooze cancelled. Your regular reminder stays at ${formatTimeLabel(state.reminderTime)}.`);
+      return;
+    }
+    const until = getNextSnoozeAt(state.reminderTime).getTime();
     setReminderSnoozedUntil(until);
     window.localStorage.setItem(REMINDER_SNOOZE_KEY, String(until));
-    showToast(`Okay — I'll remind you ${formatReminderTarget(new Date(until))}.`);
+    showToast(`Reminder snoozed until ${formatReminderTarget(new Date(until))}.`);
   };
   const handleAddReminderToCalendar = () => {
     downloadReminderCalendar(state.reminderTime);

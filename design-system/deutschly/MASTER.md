@@ -52,7 +52,7 @@ font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
 
 ### Spacing Variables
 
-*Density: 5/10 — Standard*
+*Density: 5/10: Standard*
 
 | Token | Value | Usage |
 |-------|-------|-------|
@@ -183,7 +183,7 @@ font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
 
 ## Motion
 
-**Stagger List** (Standard) — Trigger: load or scroll | Duration: 300-450ms | Easing: `back.out(1.4)`
+**Stagger List** (Standard): Trigger: load or scroll | Duration: 300-450ms | Easing: `back.out(1.4)`
 
 ```js
 gsap.from('.grid-item', { opacity: 0, scale: 0.92, y: 16, duration: 0.4, stagger: { each: 0.06, from: 'start', grid: 'auto' }, ease: 'back.out(1.4)' });
@@ -204,12 +204,12 @@ gsap.from('.grid-item', { opacity: 0, scale: 0.92, y: 16, duration: 0.4, stagger
 
 ### Additional Forbidden Patterns
 
-- ❌ **Emojis as icons** — Use SVG icons (Heroicons, Lucide, Simple Icons)
-- ❌ **Missing cursor:pointer** — All clickable elements must have cursor:pointer
-- ❌ **Layout-shifting hovers** — Avoid scale transforms that shift layout
-- ❌ **Low contrast text** — Maintain 4.5:1 minimum contrast ratio
-- ❌ **Instant state changes** — Always use transitions (150-300ms)
-- ❌ **Invisible focus states** — Focus states must be visible for a11y
+- ❌ **Emojis as icons**: Use SVG icons (Heroicons, Lucide, Simple Icons)
+- ❌ **Missing cursor:pointer**: All clickable elements must have cursor:pointer
+- ❌ **Layout-shifting hovers**: Avoid scale transforms that shift layout
+- ❌ **Low contrast text**: Maintain 4.5:1 minimum contrast ratio
+- ❌ **Instant state changes**: Always use transitions (150-300ms)
+- ❌ **Invisible focus states**: Focus states must be visible for a11y
 
 ---
 
