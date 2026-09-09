@@ -3954,6 +3954,66 @@ kbd {
   line-height: 1.6;
 }
 
+.onboarding-modal {
+  width: min(470px, 100%);
+  padding: 32px;
+}
+
+.onboarding-modal__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 17px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: 13px;
+}
+
+.onboarding-modal h2 {
+  max-width: 330px;
+  margin-top: 7px;
+  font-size: 27px;
+  line-height: 1.18;
+}
+
+.onboarding-modal__intro {
+  max-width: 390px;
+  margin: 11px 0 25px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.onboarding-modal__helper {
+  display: block;
+  margin-top: -4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.onboarding-modal__error {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  padding: 9px 10px;
+  margin-top: 12px;
+  color: var(--orange);
+  font-size: 10px;
+  line-height: 1.45;
+  background: var(--orange-soft);
+  border: 1px solid rgba(227, 122, 40, 0.2);
+  border-radius: 9px;
+}
+
+.onboarding-modal__submit {
+  width: 100%;
+  justify-content: center;
+  margin-top: 20px;
+}
+
 .form-grid {
   display: grid;
   gap: 11px;

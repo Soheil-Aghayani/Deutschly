@@ -189,8 +189,23 @@ const AUTO_SYNC_KEY = "deutschly:sync:auto:v1";
 const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v3";
 const PWA_INSTALL_DISMISSED_KEY = "deutschly:pwa:install-dismissed:v1";
 const PROFILE_NAME_KEY = "deutschly:profile:name:v1";
-const PROFILE_NAME = "Fatemeh";
+const PROFILE_NAME_MAX_LENGTH = 32;
+const PROFILE_DISPLAY_FALLBACK = "Learner";
+const LATIN_PROFILE_NAME_PATTERN = /^[\p{Script=Latin}]+(?:[\s.'’'-]+[\p{Script=Latin}]+)*$/u;
 const PROFILE_AVATAR_COLORS = ["#EEF0FF", "#8D8BFF", "#56C39E", "#F6A261", "#F2B4BE"];
+
+function normalizeProfileName(value: string): string {
+  return value.trim().replace(/\s+/g, " ").slice(0, PROFILE_NAME_MAX_LENGTH);
+}
+
+function isValidProfileName(value: string): boolean {
+  return value.length > 0 && value.length <= PROFILE_NAME_MAX_LENGTH && LATIN_PROFILE_NAME_PATTERN.test(value);
+}
+
+function loadProfileName(): string {
+  const name = normalizeProfileName(loadLocalSetting(PROFILE_NAME_KEY));
+  return isValidProfileName(name) ? name : "";
+}
 
 const navItems: Array<{ id: Tab; label: string; icon: LucideIcon }> = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -1122,7 +1137,7 @@ function getCardCheck(cards: Flashcard[], draft: CardDraft): CardCheckResult {
     items.push({
       tone: "success",
       title: "No local duplicate found",
-      detail: `This headword and translation are not in ${PROFILE_NAME}’s library yet.`,
+      detail: "This headword and translation are not in your library yet.",
     });
   }
 
@@ -2428,6 +2443,38 @@ function CardCheckPanel({ result, referenceChecked, onReferenceChecked, onApplyS
   );
 }
 
+function ProfileOnboardingModal({ onSave }: { onSave: (name: string) => void }) {
+  const [draftName, setDraftName] = useState("");
+  const [error, setError] = useState("");
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalized = normalizeProfileName(draftName);
+    if (!isValidProfileName(normalized)) {
+      setError("Use Latin letters only, for example Anna or Jean-Luc.");
+      return;
+    }
+    onSave(normalized);
+  };
+
+  return (
+    <div className="modal-backdrop modal-backdrop--onboarding" role="presentation">
+      <section className="modal-panel onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" aria-describedby="onboarding-intro">
+        <div className="onboarding-modal__icon" aria-hidden="true"><Sparkles size={21} /></div>
+        <span className="section-eyebrow">WELCOME TO DEUTSCHLY</span>
+        <h2 id="onboarding-title">Make this learning space yours.</h2>
+        <p id="onboarding-intro" className="onboarding-modal__intro">Before we begin, tell us what to call you. Your name stays private on this device.</p>
+        <form onSubmit={handleSubmit} noValidate>
+          <label className="form-field" htmlFor="onboarding-name"><span>Your name</span><input id="onboarding-name" value={draftName} onChange={(event) => { setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH)); setError(""); }} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="name" spellCheck={false} inputMode="text" aria-invalid={Boolean(error)} aria-describedby={error ? "onboarding-name-error" : "onboarding-name-help"} /></label>
+          <small id="onboarding-name-help" className="onboarding-modal__helper">Latin letters are required so your profile works consistently across devices.</small>
+          {error && <div id="onboarding-name-error" className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
+          <button type="submit" className="button button--primary onboarding-modal__submit"><span>Continue</span><ArrowRight size={16} aria-hidden="true" /></button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 interface ProfileModalProps {
   name: string;
   theme: Theme;
@@ -2491,7 +2538,7 @@ function ProfileModal({
 }: ProfileModalProps) {
   const [draftName, setDraftName] = useState(name);
   const backupInputRef = useRef<HTMLInputElement>(null);
-  const previewAvatar = getDailyAvatar(draftName.trim() || PROFILE_NAME, getDayKey());
+  const previewAvatar = getDailyAvatar(draftName.trim() || PROFILE_DISPLAY_FALLBACK, getDayKey());
   const notificationCopy = notificationPermission === "granted"
     ? "Browser alerts are on for review reminders."
     : notificationPermission === "default"
@@ -2527,7 +2574,7 @@ function ProfileModal({
           <section className="settings-section" aria-labelledby="settings-profile-title">
             <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Settings size={16} /></span><div><h3 id="settings-profile-title">Profile</h3><p>Personal details used across your learning space.</p></div></div>
             <div className="profile-preview"><div className="profile-preview__avatar"><Avatar name={previewAvatar.seed} variant={previewAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={58} title={false} aria-hidden="true" /></div><div><span className="section-eyebrow">LEARNER</span><strong>{draftName.trim() || "Your name"}</strong><small>Private on this device</small></div></div>
-            <label className="form-field" htmlFor="profile-name"><span>Display name</span><input id="profile-name" value={draftName} onChange={(event) => setDraftName(event.target.value.slice(0, 32))} placeholder="e.g. Fatemeh" maxLength={32} autoComplete="name" /></label>
+            <label className="form-field" htmlFor="profile-name"><span>Display name</span><input id="profile-name" value={draftName} onChange={(event) => setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH))} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="name" spellCheck={false} /></label>
           </section>
 
           <section className="settings-section" aria-labelledby="settings-appearance-title">
@@ -2843,7 +2890,8 @@ export default function App() {
   const [addCardSeed, setAddCardSeed] = useState<Partial<CardDraft> | undefined>(undefined);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [deleteCardId, setDeleteCardId] = useState<string | null>(null);
-  const [profileName, setProfileName] = useState(() => loadLocalSetting(PROFILE_NAME_KEY) || PROFILE_NAME);
+  const [profileName, setProfileName] = useState(() => loadProfileName());
+  const [profileOnboardingOpen, setProfileOnboardingOpen] = useState(() => !loadProfileName());
   const [profileOpen, setProfileOpen] = useState(false);
   const [resetProgressOpen, setResetProgressOpen] = useState(false);
   const [reminderSnoozedUntil, setReminderSnoozedUntil] = useState<number | null>(() => {
@@ -2860,7 +2908,8 @@ export default function App() {
   const todayKey = getDayKey();
   stateRef.current = state;
   const cardPendingDeletion = deleteCardId ? state.cards.find((card) => card.id === deleteCardId) : undefined;
-  const profileAvatar = getDailyAvatar(profileName, todayKey);
+  const profileDisplayName = profileName || PROFILE_DISPLAY_FALLBACK;
+  const profileAvatar = getDailyAvatar(profileDisplayName, todayKey);
   const dueCards = useMemo(() => state.cards
     .filter((card) => card.due <= todayKey)
     .sort((first, second) => {
@@ -2927,14 +2976,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const modalOpen = addCardOpen || profileOpen || syncOpen || resetProgressOpen || Boolean(deleteCardId);
+    const modalOpen = addCardOpen || profileOpen || profileOnboardingOpen || syncOpen || resetProgressOpen || Boolean(deleteCardId);
     document.documentElement.classList.toggle("modal-open", modalOpen);
     document.body.classList.toggle("modal-open", modalOpen);
     return () => {
       document.documentElement.classList.remove("modal-open");
       document.body.classList.remove("modal-open");
     };
-  }, [addCardOpen, profileOpen, syncOpen, resetProgressOpen, deleteCardId]);
+  }, [addCardOpen, profileOpen, profileOnboardingOpen, syncOpen, resetProgressOpen, deleteCardId]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -3394,7 +3443,7 @@ export default function App() {
   };
 
   const handleExportBackup = () => {
-    const payload = JSON.stringify({ app: "deutschly", version: 1, profile: profileName, exportedAt: new Date().toISOString(), state }, null, 2);
+    const payload = JSON.stringify({ app: "deutschly", version: 1, profile: profileDisplayName, exportedAt: new Date().toISOString(), state }, null, 2);
     const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -3527,15 +3576,23 @@ export default function App() {
     showToast(notificationPermission === "granted" ? `Reminder set for ${formatTimeLabel(state.reminderTime)}.` : "In-app reminders stay on while this page is open.");
   };
   const handleSaveProfile = (nextName: string) => {
-    const trimmedName = nextName.trim().slice(0, 32);
-    if (!trimmedName) {
-      showToast("Add a name before saving your profile.");
+    const trimmedName = normalizeProfileName(nextName);
+    if (!isValidProfileName(trimmedName)) {
+      showToast("Use Latin letters only for your profile name.");
       return;
     }
     setProfileName(trimmedName);
     window.localStorage.setItem(PROFILE_NAME_KEY, trimmedName);
     setProfileOpen(false);
     showToast("Profile updated.");
+  };
+  const handleCompleteProfileOnboarding = (nextName: string) => {
+    const trimmedName = normalizeProfileName(nextName);
+    if (!isValidProfileName(trimmedName)) return;
+    setProfileName(trimmedName);
+    window.localStorage.setItem(PROFILE_NAME_KEY, trimmedName);
+    setProfileOnboardingOpen(false);
+    showToast(`Welcome to Deutschly, ${trimmedName}.`);
   };
   const handleViewWeakCards = () => {
     setWeakCardsOnly(true);
@@ -3598,7 +3655,7 @@ export default function App() {
         </div>
         <div className="sidebar__bottom">
           <div className="sidebar-tip"><Sparkles size={16} aria-hidden="true" /><div><strong>Small steps, big recall.</strong><span>Your next review is ready.</span></div></div>
-          <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileName} profile avatar`}><Avatar name={profileAvatar.seed} variant={profileAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={32} title={false} aria-hidden="true" /></div><div><strong>{profileName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
+          <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileDisplayName} profile avatar`}><Avatar name={profileAvatar.seed} variant={profileAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={32} title={false} aria-hidden="true" /></div><div><strong>{profileDisplayName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
         </div>
       </aside>
 
@@ -3609,12 +3666,12 @@ export default function App() {
             <button type="button" className="icon-button" onClick={toggleTheme} aria-label={state.theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={state.theme === "light" ? "Dark mode" : "Light mode"}>{state.theme === "light" ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}</button>
             <button type="button" className="icon-button notification-button" onClick={handleReminderBell} aria-label="View reminders" title="Reminders"><Bell size={18} aria-hidden="true" />{state.reminderEnabled && dueCards.length > 0 && <span aria-hidden="true" />}</button>
             <button type="button" className={`sync-button${syncing ? " sync-button--syncing" : ""}`} onClick={() => void handleSync()} disabled={syncing}><Cloud size={16} aria-hidden="true" />{syncing ? "Syncing..." : syncConfigured ? "Sync now" : "Set up sync"}</button>
-            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileName}`} title="Profile settings"><Avatar name={profileAvatar.seed} variant={profileAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={34} title={false} aria-hidden="true" /></button>
+            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileDisplayName}`} title="Profile settings"><Avatar name={profileAvatar.seed} variant={profileAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={34} title={false} aria-hidden="true" /></button>
           </div>
         </header>
 
         <main id="main-content" className="main-content">
-          {activeTab === "overview" && <OverviewPage state={state} profileName={profileName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
+          {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
@@ -3633,7 +3690,7 @@ export default function App() {
       {addCardOpen && <AddCardModal onClose={handleCloseAddCard} onSave={handleSaveCard} onDelete={editingCardId ? handleRequestDeleteCard : undefined} existingCards={state.cards.filter((card) => card.id !== editingCardId)} initialDraft={addCardSeed} editing={Boolean(editingCardId)} geminiEndpoint={syncEndpoint} />}
       {cardPendingDeletion && <DeleteCardModal card={cardPendingDeletion} onClose={() => setDeleteCardId(null)} onConfirm={handleConfirmDeleteCard} />}
       {profileOpen && <ProfileModal
-        name={profileName}
+        name={profileDisplayName}
         theme={state.theme}
         dailyGoal={state.dailyGoal}
         reminderEnabled={state.reminderEnabled}
@@ -3662,6 +3719,7 @@ export default function App() {
         onResetProgress={handleResetProgressFromSettings}
         onInstallApp={() => { void handleInstallApp(); }}
       />}
+      {profileOnboardingOpen && <ProfileOnboardingModal onSave={handleCompleteProfileOnboarding} />}
       {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} isOnline={isOnline} testingConnection={testingConnection} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
       {resetProgressOpen && <ResetProgressModal onClose={() => setResetProgressOpen(false)} onConfirm={handleResetProgress} />}
       {showInstallPrompt && <InstallPrompt canInstall={installPrompt.canInstall} isIos={installPrompt.isIos} isMobile={installPrompt.isMobile} onInstall={() => { void handleInstallApp(); }} onDismiss={handleDismissInstallPrompt} />}
