@@ -2182,6 +2182,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const modalOpen = addCardOpen || profileOpen || syncOpen;
+    document.documentElement.classList.toggle("modal-open", modalOpen);
+    document.body.classList.toggle("modal-open", modalOpen);
+    return () => {
+      document.documentElement.classList.remove("modal-open");
+      document.body.classList.remove("modal-open");
+    };
+  }, [addCardOpen, profileOpen, syncOpen]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (addCardOpen || activeTab !== "study") return;
       if (event.code === "Space") {

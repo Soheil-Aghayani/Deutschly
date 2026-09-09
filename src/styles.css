@@ -25,6 +25,11 @@ body {
   background: #f5f6fb;
 }
 
+html.modal-open,
+body.modal-open {
+  overflow: hidden;
+}
+
 button,
 input,
 select,
@@ -2906,7 +2911,8 @@ kbd {
   align-items: flex-start;
   justify-content: center;
   padding: max(22px, env(safe-area-inset-top, 0px)) 22px max(22px, env(safe-area-inset-bottom, 0px));
-  overflow-y: auto;
+  overflow: hidden;
+  overscroll-behavior: contain;
   background: rgba(13, 17, 34, 0.58);
   backdrop-filter: blur(7px);
 }
@@ -2921,6 +2927,34 @@ kbd {
   border: 1px solid var(--border);
   border-radius: 19px;
   box-shadow: var(--shadow-lg);
+  scrollbar-color: rgba(120, 130, 154, 0.55) transparent;
+  scrollbar-width: thin;
+}
+
+.modal-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-panel::-webkit-scrollbar-thumb {
+  background: rgba(120, 130, 154, 0.55);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+.modal-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 130, 154, 0.75);
+  background-clip: padding-box;
+}
+
+.modal-panel::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .modal-panel__heading {
