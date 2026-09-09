@@ -16,7 +16,7 @@ Live site: <https://soheil-aghayani.github.io/Deutschly/>
 - Daily reminder time with browser notifications when permission is granted, a snooze that moves the next alert to the following clock hour, and a downloadable recurring calendar event for reminders when the browser is closed.
 - Responsive layout, installable PWA shell, light/dark themes, keyboard shortcuts, and local persistence.
 - A private-room sync server for moving cards between a computer and a phone on the same Wi-Fi network.
-- An empty, typed German word database for future A1 and A2 word-bank curation, with English meanings, articles, plurals, examples, and learner tags.
+- A generated, typed German word database for A1 and A2 word-bank curation, with English meanings, articles, plurals, examples, and learner tags.
 
 ## Use it
 
@@ -69,7 +69,23 @@ npm run sync-server -- --host 0.0.0.0
 
 If the sync URL is configured in Deutschly, the app uses the same private server for card review. On the phone, use the PC LAN address in the sync settings. Stop the server when you are finished, and keep it on a trusted Wi-Fi network; this starter bridge is intentionally not a public production service.
 
-The same private bridge exposes `POST /api/gemini/word-batch` for a later A1 or A2 curation pass. It validates the level, removes duplicate headwords, and returns structured records without sources or URLs. The curated database starts empty by design; generated words should pass the local card checker before they are added.
+The same private bridge exposes `POST /api/gemini/word-batch` for an A1 or A2 curation pass. It validates the level, removes duplicate headwords, and returns structured records without sources or URLs. Generated words are written only after the agent validates their shape and deduplicates them against the local database.
+
+To add reviewed Gemini batches to the local database, run the bounded word agent from the project folder. It reads the key from the file, compares every batch with existing headwords, and writes only new records to `src/data/germanWords.generated.json`:
+
+```powershell
+npm run words:agent -- --key-file 'C:\path\to\Gemini API.txt' --levels A1,A2 --count 20 --batches 1
+```
+
+When the private sync server is already running with its Gemini key configured, the agent can reuse it without reading a key file directly:
+
+```powershell
+npm run words:agent -- --server-url 'http://127.0.0.1:8787' --levels A1,A2 --count 20 --batches 1
+```
+
+The `--legacy-review-fallback` option is available for an already-running older bridge that has card review but not the word-batch endpoint. It verifies a small built-in learner list through the existing review route, then stores the validated records. Restart the bridge from the current project version before using larger generated batches.
+
+Use a small, explicit batch count when adding more words. The agent never runs an unbounded loop, never stores the API key, and keeps the local database as the source of truth.
 
 ## GitHub Pages
 

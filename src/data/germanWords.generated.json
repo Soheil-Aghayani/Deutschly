@@ -1,0 +1,202 @@
+[
+  {
+    "id": "gemini-a1-YXJiZWl0ZW4",
+    "german": "arbeiten",
+    "englishMeanings": [
+      "to work"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich arbeite heute."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-bGVybmVu",
+    "german": "lernen",
+    "englishMeanings": [
+      "to learn"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich lerne Deutsch."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-d29obmVu",
+    "german": "wohnen",
+    "englishMeanings": [
+      "to live"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich wohne in Berlin."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-a29tbWVu",
+    "german": "kommen",
+    "englishMeanings": [
+      "to come"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich komme aus Deutschland."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-c3ByZWNoZW4",
+    "german": "sprechen",
+    "englishMeanings": [
+      "to speak"
+    ],
+    "article": "none",
+    "level": "A1",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich spreche Deutsch."
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a2-YmVnaW5uZW4",
+    "german": "beginnen",
+    "englishMeanings": [
+      "to begin"
+    ],
+    "article": "none",
+    "level": "A2",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Der Unterricht beginnt um acht Uhr."
+    ],
+    "tags": [
+      "a2",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a2-YmVzdWNoZW4",
+    "german": "besuchen",
+    "englishMeanings": [
+      "to visit"
+    ],
+    "article": "none",
+    "level": "A2",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich besuche meine Oma."
+    ],
+    "tags": [
+      "a2",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a2-YnJhdWNoZW4",
+    "german": "brauchen",
+    "englishMeanings": [
+      "to need"
+    ],
+    "article": "none",
+    "level": "A2",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich brauche einen Kuli."
+    ],
+    "tags": [
+      "a2",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a2-ZXJ6w6RobGVu",
+    "german": "erzählen",
+    "englishMeanings": [
+      "to tell, to narrate"
+    ],
+    "article": "none",
+    "level": "A2",
+    "partOfSpeech": "verb",
+    "examples": [
+      "Ich erzähle eine Geschichte."
+    ],
+    "tags": [
+      "a2",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a1-bmFtZQ",
+    "german": "Name",
+    "englishMeanings": [
+      "name"
+    ],
+    "article": "der",
+    "plural": "Namen",
+    "level": "A1",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Wie ist Ihr Name?"
+    ],
+    "tags": [
+      "a1",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  },
+  {
+    "id": "gemini-a2-bmFjaHJpY2h0",
+    "german": "Nachricht",
+    "englishMeanings": [
+      "message, news"
+    ],
+    "article": "die",
+    "plural": "Nachrichten",
+    "level": "A2",
+    "partOfSpeech": "noun",
+    "examples": [
+      "Ich habe eine wichtige Nachricht bekommen."
+    ],
+    "tags": [
+      "a2",
+      "gemini-verified",
+      "legacy-review"
+    ]
+  }
+]
