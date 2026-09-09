@@ -6789,6 +6789,14 @@ kbd {
     padding: 8px;
   }
 
+  .modal-backdrop--onboarding-form {
+    align-items: flex-start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  }
+
   .modal-panel {
     max-height: calc(100dvh - 16px);
     padding: 18px 15px 15px;

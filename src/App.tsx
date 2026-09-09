@@ -2486,6 +2486,7 @@ function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogl
   const [step, setStep] = useState<ProfileOnboardingStep>(() => user ? "google-confirm" : "choice");
   const [draftName, setDraftName] = useState("");
   const [error, setError] = useState("");
+  const panelRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -2493,6 +2494,10 @@ function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogl
     setDraftName(getGoogleFirstName(user));
     setError("");
   }, [user?.uid, user?.displayName]);
+
+  useEffect(() => {
+    panelRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [step, user?.uid]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2524,8 +2529,8 @@ function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogl
   );
 
   return (
-    <div className="modal-backdrop modal-backdrop--onboarding" role="presentation">
-      <section className="modal-panel onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" aria-describedby="onboarding-intro">
+    <div className={`modal-backdrop modal-backdrop--onboarding ${step === "choice" ? "" : "modal-backdrop--onboarding-form"}`} role="presentation">
+      <section ref={panelRef} className="modal-panel onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-title" aria-describedby="onboarding-intro">
         <div className="onboarding-modal__brand"><div className="onboarding-modal__icon" aria-hidden="true"><Sparkles size={21} /></div><span className="section-eyebrow">WELCOME TO DEUTSCHLY</span></div>
         {step === "choice" && (
           <>
