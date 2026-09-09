@@ -3464,7 +3464,7 @@ export default function App() {
     setFirebaseBusy(true);
     setFirebaseError(null);
     try {
-      const useRedirect = true;
+      const useRedirect = /(^|\.)web\.app$|(^|\.)firebaseapp\.com$/i.test(window.location.hostname);
       const user = await signInWithFirebaseProvider(provider, useRedirect);
       if (user) {
         setFirebaseUser(user);

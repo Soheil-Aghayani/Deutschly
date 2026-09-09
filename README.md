@@ -58,16 +58,18 @@ The sync server stores its room data in the ignored `.deutschly/sync.json` file 
 
 ## Optional account sync
 
-Deutschly can also use Firebase Authentication and Firestore for account-based sync. The app supports Google and GitHub sign-in, keeps each user's document under `users/{uid}`, and applies the owner-only rules in `firestore.rules`. Without Firebase settings, the app stays fully local and the private-room sync flow remains available.
+Deutschly can also use Firebase Authentication and Firestore for account-based sync. The app keeps each user's document under `users/{uid}` and applies the owner-only rules in `firestore.rules`. Google sign-in is configured for the current project. GitHub sign-in can be added later with a GitHub OAuth app. Without Firebase settings, the app stays fully local and the private-room sync flow remains available.
 
 To enable it:
 
 1. Create a Firebase project and add a Web app.
-2. Enable Google and GitHub under Authentication providers. GitHub requires an OAuth app whose callback URL is the one shown by Firebase.
+2. Enable Google under Authentication providers. GitHub requires an OAuth app whose callback URL is the one shown by Firebase.
 3. Create a Firestore database and publish `firestore.rules`.
 4. Copy `.env.example` to `.env.local` and fill in the six Firebase Web App values.
 5. For GitHub Pages, add the same six values as repository or environment variables named `VITE_FIREBASE_*`, then let the Pages workflow build again.
 6. Add the deployed Pages domain and `localhost` to Firebase Authentication's authorized domains.
+
+The current Firebase Hosting build is available at <https://deutschly-app-2026.web.app/>. It is the recommended URL for account sign-in because it stays within Firebase's hosting and authentication domains. GitHub Pages remains available for the static build.
 
 The Firebase client configuration is intended for the browser. OAuth client secrets stay in Firebase's provider settings and must never be added to this repository. The cloud account section is hidden behind the optional configuration, so a missing Firebase project does not break local use.
 

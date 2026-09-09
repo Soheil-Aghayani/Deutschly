@@ -100,8 +100,8 @@ export function subscribeToFirebaseAuth(onUser: (user: FirebaseUserSummary | nul
 
 export async function finishFirebaseRedirectSignIn(): Promise<FirebaseUserSummary | null> {
   if (!firebaseConfigured) return null;
-  const [auth, { getRedirectResult }] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
-  const result = await getRedirectResult(auth);
+  const [auth, { browserPopupRedirectResolver, getRedirectResult }] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
+  const result = await getRedirectResult(auth, browserPopupRedirectResolver);
   return result?.user ? toUserSummary(result.user) : null;
 }
 
@@ -109,10 +109,10 @@ export async function signInWithFirebaseProvider(provider: FirebaseAuthProvider,
   const [auth, authModule] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
   const authProvider = provider === "google" ? new authModule.GoogleAuthProvider() : new authModule.GithubAuthProvider();
   if (useRedirect) {
-    await authModule.signInWithRedirect(auth, authProvider);
+    await authModule.signInWithRedirect(auth, authProvider, authModule.browserPopupRedirectResolver);
     return null;
   }
-  const result = await authModule.signInWithPopup(auth, authProvider);
+  const result = await authModule.signInWithPopup(auth, authProvider, authModule.browserPopupRedirectResolver);
   return toUserSummary(result.user);
 }
 
