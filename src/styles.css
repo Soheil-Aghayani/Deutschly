@@ -2907,9 +2907,9 @@ kbd {
   inset: 0;
   z-index: 50;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 22px;
+  padding: max(22px, env(safe-area-inset-top, 0px)) 22px max(22px, env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   background: rgba(13, 17, 34, 0.58);
   backdrop-filter: blur(7px);
@@ -2917,7 +2917,10 @@ kbd {
 
 .modal-panel {
   width: min(620px, 100%);
+  max-height: calc(100dvh - 44px);
   padding: 25px;
+  margin-block: auto;
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 19px;
@@ -4916,6 +4919,7 @@ kbd {
   .modal-panel {
     max-height: calc(100dvh - 16px);
     padding: 18px 15px 15px;
+    margin-block: 0;
     overflow-y: auto;
     border-radius: 17px;
   }
