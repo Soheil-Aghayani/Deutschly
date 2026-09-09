@@ -56,6 +56,21 @@ describe("Gemini card review bridge", () => {
     expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("headers.x-goog-api-key");
   });
 
+  it("explains when a static host cannot serve the Gemini bridge", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("Method Not Allowed", { status: 405 }));
+
+    await expect(reviewCardWithGemini("https://soheil-aghayani.github.io/Deutschly/", {
+      german: "Eis",
+      translation: "ice cream",
+      article: "das",
+      plural: "",
+      example: "Das Eis schmeckt gut.",
+      note: "",
+      kind: "word",
+      existingMatches: [],
+    })).rejects.toThrow("Gemini bridge is not available at this address");
+  });
+
   it("rejects a response with an unsupported article", () => {
     expect(() => parseGeminiCardReview({ review: { ...review, article: "ein" } })).toThrow("invalid article");
   });

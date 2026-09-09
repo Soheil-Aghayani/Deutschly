@@ -116,7 +116,9 @@ async function readResponse(response: Response): Promise<Record<string, unknown>
   if (!response.ok) {
     const message = isRecord(payload) && typeof payload.error === "string"
       ? payload.error
-      : `Gemini request failed (${response.status}).`;
+      : response.status === 404 || response.status === 405
+        ? "Gemini bridge is not available at this address. Run the private server on the PC and set its URL in Set up sync."
+        : `Gemini request failed (${response.status}).`;
     throw new GeminiRequestError(message, response.status);
   }
   if (!isRecord(payload)) throw new GeminiRequestError("The Gemini bridge returned an invalid response.", response.status);
