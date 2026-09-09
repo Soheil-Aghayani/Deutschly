@@ -714,8 +714,8 @@ svg {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 300px;
-  padding: 24px 30px;
+  min-height: 266px;
+  padding: 20px 24px;
   overflow: hidden;
   color: var(--text-strong);
   background: linear-gradient(145deg, var(--surface) 0%, var(--success-soft) 100%);
@@ -772,13 +772,21 @@ svg {
   grid-template-columns: minmax(0, 1fr) 150px;
   gap: 28px;
   align-items: center;
-  min-height: 182px;
+  min-height: 0;
+}
+
+.hero-card__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .hero-card__copy h2 {
-  margin: 0 0 7px;
+  margin: 0;
   font-size: clamp(24px, 3vw, 34px);
-  font-weight: 700;
+  font-weight: 650;
   letter-spacing: 0;
   line-height: 1.1;
 }
@@ -6363,14 +6371,14 @@ kbd {
   }
 
   .hero-card {
-    min-height: 300px;
+    min-height: 266px;
     padding: 20px;
   }
 
   .hero-card__body {
     grid-template-columns: minmax(0, 1fr) 116px;
     gap: 12px;
-    min-height: 182px;
+    min-height: 0;
   }
 
   .progress-ring {
@@ -6498,8 +6506,8 @@ kbd {
   }
 
   .hero-card {
-    min-height: 304px;
-    padding: 18px 17px;
+    min-height: 250px;
+    padding: 16px;
   }
 
   .hero-card__goal {
@@ -6510,11 +6518,11 @@ kbd {
   .hero-card__body {
     grid-template-columns: minmax(0, 1fr) 96px;
     gap: 8px;
-    min-height: 183px;
+    min-height: 0;
   }
 
   .hero-card__copy h2 {
-    font-size: 27px;
+    font-size: 26px;
   }
 
   .button {
