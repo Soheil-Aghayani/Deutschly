@@ -2,7 +2,7 @@
 
 Deutschly is a focused German flashcard PWA for Fatemeh’s Menschen A1.1 learning journey. It works in a desktop browser, on a phone, or as an installed app.
 
-Live site: <https://soheil-aghayani.github.io/Gamify-Garden/>
+Live site: <https://soheil-aghayani.github.io/Deutschly/>
 
 ## What is included
 
