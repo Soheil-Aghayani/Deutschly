@@ -1,4 +1,4 @@
-const CACHE_NAME = "deutschly-shell-v6";
+const CACHE_NAME = "deutschly-shell-v7";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -68,6 +68,22 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const requestUrl = new URL(request.url);
   if (request.method !== "GET" || requestUrl.origin !== self.location.origin || requestUrl.pathname.includes("/api/")) return;
+
+  const isDocumentRequest = request.mode === "navigate" || request.destination === "document";
+  if (isDocumentRequest) {
+    const shellUrl = new URL("./index.html", self.registration.scope).toString();
+
+    event.respondWith(
+      fetch(request, { cache: "no-store" })
+        .then((response) => {
+          const copy = response.clone();
+          event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(shellUrl, copy)));
+          return response;
+        })
+        .catch(() => caches.match(shellUrl)),
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(request).then((cached) => {
