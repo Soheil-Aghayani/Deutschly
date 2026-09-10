@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GERMAN_WORD_DATABASE, findGermanWord, normalizeGermanWord, searchGermanWords } from "./germanWords";
+import { GERMAN_WORD_DATABASE, findGermanWord, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./germanWords";
 
 describe("German word database", () => {
   it("loads generated records with the typed shape", () => {
@@ -36,5 +36,21 @@ describe("German word database", () => {
       lesson: "Lesson 1",
       page: 9,
     });
+  });
+
+  it("merges generated records without adding duplicate headwords", () => {
+    const existing = GERMAN_WORD_DATABASE[0];
+    if (!existing) return;
+    const custom = {
+      ...existing,
+      id: "custom-word",
+      german: "Neue Probe",
+      englishMeanings: ["new test"],
+      source: undefined,
+    };
+    const merged = mergeGermanWordRecords([existing], [existing, custom]);
+    expect(merged).toHaveLength(2);
+    expect(merged[0]?.id).toBe(existing.id);
+    expect(searchGermanWords("neue", 5, merged).map((word) => word.german)).toEqual(["Neue Probe"]);
   });
 });

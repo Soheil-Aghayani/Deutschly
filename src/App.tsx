@@ -72,10 +72,10 @@ import {
   subscribeToFirebaseAuth,
 } from "./lib/firebase";
 import type { FirebaseAuthProvider, FirebaseUserSummary } from "./lib/firebase";
-import { reviewCardWithGemini } from "./lib/gemini";
-import type { GeminiCardReview, GeminiCardReviewInput } from "./lib/gemini";
+import { generateGermanWordBatch, reviewCardWithGemini } from "./lib/gemini";
+import type { GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel } from "./lib/gemini";
 import { playPracticeFeedbackSound } from "./lib/feedbackSounds";
-import { GERMAN_WORD_DATABASE, searchGermanWords } from "./data/germanWords";
+import { GERMAN_WORD_DATABASE, isGermanWordRecord, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./data/germanWords";
 import type { GermanWordRecord } from "./data/germanWords";
 import { assessPdfCandidate, extractMenschenPdf, getMenschenLesson, normalizePdfCandidateStatuses } from "./lib/pdfImport";
 import type { PdfCandidate, PdfCandidateStatus } from "./lib/pdfImport";
@@ -195,6 +195,7 @@ interface OverflowMenuItem {
 }
 
 const STORAGE_KEY = "deutschly:state:v1";
+const WORD_BANK_KEY = "deutschly:word-bank:v1";
 const SYNC_ENDPOINT_KEY = "deutschly:sync:endpoint:v1";
 const SYNC_ROOM_KEY = "deutschly:sync:room:v1";
 const AUTO_SYNC_KEY = "deutschly:sync:auto:v1";
@@ -829,6 +830,19 @@ function loadState(): AppState {
 function loadLocalSetting(key: string): string {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(key) ?? "";
+}
+
+function loadGeneratedWordBank(): GermanWordRecord[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.localStorage.getItem(WORD_BANK_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? mergeGermanWordRecords(parsed.filter(isGermanWordRecord)) : [];
+  } catch {
+    return [];
+  }
 }
 
 function loadLocalBooleanSetting(key: string): boolean {
@@ -2137,6 +2151,8 @@ function LibraryPage({
   onSearch,
   onAddCard,
   onAddDatabaseWord,
+  wordBank,
+  onGenerateWordBatch,
   onEditCard,
   weakCardsOnly,
   onWeakCardsOnlyChange,
@@ -2159,6 +2175,8 @@ function LibraryPage({
   onSearch: (value: string) => void;
   onAddCard: () => void;
   onAddDatabaseWord: (word: GermanWordRecord) => void;
+  wordBank: GermanWordRecord[];
+  onGenerateWordBatch: (level: GermanWordBatchLevel, count: number) => Promise<GermanWordRecord[]>;
   onEditCard: (card: Flashcard) => void;
   weakCardsOnly: boolean;
   onWeakCardsOnlyChange: (value: boolean) => void;
@@ -2174,10 +2192,32 @@ function LibraryPage({
   const [articleFilter, setArticleFilter] = useState<"all" | Article>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | CardStatus>("all");
   const [wordBankQuery, setWordBankQuery] = useState("");
+  const [wordBankLevel, setWordBankLevel] = useState<GermanWordBatchLevel>("A1");
+  const [wordBankCount, setWordBankCount] = useState("10");
+  const [wordBankGenerating, setWordBankGenerating] = useState(false);
+  const [wordBankError, setWordBankError] = useState<string | null>(null);
+  const [lastGeneratedWords, setLastGeneratedWords] = useState<GermanWordRecord[]>([]);
   const [needsCheckOnly, setNeedsCheckOnly] = useState(false);
   const lessons = [...new Set(cards.map((card) => card.lesson).filter(Boolean))].sort();
   const tags = [...new Set(cards.flatMap((card) => card.tags ?? []))].sort();
-  const wordBankSuggestions = useMemo(() => searchGermanWords(wordBankQuery, 6), [wordBankQuery]);
+  const wordBankSuggestions = useMemo(() => searchGermanWords(wordBankQuery, 6, wordBank), [wordBank, wordBankQuery]);
+  const handleGenerateWordBatch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (wordBankGenerating) return;
+
+    setWordBankGenerating(true);
+    setWordBankError(null);
+    try {
+      const words = await onGenerateWordBatch(wordBankLevel, Number(wordBankCount));
+      setLastGeneratedWords(words);
+      if (words.length === 0) setWordBankError("Gemini returned no new words. Try another level or run it again later.");
+    } catch (error) {
+      setLastGeneratedWords([]);
+      setWordBankError(error instanceof Error ? error.message : "Gemini could not generate new words. Check the sync server and try again.");
+    } finally {
+      setWordBankGenerating(false);
+    }
+  };
   const filteredCards = cards.filter((card) => {
     const term = searchQuery.toLowerCase().trim();
     const matchesSearch = !term || [card.german, card.translation, card.example, card.lesson, card.deck, ...(card.tags ?? [])].filter(Boolean).some((value) => value?.toLowerCase().includes(term));
@@ -2215,7 +2255,7 @@ function LibraryPage({
         </div>
       </section>
 
-      <section className="word-bank-card" aria-labelledby="word-bank-title">
+      <section className="word-bank-card" aria-labelledby="word-bank-title" aria-busy={wordBankGenerating}>
         <div className="word-bank-card__header">
           <div className="word-bank-card__heading">
             <span className="word-bank-card__icon" aria-hidden="true"><Languages size={19} /></span>
@@ -2225,8 +2265,26 @@ function LibraryPage({
               <p>Search the checked A1 and A2 records, then review the details before saving a card.</p>
             </div>
           </div>
-          <span className="word-bank-card__count">{GERMAN_WORD_DATABASE.length} records</span>
+          <span className="word-bank-card__count">{wordBank.length} records</span>
         </div>
+        <div className="word-bank-generator">
+          <div className="word-bank-generator__copy">
+            <span className="word-bank-generator__icon" aria-hidden="true"><Sparkles size={16} /></span>
+            <div><strong>Grow the bank with Gemini</strong><small>Generate common words, save them locally, then review each one before adding a card.</small></div>
+          </div>
+          <form className="word-bank-generator__form" onSubmit={handleGenerateWordBatch}>
+            <label><span>Level</span><select value={wordBankLevel} onChange={(event) => setWordBankLevel(event.target.value as GermanWordBatchLevel)} disabled={wordBankGenerating}><option value="A1">A1</option><option value="A2">A2</option></select></label>
+            <label><span>Words</span><select value={wordBankCount} onChange={(event) => setWordBankCount(event.target.value)} disabled={wordBankGenerating}><option value="5">5</option><option value="10">10</option><option value="20">20</option></select></label>
+            <button type="submit" className="button button--primary" disabled={wordBankGenerating}>{wordBankGenerating ? <><RefreshCw size={15} className="spin" aria-hidden="true" /> Generating...</> : <><Sparkles size={15} aria-hidden="true" /> Generate words</>}</button>
+          </form>
+        </div>
+        {wordBankError && <div className="word-bank-generator__error" role="alert"><Info size={15} aria-hidden="true" /><span>{wordBankError}</span></div>}
+        {lastGeneratedWords.length > 0 && <div className="word-bank-generated" aria-live="polite">
+          <div className="word-bank-generated__heading"><div><strong>{lastGeneratedWords.length} new {lastGeneratedWords.length === 1 ? "word" : "words"} added</strong><span>Saved to this device's word bank. Review before adding cards.</span></div><span>{wordBankLevel}</span></div>
+          <div className="word-bank-generated__list">
+            {lastGeneratedWords.map((word) => <div className="word-bank-generated__row" key={word.id}><ArticleBadge article={word.article} compact /><div><strong>{word.german}</strong><span>{word.englishMeanings.join(" / ")}</span></div><button type="button" className="button button--ghost" onClick={() => onAddDatabaseWord(word)}>Review card <ArrowRight size={14} aria-hidden="true" /></button></div>)}
+          </div>
+        </div>}
         <label className="word-bank-search" htmlFor="word-bank-search">
           <Search size={17} aria-hidden="true" />
           <span className="sr-only">Search the German word bank</span>
@@ -3096,6 +3154,7 @@ export default function App() {
   const [pdfCandidates, setPdfCandidates] = useState<PdfCandidate[]>(() => state.pdfImport?.candidates ?? []);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [generatedWordBank, setGeneratedWordBank] = useState<GermanWordRecord[]>(() => loadGeneratedWordBank());
   const [addCardSeed, setAddCardSeed] = useState<Partial<CardDraft> | undefined>(undefined);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [deleteCardId, setDeleteCardId] = useState<string | null>(null);
@@ -3124,6 +3183,7 @@ export default function App() {
   const cardPendingDeletion = deleteCardId ? state.cards.find((card) => card.id === deleteCardId) : undefined;
   const profileDisplayName = profileName || PROFILE_DISPLAY_FALLBACK;
   const profileAvatar = getDailyAvatar(profileDisplayName, todayKey);
+  const wordBank = useMemo(() => mergeGermanWordRecords(GERMAN_WORD_DATABASE, generatedWordBank), [generatedWordBank]);
   const dueCards = useMemo(() => state.cards
     .filter((card) => card.due <= todayKey)
     .sort((first, second) => {
@@ -3140,6 +3200,10 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    window.localStorage.setItem(WORD_BANK_KEY, JSON.stringify(generatedWordBank));
+  }, [generatedWordBank]);
 
   useEffect(() => {
     setPdfCandidates(state.pdfImport?.candidates ?? []);
@@ -3314,6 +3378,23 @@ export default function App() {
 
   const handleAddDatabaseWord = (word: GermanWordRecord) => {
     handleOpenAddCard(germanWordToCardDraft(word));
+  };
+
+  const handleGenerateWordBatch = async (level: GermanWordBatchLevel, count: number): Promise<GermanWordRecord[]> => {
+    const response = await generateGermanWordBatch(syncEndpoint, {
+      level,
+      count,
+      existingWords: wordBank.map((word) => word.german),
+    });
+    const knownWords = new Set(wordBank.map((word) => normalizeGermanWord(word.german)));
+    const additions = response.words.filter((word) => {
+      const key = normalizeGermanWord(word.german);
+      if (!key || knownWords.has(key)) return false;
+      knownWords.add(key);
+      return true;
+    });
+    if (additions.length > 0) setGeneratedWordBank((current) => mergeGermanWordRecords(current, additions));
+    return additions;
   };
 
   const handleOpenEditCard = (card: Flashcard) => {
@@ -3767,7 +3848,7 @@ export default function App() {
   };
 
   const handleExportBackup = () => {
-    const payload = JSON.stringify({ app: "deutschly", version: 1, profile: profileDisplayName, exportedAt: new Date().toISOString(), state }, null, 2);
+    const payload = JSON.stringify({ app: "deutschly", version: 1, profile: profileDisplayName, exportedAt: new Date().toISOString(), wordBank: generatedWordBank, state }, null, 2);
     const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -3789,7 +3870,9 @@ export default function App() {
       const importedValue = isRecord(parsed) && "state" in parsed ? parsed.state : parsed;
       if (!isRecord(importedValue) || !Array.isArray(importedValue.cards)) throw new Error("This file is not a Deutschly backup.");
       const importedState = normalizeAppState(importedValue);
+      const importedWordBank = isRecord(parsed) && Array.isArray(parsed.wordBank) ? parsed.wordBank.filter(isGermanWordRecord) : [];
       setState({ ...importedState, lastSyncedAt: new Date().toISOString() });
+      setGeneratedWordBank((current) => mergeGermanWordRecords(current, importedWordBank));
       setPdfCandidates(importedState.pdfImport?.candidates ?? []);
       setPdfError(null);
       setActiveTab("library");
@@ -4000,7 +4083,7 @@ export default function App() {
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} onAddCard={() => handleOpenAddCard()} />}
-          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
+          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} wordBank={wordBank} onGenerateWordBatch={handleGenerateWordBatch} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} onStartReview={handleStartReview} />}
         </main>
       </div>
