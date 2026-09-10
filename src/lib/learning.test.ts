@@ -29,6 +29,9 @@ describe("adaptive learning helpers", () => {
     expect(answerMatches("  BÜCHER! ", ["Bücher", "Buecher"])).toBe(true);
     expect(answerMatches("Buecher", "Bücher")).toBe(true);
     expect(answerMatches("die", "der|die|das")).toBe(true);
+    expect(answerMatches("kid", "child")).toBe(true);
+    expect(answerMatches("flat", "apartment / flat")).toBe(true);
+    expect(answerMatches("goat", "kid")).toBe(false);
     expect(makeClozeSentence("Das Buch liegt auf dem Tisch.", "Buch")).toBe("Das ____ liegt auf dem Tisch.");
   });
 

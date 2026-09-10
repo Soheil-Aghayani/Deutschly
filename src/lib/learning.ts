@@ -119,11 +119,24 @@ function germanSpellingVariant(value: string): string {
   return value.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss");
 }
 
+const commonAnswerAliases: Record<string, string[]> = {
+  child: ["kid"],
+  kid: ["child"],
+};
+
+function splitExpectedAnswers(value: string): string[] {
+  return value.split(/\s*[|;]\s*|\s+\/\s+/);
+}
+
 export function answerMatches(input: string, expected: string | string[]): boolean {
   const normalizedInput = normalizeLearningAnswer(input);
   const inputVariant = germanSpellingVariant(normalizedInput);
   if (!normalizedInput) return false;
-  const expectedValues = Array.isArray(expected) ? expected : expected.split(/[|;]/);
+  const expectedValues = (Array.isArray(expected) ? expected.flatMap(splitExpectedAnswers) : splitExpectedAnswers(expected))
+    .flatMap((value) => {
+      const normalizedValue = normalizeLearningAnswer(value);
+      return [normalizedValue, ...(commonAnswerAliases[normalizedValue] ?? [])];
+    });
   return expectedValues.some((value) => {
     const normalizedValue = normalizeLearningAnswer(value);
     return normalizedValue === normalizedInput || germanSpellingVariant(normalizedValue) === inputVariant;
