@@ -2270,7 +2270,9 @@ function PdfCandidatesCard({
 
   const lessons = [...new Set(candidates.map((candidate) => candidate.lesson).filter((lesson): lesson is string => Boolean(lesson)))];
   const lowConfidenceCount = candidates.filter((candidate) => candidate.confidence === "low").length;
-  const qualityCandidates = showLowConfidence ? candidates : candidates.filter((candidate) => candidate.confidence !== "low");
+  const qualityCandidates = showLowConfidence
+    ? candidates.filter((candidate) => candidate.confidence === "low")
+    : candidates.filter((candidate) => candidate.confidence !== "low");
   const normalizedCandidateSearch = candidateSearch.trim().toLocaleLowerCase();
   const statusCounts = qualityCandidates.reduce<Record<PdfCandidateStatus, number>>((counts, candidate) => {
     const status = candidateStatuses[candidate.id] ?? "pending";
@@ -2337,7 +2339,7 @@ function PdfCandidatesCard({
             <label className="pdf-candidate-search" htmlFor="pdf-candidate-search"><span>Search imported words</span><input id="pdf-candidate-search" type="search" value={candidateSearch} onChange={(event) => setCandidateSearch(event.target.value)} placeholder="Search German words" /></label>
             <label className="library-filter" htmlFor="pdf-lesson-filter"><span>Course lesson</span><select id="pdf-lesson-filter" value={lessonFilter} onChange={(event) => setLessonFilter(event.target.value)}><option value="all">All lessons</option>{lessons.map((lesson) => <option value={lesson} key={lesson}>{lesson}</option>)}</select></label>
             <div className="pdf-candidate-tools__meta">
-              {lowConfidenceCount > 0 && <label className="filter-check pdf-candidate-quality-toggle"><input type="checkbox" checked={showLowConfidence} onChange={(event) => setShowLowConfidence(event.target.checked)} /><span>{showLowConfidence ? "Showing" : "Show"} {lowConfidenceCount} low-confidence {lowConfidenceCount === 1 ? "fragment" : "fragments"}</span></label>}
+              {lowConfidenceCount > 0 && <label className="filter-check pdf-candidate-quality-toggle"><input type="checkbox" checked={showLowConfidence} onChange={(event) => setShowLowConfidence(event.target.checked)} /><span>{showLowConfidence ? "Only" : "Show"} {lowConfidenceCount} low-confidence {lowConfidenceCount === 1 ? "fragment" : "fragments"}</span></label>}
               <span role="status" aria-live="polite">{filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions</span>
             </div>
           </div>
@@ -2352,7 +2354,7 @@ function PdfCandidatesCard({
                 </div>
                 <div className="pdf-candidate-row__actions">
                   {statusFilter === "pending" ? <>
-                    <button type="button" className="button button--outline" onClick={() => onUseCandidate(candidate)}>Use word <ArrowRight size={14} aria-hidden="true" /></button>
+                    <button type="button" className="button button--outline" onClick={() => onUseCandidate(candidate)} aria-label={`Review and add ${candidate.german}`}>Review &amp; add <Plus size={14} aria-hidden="true" /></button>
                     <button type="button" className="button button--ghost pdf-candidate-skip" onClick={() => onCandidateStatusChange(candidate.id, "skipped")} aria-label={`Skip ${candidate.german}`}>Skip</button>
                   </> : <button type="button" className="button button--ghost" onClick={() => onCandidateStatusChange(candidate.id, "pending")}><RefreshCw size={14} aria-hidden="true" /> Move to inbox</button>}
                 </div>
@@ -2364,7 +2366,7 @@ function PdfCandidatesCard({
         </>
       )}
 
-      {!loading && candidates.length > 0 && filteredCandidates.length > 0 && <span className="pdf-import-card__more">Showing {Math.min(visibleCount, filteredCandidates.length)} of {filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions. Use word opens the full duplicate and reference check.{!showLowConfidence && lowConfidenceCount > 0 ? ` ${lowConfidenceCount} low-confidence ${lowConfidenceCount === 1 ? "fragment is" : "fragments are"} hidden until you include them.` : ""}</span>}
+      {!loading && candidates.length > 0 && filteredCandidates.length > 0 && <span className="pdf-import-card__more">Showing {Math.min(visibleCount, filteredCandidates.length)} of {filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions. Review &amp; add opens the card editor so you can check the details before saving.{showLowConfidence ? " Only low-confidence fragments are shown." : lowConfidenceCount > 0 ? ` ${lowConfidenceCount} low-confidence ${lowConfidenceCount === 1 ? "fragment is" : "fragments are"} hidden until you include them.` : ""}</span>}
       {!loading && candidates.length === 0 && !error && <div className="pdf-import-card__empty"><Sparkles size={17} aria-hidden="true" /><span>No article + noun patterns were detected. You can still add cards manually.</span></div>}
 
       {sourcePreview && (
@@ -2661,9 +2663,9 @@ function LibraryPage({
         {wordBankError && <div className="word-bank-generator__error" role="alert"><Info size={15} aria-hidden="true" /><span>{wordBankError}</span><button type="button" className="text-button" onClick={onOpenSync}><Cloud size={14} aria-hidden="true" /> Set up AI bridge</button></div>}
         <AiQuotaStatus endpoint={aiEndpoint} refreshKey={aiUsageRefreshKey} />
         {lastGeneratedWords.length > 0 && <div className="word-bank-generated" aria-live="polite">
-          <div className="word-bank-generated__heading"><div><strong>{lastGeneratedWords.length} new {lastGeneratedWords.length === 1 ? "word" : "words"} added</strong><span>Saved to your word bank. Backup or sync it when you are ready.</span></div><span>{wordBankLevel}</span></div>
+          <div className="word-bank-generated__heading"><div><strong>{lastGeneratedWords.length} {lastGeneratedWords.length === 1 ? "word" : "words"} saved to word bank</strong><span>Choose Add card to review the details and save a flashcard.</span></div><span>{wordBankLevel}</span></div>
           <div className="word-bank-generated__list">
-            {lastGeneratedWords.map((word) => <div className="word-bank-generated__row" key={word.id}><ArticleBadge article={word.article} compact /><div><strong>{word.german}</strong><span>{word.englishMeanings.join(" / ")}</span></div><button type="button" className="button button--ghost" onClick={() => onAddDatabaseWord(word)}>Review card <ArrowRight size={14} aria-hidden="true" /></button></div>)}
+            {lastGeneratedWords.map((word) => <div className="word-bank-generated__row" key={word.id}><ArticleBadge article={word.article} compact /><div><strong>{word.german}</strong><span>{word.englishMeanings.join(" / ")}</span></div><button type="button" className="button button--outline" onClick={() => onAddDatabaseWord(word)} aria-label={`Add ${word.german} as a flashcard`}><Plus size={14} aria-hidden="true" /> Add card</button></div>)}
           </div>
         </div>}
         <label className="word-bank-search" htmlFor="word-bank-search">

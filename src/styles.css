@@ -3177,9 +3177,9 @@ kbd {
 }
 
 .word-bank-generated__row .button {
-  min-height: 34px;
+  min-height: 42px;
   padding: 0 8px;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .lesson-strip {
