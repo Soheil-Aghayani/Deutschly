@@ -67,6 +67,7 @@ import {
   isFirebaseConfigured,
   loadFirebaseCloudDocument,
   saveFirebaseCloudDocument,
+  deleteFirebaseAccount,
   signInWithFirebaseProvider,
   signOutFromFirebase,
   subscribeToFirebaseAuth,
@@ -98,10 +99,14 @@ type CardStatus = "new" | "learning" | "review";
 type Theme = "light" | "dark";
 type VerificationStatus = "unverified" | "reference-checked";
 type PracticeMode = "article" | "plural" | "translation" | "cloze";
-type SyncStatus = "idle" | "syncing" | "synced" | "offline" | "error";
+type SyncStatus = "idle" | "syncing" | "synced" | "offline" | "error" | "conflict";
 type NotificationPermissionState = NotificationPermission | "unsupported";
 type ProfileMode = "guest" | "google";
 type ProfileOnboardingStep = "choice" | "guest" | "google-confirm";
+type FirebaseSyncStrategy = "merge" | "local" | "remote";
+type SyncResolution = "merge" | "local" | "remote";
+type ToastAction = { label: string; onClick: () => void };
+type ToastState = { message: string; action?: ToastAction };
 
 interface Flashcard {
   id: string;
@@ -195,11 +200,24 @@ interface OverflowMenuItem {
   onSelect: () => void;
 }
 
+interface FirebaseMergePrompt {
+  remoteState: AppState;
+  remoteProfileName: string;
+}
+
+interface SyncConflict {
+  remoteState: AppState;
+  remoteUpdatedAt: string;
+  localCardCount: number;
+  remoteCardCount: number;
+}
+
 const STORAGE_KEY = "deutschly:state:v1";
 const WORD_BANK_KEY = "deutschly:word-bank:v1";
 const SYNC_ENDPOINT_KEY = "deutschly:sync:endpoint:v1";
 const SYNC_ROOM_KEY = "deutschly:sync:room:v1";
 const AUTO_SYNC_KEY = "deutschly:sync:auto:v1";
+const SYNC_BASELINE_KEY = "deutschly:sync:baseline:v1";
 const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v3";
 const PWA_INSTALL_DISMISSED_KEY = "deutschly:pwa:install-dismissed:v1";
 const PROFILE_NAME_KEY = "deutschly:profile:name:v1";
@@ -208,6 +226,10 @@ const PROFILE_NAME_MAX_LENGTH = 32;
 const PROFILE_DISPLAY_FALLBACK = "Learner";
 const LATIN_PROFILE_NAME_PATTERN = /^[\p{Script=Latin}]+(?:[\s.'’'-]+[\p{Script=Latin}]+)*$/u;
 const PROFILE_AVATAR_COLORS = ["#EEF0FF", "#8D8BFF", "#56C39E", "#F6A261", "#F2B4BE"];
+
+function getSyncBaselineStorageKey(endpoint: string, room: string): string {
+  return `${SYNC_BASELINE_KEY}:${encodeURIComponent(endpoint.trim())}:${normalizeSyncRoom(room)}`;
+}
 
 function normalizeProfileName(value: string): string {
   return value.trim().replace(/\s+/g, " ").slice(0, PROFILE_NAME_MAX_LENGTH);
@@ -244,6 +266,7 @@ function firebaseErrorMessage(error: unknown): string {
   if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return "The sign-in window was closed.";
   if (code === "auth/operation-not-allowed") return "This sign-in provider is not enabled in Firebase yet.";
   if (code === "auth/unauthorized-domain") return "Add this website to Firebase Authentication authorized domains.";
+  if (code === "auth/requires-recent-login") return "Sign in again, then retry account deletion for security.";
   if (code === "permission-denied" || code === "firestore/permission-denied") return "Firebase denied access. Check the Firestore rules for this account.";
   if (error instanceof Error && error.message.trim()) return error.message;
   return "Firebase could not complete the account or sync request.";
@@ -415,6 +438,17 @@ function downloadReminderCalendar(reminderTime: string): void {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = "deutschly-review-reminder.ics";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadJsonFile(filename: string, value: unknown): void {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -2171,6 +2205,9 @@ function LibraryPage({
   onPdfCandidateStatusChange,
   onExportBackup,
   onImportBackup,
+  onBulkDelete,
+  onBulkTag,
+  onBulkExport,
 }: {
   cards: Flashcard[];
   searchQuery: string;
@@ -2195,6 +2232,9 @@ function LibraryPage({
   onPdfCandidateStatusChange: (candidateId: string, status: PdfCandidateStatus) => void;
   onExportBackup: () => void;
   onImportBackup: (event: ChangeEvent<HTMLInputElement>) => void;
+  onBulkDelete: (ids: string[]) => void;
+  onBulkTag: (ids: string[], tag: string) => void;
+  onBulkExport: (ids: string[]) => void;
 }) {
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
@@ -2208,6 +2248,8 @@ function LibraryPage({
   const [wordBankError, setWordBankError] = useState<string | null>(null);
   const [lastGeneratedWords, setLastGeneratedWords] = useState<GermanWordRecord[]>([]);
   const [needsCheckOnly, setNeedsCheckOnly] = useState(false);
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [bulkTag, setBulkTag] = useState("");
   const lessons = [...new Set(cards.map((card) => card.lesson).filter(Boolean))].sort();
   const tags = [...new Set(cards.flatMap((card) => card.tags ?? []))].sort();
   const wordBankSuggestions = useMemo(() => searchGermanWords(wordBankQuery, 6, wordBank), [wordBank, wordBankQuery]);
@@ -2238,6 +2280,30 @@ function LibraryPage({
     const matchesWeak = !weakCardsOnly || isWeakCard(card);
     return matchesSearch && matchesLesson && matchesArticle && matchesStatus && matchesCheck && matchesWeak;
   });
+  useEffect(() => {
+    const cardIds = new Set(cards.map((card) => card.id));
+    setSelectedCardIds((current) => {
+      const next = current.filter((id) => cardIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [cards]);
+  const visibleCardIds = filteredCards.map((card) => card.id);
+  const selectedVisibleCount = visibleCardIds.filter((id) => selectedCardIds.includes(id)).length;
+  const allVisibleSelected = visibleCardIds.length > 0 && selectedVisibleCount === visibleCardIds.length;
+  const toggleVisibleSelection = () => {
+    setSelectedCardIds((current) => allVisibleSelected
+      ? current.filter((id) => !visibleCardIds.includes(id))
+      : [...current, ...visibleCardIds.filter((id) => !current.includes(id))]);
+  };
+  const toggleCardSelection = (id: string) => {
+    setSelectedCardIds((current) => current.includes(id) ? current.filter((cardId) => cardId !== id) : [...current, id]);
+  };
+  const handleBulkTag = () => {
+    const tag = bulkTag.trim();
+    if (!tag || selectedCardIds.length === 0) return;
+    onBulkTag(selectedCardIds, tag);
+    setBulkTag("");
+  };
   const hasFilters = lessonFilter !== "all" || articleFilter !== "all" || statusFilter !== "all" || needsCheckOnly || weakCardsOnly;
   const clearFilters = () => {
     setLessonFilter("all");
@@ -2326,6 +2392,18 @@ function LibraryPage({
         {hasFilters && <button type="button" className="text-button" onClick={clearFilters}>Clear filters</button>}
       </section>
 
+      <section className={`library-bulk-toolbar${selectedCardIds.length > 0 ? " library-bulk-toolbar--active" : ""}`} aria-label="Bulk card actions">
+        <label className="library-bulk-toolbar__select"><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisibleSelection} disabled={filteredCards.length === 0} /><span>Select visible</span></label>
+        <span className="library-bulk-toolbar__count" role="status" aria-live="polite">{selectedCardIds.length > 0 ? `${selectedCardIds.length} selected` : "Select cards to manage them together"}</span>
+        {selectedCardIds.length > 0 && <div className="library-bulk-toolbar__actions">
+          <label className="library-bulk-tag" htmlFor="bulk-card-tag"><span className="sr-only">Tag selected cards</span><input id="bulk-card-tag" value={bulkTag} onChange={(event) => setBulkTag(event.target.value.slice(0, 24))} placeholder="Add a tag" maxLength={24} /></label>
+          <button type="button" className="button button--outline" onClick={handleBulkTag} disabled={!bulkTag.trim()}>Add tag</button>
+          <button type="button" className="button button--outline" onClick={() => onBulkExport(selectedCardIds)}><Download size={15} aria-hidden="true" /> Export selected</button>
+          <button type="button" className="button button--ghost settings-danger-action" onClick={() => onBulkDelete(selectedCardIds)}><Trash2 size={15} aria-hidden="true" /> Delete selected</button>
+          <button type="button" className="text-button" onClick={() => setSelectedCardIds([])}>Clear selection</button>
+        </div>}
+      </section>
+
       <section className="library-source-card">
         <div className="library-source-card__icon" aria-hidden="true"><FileText size={22} /></div>
         <div className="library-source-card__copy"><span className="section-eyebrow">COURSE SOURCE</span><h2>Menschen A1.1</h2><p>{sourceFileName ? `${sourceFileName} attached · text extracted locally for lesson-based card creation` : "Attach your PDF to keep lesson references beside every card."}</p></div>
@@ -2347,9 +2425,10 @@ function LibraryPage({
       <section className="library-list-card">
         <div className="library-list-card__heading"><div><span className="section-eyebrow">ALL CARDS</span><h2>{filteredCards.length} cards</h2></div><span className="muted-label">Article colors are always labeled</span></div>
         <div className="library-table" role="table" aria-label="Flashcard library">
-          <div className="library-table__header" role="row"><span>Word</span><span>Meaning</span><span>Lesson</span><span>State</span><span aria-hidden="true" /></div>
+          <div className="library-table__header" role="row"><span aria-hidden="true" /><span>Word</span><span>Meaning</span><span>Lesson</span><span>State</span><span aria-hidden="true" /></div>
           {filteredCards.map((card) => (
             <div className="library-row" role="row" key={card.id}>
+              <label className="library-row__select"><span className="sr-only">Select {card.german}</span><input type="checkbox" checked={selectedCardIds.includes(card.id)} onChange={() => toggleCardSelection(card.id)} /></label>
               <div className="library-row__word"><ArticleBadge article={card.article} compact /><strong>{card.german}</strong>{card.plural && <small>plural: {card.plural}</small>}{card.tags && card.tags.length > 0 && <small className="library-row__tags">{card.tags.join(" · ")}</small>}{card.verification === "unverified" && <small className="verification-note">needs reference check</small>}</div>
               <span className="library-row__translation">{card.translation}</span>
               <span className="library-row__lesson">{card.lesson}{card.sourcePage && <small>p. {card.sourcePage}</small>}</span>
@@ -2392,6 +2471,57 @@ function DeleteCardModal({ card, onClose, onConfirm }: { card: Flashcard; onClos
         <p className="modal-panel__intro">This removes the card and its review history from your library. You can add it again later, but this action cannot be undone here.</p>
         <div className="delete-card-summary"><ArticleBadge article={card.article} compact /><div className="delete-card-summary__copy"><strong>{card.german}</strong><span>{card.translation}</span></div></div>
         <div className="modal-panel__footer"><span><Info size={15} aria-hidden="true" /> Your other cards and course PDF stay saved.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Cancel</button><button type="button" className="button button--danger" onClick={onConfirm}><Trash2 size={15} aria-hidden="true" /> Delete card</button></div></div>
+      </section>
+    </div>
+  );
+}
+
+function BulkDeleteModal({ count, onClose, onConfirm }: { count: number; onClose: () => void; onConfirm: () => void }) {
+  const panelRef = useModalFocus<HTMLElement>(onClose);
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={panelRef} className="modal-panel bulk-delete-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-delete-title">
+        <div className="modal-panel__heading"><div><span className="section-eyebrow">BULK ACTION</span><h2 id="bulk-delete-title">Delete {count} cards?</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close bulk delete dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
+        <p className="modal-panel__intro">This removes the selected cards and their review history. You can restore them for a short time with Undo.</p>
+        <div className="delete-card-summary bulk-delete-summary"><div className="bulk-delete-summary__icon" aria-hidden="true"><Trash2 size={18} /></div><div className="delete-card-summary__copy"><strong>{count} selected cards</strong><span>Your other cards and course PDF stay saved.</span></div></div>
+        <div className="modal-panel__footer"><span><Info size={15} aria-hidden="true" /> This action changes your library.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Cancel</button><button type="button" className="button button--danger" onClick={onConfirm}><Trash2 size={15} aria-hidden="true" /> Delete cards</button></div></div>
+      </section>
+    </div>
+  );
+}
+
+function DeleteAccountModal({ email, busy, error, onClose, onConfirm }: { email: string; busy: boolean; error: string | null; onClose: () => void; onConfirm: () => void }) {
+  const panelRef = useModalFocus<HTMLElement>(onClose);
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+      <section ref={panelRef} className="modal-panel delete-account-modal" role="dialog" aria-modal="true" aria-labelledby="delete-account-title" aria-describedby="delete-account-intro">
+        <div className="modal-panel__heading"><div><span className="section-eyebrow">CLOUD ACCOUNT</span><h2 id="delete-account-title">Delete your account?</h2></div><button type="button" className="icon-button" onClick={onClose} disabled={busy} aria-label="Close delete account dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
+        <p id="delete-account-intro" className="modal-panel__intro">This permanently deletes the Firebase account and its cloud data for <strong>{email || "this account"}</strong>. Cards saved locally on this device will stay here.</p>
+        <div className="delete-account-warning" role="alert"><Trash2 size={16} aria-hidden="true" /><span>Export a backup first if you may want these cards later. Account deletion cannot be undone.</span></div>
+        {error && <div className="onboarding-modal__error firebase-account__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
+        <div className="modal-panel__footer"><span><Cloud size={15} aria-hidden="true" /> Cloud data only</span><div><button type="button" className="button button--ghost" onClick={onClose} disabled={busy}>Cancel</button><button type="button" className="button button--danger" onClick={onConfirm} disabled={busy}><Trash2 size={15} aria-hidden="true" /> {busy ? "Deleting..." : "Delete account"}</button></div></div>
+      </section>
+    </div>
+  );
+}
+
+function FirebaseMergeModal({ localCardCount, remoteCardCount, remoteProfileName, busy, onClose, onResolve }: { localCardCount: number; remoteCardCount: number; remoteProfileName: string; busy: boolean; onClose: () => void; onResolve: (strategy: FirebaseSyncStrategy) => void }) {
+  const panelRef = useModalFocus<HTMLElement>(onClose);
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+      <section ref={panelRef} className="modal-panel firebase-merge-modal" role="dialog" aria-modal="true" aria-labelledby="firebase-merge-title" aria-describedby="firebase-merge-intro">
+        <div className="modal-panel__heading"><div><span className="section-eyebrow">ACCOUNT CONNECTED</span><h2 id="firebase-merge-title">Choose your card data</h2></div><button type="button" className="icon-button" onClick={onClose} disabled={busy} aria-label="Close data choice dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
+        <p id="firebase-merge-intro" className="modal-panel__intro">This Google account already has saved data. Choose what should happen before Deutschly syncs it.</p>
+        <div className="firebase-merge-summary"><div><span>This device</span><strong>{localCardCount} cards</strong></div><div><span>{remoteProfileName || "Google account"}</span><strong>{remoteCardCount} cards</strong></div></div>
+        <div className="firebase-merge-options" role="group" aria-label="Choose how to sync card data">
+          <button type="button" className="firebase-merge-option firebase-merge-option--primary" onClick={() => onResolve("merge")} disabled={busy}><span><strong>Merge both</strong><small>Keep unique cards and the latest progress from both places.</small></span><ArrowRight size={16} aria-hidden="true" /></button>
+          <button type="button" className="firebase-merge-option" onClick={() => onResolve("local")} disabled={busy}><span><strong>Keep this device</strong><small>Use local data and replace the account copy.</small></span><ArrowRight size={16} aria-hidden="true" /></button>
+          <button type="button" className="firebase-merge-option" onClick={() => onResolve("remote")} disabled={busy}><span><strong>Use Google data</strong><small>Replace local data with the account copy.</small></span><ArrowRight size={16} aria-hidden="true" /></button>
+        </div>
+        <div className="modal-panel__footer"><span><Info size={15} aria-hidden="true" /> You can change local cards later.</span><div><button type="button" className="button button--ghost" onClick={onClose} disabled={busy}>Not now</button></div></div>
       </section>
     </div>
   );
@@ -2733,6 +2863,7 @@ function FirebaseAccountSection({
   onSignIn,
   onSignOut,
   onSync,
+  onDeleteAccount,
 }: {
   configured: boolean;
   user: FirebaseUserSummary | null;
@@ -2741,13 +2872,14 @@ function FirebaseAccountSection({
   onSignIn: (provider: FirebaseAuthProvider) => void;
   onSignOut: () => void;
   onSync: () => void;
+  onDeleteAccount: () => void;
 }) {
   return (
     <section className="settings-section" aria-labelledby="settings-account-title">
       <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Cloud size={16} /></span><div><h3 id="settings-account-title">Cloud account</h3><p>Use one account to keep your cards in sync on your phone and computer.</p></div></div>
       {!configured && <div className="settings-notification settings-notification--default" role="status"><span className="settings-notification__copy"><Cloud size={14} aria-hidden="true" /><span><strong>Firebase setup is still needed</strong><small>Add the Firebase web settings to this build, then enable Google sign-in.</small></span></span></div>}
       {configured && !user && <div className="firebase-account__actions"><button type="button" className="button button--outline firebase-account__connect" onClick={() => onSignIn("google")} disabled={busy} aria-label="Continue with Google" title="Continue with Google"><GoogleLogo size={17} /><span>Continue with Google</span></button></div>}
-      {configured && user && <div className="firebase-account__signed-in"><div className="firebase-account__identity"><strong>{user.displayName || user.email || "Signed in"}</strong><small>{user.email || "Account connected"}</small></div><div className="firebase-account__actions"><button type="button" className="button button--outline" onClick={onSync} disabled={busy}><Cloud size={15} aria-hidden="true" /> {busy ? "Syncing..." : "Sync now"}</button><button type="button" className="button button--ghost" onClick={onSignOut} disabled={busy}>Sign out</button></div></div>}
+      {configured && user && <div className="firebase-account__signed-in"><div className="firebase-account__identity"><strong>{user.displayName || user.email || "Signed in"}</strong><small>{user.email || "Account connected"}</small></div><div className="firebase-account__actions"><button type="button" className="button button--outline" onClick={onSync} disabled={busy}><Cloud size={15} aria-hidden="true" /> {busy ? "Syncing..." : "Sync now"}</button><button type="button" className="button button--ghost" onClick={onSignOut} disabled={busy}>Sign out</button><button type="button" className="button button--ghost settings-danger-action" onClick={onDeleteAccount} disabled={busy}>Delete cloud account</button></div></div>}
       {error && <div className="onboarding-modal__error firebase-account__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
     </section>
   );
@@ -2789,6 +2921,7 @@ interface ProfileModalProps {
   onFirebaseSignIn: (provider: FirebaseAuthProvider) => void;
   onFirebaseSignOut: () => void;
   onFirebaseSync: () => void;
+  onFirebaseDeleteAccount: () => void;
 }
 
 function ProfileModal({
@@ -2827,6 +2960,7 @@ function ProfileModal({
   onFirebaseSignIn,
   onFirebaseSignOut,
   onFirebaseSync,
+  onFirebaseDeleteAccount,
 }: ProfileModalProps) {
   const [draftName, setDraftName] = useState(name);
   const backupInputRef = useRef<HTMLInputElement>(null);
@@ -2862,7 +2996,7 @@ function ProfileModal({
             <label className="form-field" htmlFor="profile-name"><span>Display name</span><input id="profile-name" value={draftName} onChange={(event) => setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH))} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="name" spellCheck={false} /></label>
           </section>
 
-          <FirebaseAccountSection configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} error={firebaseError} onSignIn={onFirebaseSignIn} onSignOut={onFirebaseSignOut} onSync={onFirebaseSync} />
+          <FirebaseAccountSection configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} error={firebaseError} onSignIn={onFirebaseSignIn} onSignOut={onFirebaseSignOut} onSync={onFirebaseSync} onDeleteAccount={onFirebaseDeleteAccount} />
 
           <section className="settings-section" aria-labelledby="settings-appearance-title">
             <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--indigo" aria-hidden="true">{theme === "light" ? <Sun size={16} /> : <Moon size={16} />}</span><div><h3 id="settings-appearance-title">Appearance</h3><p>Choose the surface that feels easiest to study in.</p></div></div>
@@ -2924,11 +3058,13 @@ function SyncModal({
   syncStatus,
   isOnline,
   testingConnection,
+  conflict,
   onEndpointChange,
   onRoomChange,
   onAutoSyncChange,
   onTestConnection,
   onCopyRoom,
+  onResolveConflict,
   onClose,
   onSave,
 }: {
@@ -2939,11 +3075,13 @@ function SyncModal({
   syncStatus: SyncStatus;
   isOnline: boolean;
   testingConnection: boolean;
+  conflict: SyncConflict | null;
   onEndpointChange: (value: string) => void;
   onRoomChange: (value: string) => void;
   onAutoSyncChange: (value: boolean) => void;
   onTestConnection: () => void;
   onCopyRoom: () => void;
+  onResolveConflict: (resolution: SyncResolution) => void;
   onClose: () => void;
   onSave: () => void;
 }) {
@@ -2967,7 +3105,8 @@ function SyncModal({
           <label className="form-field" htmlFor="sync-room"><span>Room code</span><input id="sync-room" value={room} onChange={(event) => onRoomChange(normalizeSyncRoom(event.target.value))} placeholder="8 characters" maxLength={32} autoCapitalize="characters" spellCheck={false} /></label>
         </div>
         <label className="sync-auto-option"><input type="checkbox" checked={autoSync} onChange={(event) => onAutoSyncChange(event.target.checked)} /><span><strong>Keep sync on automatically</strong><small>Push local changes after a short pause and look for updates from the other device every minute.</small></span></label>
-        <div className={`sync-status sync-status--${isOnline ? syncStatus : "offline"}`} role="status"><Wifi size={15} aria-hidden="true" /><span>{!isOnline ? "Offline. Local changes are safe." : syncStatus === "syncing" ? "Syncing now..." : syncStatus === "synced" ? "Connection is ready." : syncStatus === "offline" ? "Not connected yet." : syncStatus === "error" ? "Connection needs attention." : "Connection not tested yet."}</span><button type="button" className="text-button" onClick={onTestConnection} disabled={testingConnection || !endpoint.trim() || !isOnline}>{testingConnection ? "Testing..." : "Test connection"}</button></div>
+        <div className={`sync-status sync-status--${isOnline ? syncStatus : "offline"}`} role="status"><Wifi size={15} aria-hidden="true" /><span>{!isOnline ? "Offline. Local changes are safe." : syncStatus === "syncing" ? "Syncing now..." : syncStatus === "synced" ? "Connection is ready." : syncStatus === "offline" ? "Not connected yet." : syncStatus === "conflict" ? "Changes need your choice." : syncStatus === "error" ? "Connection needs attention." : "Connection not tested yet."}</span><button type="button" className="text-button" onClick={onTestConnection} disabled={testingConnection || !endpoint.trim() || !isOnline || Boolean(conflict)}>{testingConnection ? "Testing..." : "Test connection"}</button></div>
+        {conflict && <div className="sync-modal__conflict" role="alert"><div className="sync-modal__conflict-copy"><strong>Changes found on both devices</strong><span>This device has {conflict.localCardCount} cards and the shared room has {conflict.remoteCardCount} cards. Choose a safe resolution before syncing again.</span>{conflict.remoteUpdatedAt && <small>Other device: {formatSyncLabel(conflict.remoteUpdatedAt)}</small>}</div><div className="sync-modal__conflict-actions"><button type="button" className="button button--primary" onClick={() => onResolveConflict("merge")} disabled={!isOnline || testingConnection}>Merge both</button><button type="button" className="button button--outline" onClick={() => onResolveConflict("local")} disabled={!isOnline || testingConnection}>Keep this device</button><button type="button" className="button button--outline" onClick={() => onResolveConflict("remote")} disabled={!isOnline || testingConnection}>Use other device</button></div></div>}
         <div className="sync-modal__warning"><Info size={15} aria-hidden="true" /><span>Anyone with this room code can read and write its data. Use it only on a trusted network; this starter server is not for public internet use without HTTPS and authentication.</span></div>
         {error && <div className="sync-modal__error" role="alert"><X size={15} aria-hidden="true" /><span>{error}</span></div>}
         <div className="modal-panel__footer">
@@ -3157,9 +3296,11 @@ export default function App() {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUserSummary | null>(null);
   const [firebaseBusy, setFirebaseBusy] = useState(false);
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
+  const [firebaseMergePrompt, setFirebaseMergePrompt] = useState<FirebaseMergePrompt | null>(null);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [syncConflict, setSyncConflict] = useState<SyncConflict | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [pdfCandidates, setPdfCandidates] = useState<PdfCandidate[]>(() => state.pdfImport?.candidates ?? []);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -3167,6 +3308,8 @@ export default function App() {
   const [addCardSeed, setAddCardSeed] = useState<Partial<CardDraft> | undefined>(undefined);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [deleteCardId, setDeleteCardId] = useState<string | null>(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [profileName, setProfileName] = useState(() => loadProfileName());
   const [profileOnboardingOpen, setProfileOnboardingOpen] = useState(() => !loadProfileName());
   const [profileOpen, setProfileOpen] = useState(false);
@@ -3184,6 +3327,7 @@ export default function App() {
   const lastAutoSyncFingerprintRef = useRef("");
   const firebaseSyncInFlightRef = useRef(false);
   const firebaseAuthSyncUserRef = useRef("");
+  const firebaseChoiceRequiredRef = useRef("");
   const lastFirebaseSyncFingerprintRef = useRef("");
 
   const todayKey = getDayKey();
@@ -3277,14 +3421,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const modalOpen = addCardOpen || profileOpen || profileOnboardingOpen || syncOpen || resetProgressOpen || Boolean(deleteCardId);
+    const modalOpen = addCardOpen || profileOpen || profileOnboardingOpen || syncOpen || resetProgressOpen || Boolean(deleteCardId) || Boolean(bulkDeleteIds) || deleteAccountOpen || Boolean(firebaseMergePrompt);
     document.documentElement.classList.toggle("modal-open", modalOpen);
     document.body.classList.toggle("modal-open", modalOpen);
     return () => {
       document.documentElement.classList.remove("modal-open");
       document.body.classList.remove("modal-open");
     };
-  }, [addCardOpen, profileOpen, profileOnboardingOpen, syncOpen, resetProgressOpen, deleteCardId]);
+  }, [addCardOpen, profileOpen, profileOnboardingOpen, syncOpen, resetProgressOpen, deleteCardId, bulkDeleteIds, deleteAccountOpen, firebaseMergePrompt]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -3302,8 +3446,8 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeTab, addCardOpen, showAnswer, dueCards]);
 
-  const showToast = (message: string) => {
-    setToast(message);
+  const showToast = (message: string, action?: ToastAction) => {
+    setToast({ message, action });
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setToast(null), 3000);
   };
@@ -3458,7 +3602,89 @@ export default function App() {
       lastSyncedAt: deletedAt,
     }));
     setDeleteCardId(null);
-    showToast(`${deletedCard.german} was removed from your library.`);
+    showToast(`${deletedCard.german} was removed from your library.`, {
+      label: "Undo",
+      onClick: () => {
+        const restoredAt = new Date().toISOString();
+        setState((current) => {
+          if (current.cards.some((card) => card.id === deletedCard.id)) return current;
+          const nextDeletedCardIds = { ...current.deletedCardIds };
+          if (nextDeletedCardIds[deletedCard.id] === deletedAt) delete nextDeletedCardIds[deletedCard.id];
+          return { ...current, cards: [deletedCard, ...current.cards], deletedCardIds: nextDeletedCardIds, lastSyncedAt: restoredAt };
+        });
+        showToast(`${deletedCard.german} was restored to your library.`);
+      },
+    });
+  };
+
+  const handleRequestBulkDelete = (ids: string[]) => {
+    const existingIds = new Set(stateRef.current.cards.map((card) => card.id));
+    const selectedIds = ids.filter((id, index) => existingIds.has(id) && ids.indexOf(id) === index);
+    if (selectedIds.length > 0) setBulkDeleteIds(selectedIds);
+  };
+
+  const handleConfirmBulkDelete = () => {
+    const ids = bulkDeleteIds;
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const deletedCards = stateRef.current.cards.filter((card) => idSet.has(card.id));
+    if (deletedCards.length === 0) {
+      setBulkDeleteIds(null);
+      return;
+    }
+    const deletedAt = new Date().toISOString();
+    setState((current) => ({
+      ...current,
+      cards: current.cards.filter((card) => !idSet.has(card.id)),
+      deletedCardIds: { ...current.deletedCardIds, ...Object.fromEntries(deletedCards.map((card) => [card.id, deletedAt])) },
+      lastSyncedAt: deletedAt,
+    }));
+    setBulkDeleteIds(null);
+    showToast(`${deletedCards.length} cards were removed from your library.`, {
+      label: "Undo",
+      onClick: () => {
+        const restoredAt = new Date().toISOString();
+        setState((current) => {
+          const existingIds = new Set(current.cards.map((card) => card.id));
+          const restoredCards = deletedCards.filter((card) => !existingIds.has(card.id));
+          const nextDeletedCardIds = { ...current.deletedCardIds };
+          deletedCards.forEach((card) => {
+            if (nextDeletedCardIds[card.id] === deletedAt) delete nextDeletedCardIds[card.id];
+          });
+          return { ...current, cards: [...restoredCards, ...current.cards], deletedCardIds: nextDeletedCardIds, lastSyncedAt: restoredAt };
+        });
+        showToast(`${deletedCards.length} cards were restored to your library.`);
+      },
+    });
+  };
+
+  const handleBulkTag = (ids: string[], tag: string) => {
+    const normalizedTag = tag.trim().slice(0, 24);
+    if (!normalizedTag || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const updatedAt = new Date().toISOString();
+    setState((current) => ({
+      ...current,
+      cards: current.cards.map((card) => idSet.has(card.id) ? { ...card, tags: normalizeTags([...(card.tags ?? []), normalizedTag]), updatedAt } : card),
+      lastSyncedAt: updatedAt,
+    }));
+    showToast(`Added the ${normalizedTag} tag to ${ids.length} cards.`);
+  };
+
+  const handleBulkExport = (ids: string[]) => {
+    const idSet = new Set(ids);
+    const selectedCards = stateRef.current.cards.filter((card) => idSet.has(card.id));
+    if (selectedCards.length === 0) return;
+    const exportedAt = new Date().toISOString();
+    downloadJsonFile(`deutschly-selected-${getDayKey()}.json`, {
+      app: "deutschly",
+      version: 1,
+      profile: profileDisplayName,
+      exportedAt,
+      wordBank: stateRef.current.wordBank,
+      state: { ...stateRef.current, cards: selectedCards, deletedCardIds: {}, lastSyncedAt: exportedAt },
+    });
+    showToast(`Exported ${selectedCards.length} selected cards.`);
   };
 
   const handleTabChange = (tab: Tab) => {
@@ -3481,6 +3707,9 @@ export default function App() {
   function handleRate(rating: ReviewRating) {
     const card = dueCards[0];
     if (!card) return;
+    const previousState = stateRef.current;
+    const previousCard = previousState.cards.find((item) => item.id === card.id);
+    if (!previousCard) return;
     const schedule = scheduleReview(card, rating, todayKey);
     const reviewedAt = new Date().toISOString();
     const xpAward = getXpForRating(rating);
@@ -3522,7 +3751,32 @@ export default function App() {
     });
     setStudySession((current) => ({ ...current, reviewed: Math.min(current.reviewed + 1, Math.max(current.total, 1)) }));
     setShowAnswer(false);
-    showToast(`${rating === "again" ? "We’ll bring it back tomorrow" : `Next review in ${schedule.interval} days`} · +${xpAward} XP`);
+    showToast(`${rating === "again" ? "We’ll bring it back tomorrow" : `Next review in ${schedule.interval} days`} · +${xpAward} XP`, {
+      label: "Undo",
+      onClick: () => {
+        const restoredAt = new Date().toISOString();
+        setState((current) => ({
+          ...current,
+          cards: current.cards.map((item) => item.id === previousCard.id ? previousCard : item),
+          reviewsToday: previousState.reviewsToday,
+          lastReviewDay: previousState.lastReviewDay,
+          lastStudyDay: previousState.lastStudyDay,
+          studyMinutes: previousState.studyMinutes,
+          mastered: previousState.mastered,
+          xp: previousState.xp,
+          totalReviews: previousState.totalReviews,
+          correctReviews: previousState.correctReviews,
+          streak: previousState.streak,
+          bestStreak: previousState.bestStreak,
+          achievements: [...previousState.achievements],
+          weeklyReviews: [...previousState.weeklyReviews],
+          lastSyncedAt: restoredAt,
+        }));
+        setStudySession((current) => ({ ...current, reviewed: Math.max(0, current.reviewed - 1) }));
+        setShowAnswer(false);
+        showToast(`${previousCard.german} review undone.`);
+      },
+    });
   }
 
   const handleSaveCard = (draft: CardDraft) => {
@@ -3615,6 +3869,8 @@ export default function App() {
     window.localStorage.setItem(SYNC_ENDPOINT_KEY, endpoint);
     window.localStorage.setItem(SYNC_ROOM_KEY, room);
     window.localStorage.setItem(AUTO_SYNC_KEY, String(autoSync));
+    lastAutoSyncFingerprintRef.current = "";
+    setSyncConflict(null);
     setSyncError(null);
     setSyncStatus("idle");
     setSyncOpen(false);
@@ -3623,6 +3879,10 @@ export default function App() {
 
   const handleSync = async ({ silent = false }: { silent?: boolean } = {}) => {
     if (syncInFlightRef.current) return;
+    if (syncConflict) {
+      setSyncOpen(true);
+      return;
+    }
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       setSyncStatus("offline");
       setSyncError("You are offline. Local changes are safe and will sync when the connection returns.");
@@ -3646,11 +3906,31 @@ export default function App() {
     try {
       const remote = await pullSync(syncEndpoint, syncRoom);
       const remoteState = remote ? normalizeAppState(remote.state) : null;
+      const baselineFingerprint = lastAutoSyncFingerprintRef.current || loadLocalSetting(getSyncBaselineStorageKey(syncEndpoint, syncRoom));
+      const localFingerprint = getSyncFingerprint(localState);
+      const remoteFingerprint = remoteState ? getSyncFingerprint(remoteState) : "";
+      const hasConflict = Boolean(remoteState && baselineFingerprint && localFingerprint !== baselineFingerprint && remoteFingerprint !== baselineFingerprint && localFingerprint !== remoteFingerprint);
+      if (hasConflict && remoteState) {
+        setSyncConflict({
+          remoteState,
+          remoteUpdatedAt: remote?.updatedAt ?? "",
+          localCardCount: localState.cards.length,
+          remoteCardCount: remoteState.cards.length,
+        });
+        setSyncStatus("conflict");
+        setSyncError("Changes were made on both devices. Choose how to continue.");
+        setSyncOpen(true);
+        showToast("Changes found on both devices. Choose how to continue.");
+        return;
+      }
       const mergedState = remoteState ? mergeAppStates(localState, remoteState) : localState;
       const response = await pushSync(syncEndpoint, syncRoom, mergedState);
       const syncedAt = response.updatedAt || new Date().toISOString();
-      lastAutoSyncFingerprintRef.current = getSyncFingerprint(mergedState);
+      const syncedFingerprint = getSyncFingerprint(mergedState);
+      lastAutoSyncFingerprintRef.current = syncedFingerprint;
+      window.localStorage.setItem(getSyncBaselineStorageKey(syncEndpoint, syncRoom), syncedFingerprint);
       setState((current) => ({ ...mergeAppStates(current, mergedState), lastSyncedAt: syncedAt }));
+      setSyncConflict(null);
       setSyncStatus("synced");
       if (!silent) showToast(remote ? `Synced ${mergedState.cards.length} cards across devices.` : "Sync room created. Your cards are ready on the other device.");
     } catch (error) {
@@ -3667,29 +3947,93 @@ export default function App() {
     }
   };
 
-  const handleFirebaseSync = async ({ silent = false }: { silent?: boolean } = {}) => {
-    if (!firebaseConfigured || !firebaseUser || firebaseSyncInFlightRef.current) return;
+  const handleResolveSyncConflict = async (resolution: SyncResolution) => {
+    if (!syncConflict || !syncConfigured || syncInFlightRef.current) return;
+    syncInFlightRef.current = true;
+    setSyncing(true);
+    setSyncStatus("syncing");
+    setSyncError(null);
+    const localState = stateRef.current;
+    const resolvedState = resolution === "local"
+      ? localState
+      : resolution === "remote"
+        ? syncConflict.remoteState
+        : mergeAppStates(localState, syncConflict.remoteState);
+    try {
+      const response = await pushSync(syncEndpoint, syncRoom, resolvedState);
+      const syncedAt = response.updatedAt || new Date().toISOString();
+      const syncedFingerprint = getSyncFingerprint(resolvedState);
+      lastAutoSyncFingerprintRef.current = syncedFingerprint;
+      window.localStorage.setItem(getSyncBaselineStorageKey(syncEndpoint, syncRoom), syncedFingerprint);
+      setState({ ...resolvedState, lastSyncedAt: syncedAt });
+      setSyncConflict(null);
+      setSyncStatus("synced");
+      setSyncOpen(false);
+      const message = resolution === "merge"
+        ? `Merged ${resolvedState.cards.length} cards across devices.`
+        : resolution === "local"
+          ? "This device replaced the shared copy."
+          : "The shared copy is now on this device.";
+      showToast(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The sync server could not be reached.";
+      setSyncError(message);
+      setSyncStatus(error instanceof Error && "status" in error && (error as { status?: number }).status === 0 ? "offline" : "error");
+      setSyncOpen(true);
+      showToast("Sync resolution failed. Check the server and try again.");
+    } finally {
+      syncInFlightRef.current = false;
+      setSyncing(false);
+    }
+  };
+
+  const handleFirebaseSync = async ({ silent = false, strategy = "merge", pending, promptForChoice = false }: { silent?: boolean; strategy?: FirebaseSyncStrategy; pending?: FirebaseMergePrompt; promptForChoice?: boolean } = {}) => {
+    if (!firebaseConfigured || !firebaseUser || firebaseSyncInFlightRef.current || (firebaseMergePrompt && !pending)) return;
     firebaseSyncInFlightRef.current = true;
     setFirebaseBusy(true);
     setFirebaseError(null);
     const localState = stateRef.current;
     try {
-      const remote = await loadFirebaseCloudDocument(firebaseUser.uid);
+      const remote = pending ? { state: pending.remoteState, profileName: pending.remoteProfileName } : await loadFirebaseCloudDocument(firebaseUser.uid);
       const remoteState = remote ? normalizeAppState(remote.state) : null;
-      const mergedState = remoteState ? mergeAppStates(localState, remoteState) : localState;
+      const shouldPrompt = !pending
+        && Boolean(remoteState)
+        && (promptForChoice || firebaseChoiceRequiredRef.current === firebaseUser.uid)
+        && (localState.cards.length > 0 || localState.wordBank.length > 0)
+        && getSyncFingerprint(localState) !== getSyncFingerprint(remoteState as AppState);
+      if (shouldPrompt && remoteState) {
+        firebaseChoiceRequiredRef.current = firebaseUser.uid;
+        setFirebaseMergePrompt({ remoteState, remoteProfileName: remote?.profileName ? normalizeProfileName(remote.profileName) : "" });
+        return;
+      }
+      const resolvedState = strategy === "local"
+        ? localState
+        : strategy === "remote"
+          ? remoteState ?? localState
+          : remoteState ? mergeAppStates(localState, remoteState) : localState;
       const remoteProfileName = remote?.profileName ? normalizeProfileName(remote.profileName) : "";
       const currentProfileName = profileNameRef.current;
-      const mergedProfileName = currentProfileName || (isValidProfileName(remoteProfileName) ? remoteProfileName : "");
-      if (mergedProfileName && mergedProfileName !== currentProfileName && !profileOnboardingOpen) {
-        setProfileName(mergedProfileName);
-        profileNameRef.current = mergedProfileName;
-        window.localStorage.setItem(PROFILE_NAME_KEY, mergedProfileName);
+      const resolvedProfileName = strategy === "remote"
+        ? isValidProfileName(remoteProfileName) ? remoteProfileName : currentProfileName
+        : currentProfileName || (isValidProfileName(remoteProfileName) ? remoteProfileName : "");
+      if (resolvedProfileName && resolvedProfileName !== currentProfileName && !profileOnboardingOpen) {
+        setProfileName(resolvedProfileName);
+        profileNameRef.current = resolvedProfileName;
+        window.localStorage.setItem(PROFILE_NAME_KEY, resolvedProfileName);
         setProfileOnboardingOpen(false);
       }
-      const syncedAt = await saveFirebaseCloudDocument(firebaseUser.uid, { state: mergedState, profileName: mergedProfileName });
-      lastFirebaseSyncFingerprintRef.current = getSyncFingerprint(mergedState);
-      setState((current) => ({ ...mergeAppStates(current, mergedState), lastSyncedAt: syncedAt }));
-      if (!silent) showToast(remote ? `Synced ${mergedState.cards.length} cards to your account.` : "Your cards are now backed up to your account.");
+      const syncedAt = await saveFirebaseCloudDocument(firebaseUser.uid, { state: resolvedState, profileName: resolvedProfileName });
+      lastFirebaseSyncFingerprintRef.current = getSyncFingerprint(resolvedState);
+      firebaseChoiceRequiredRef.current = "";
+      setFirebaseMergePrompt(null);
+      setState({ ...resolvedState, lastSyncedAt: syncedAt });
+      if (!silent) {
+        const message = strategy === "merge"
+          ? remote ? `Merged ${resolvedState.cards.length} cards to your account.` : "Your cards are now backed up to your account."
+          : strategy === "local" ? "This device replaced the Google copy."
+            : "Your Google cards are now on this device.";
+        showToast(message);
+      }
     } catch (error: unknown) {
       setFirebaseError(firebaseErrorMessage(error));
       if (!silent) showToast("Cloud sync failed. Check the Firebase setup and try again.");
@@ -3697,6 +4041,13 @@ export default function App() {
       firebaseSyncInFlightRef.current = false;
       setFirebaseBusy(false);
     }
+  };
+
+  const handleFirebaseMergeChoice = (strategy: FirebaseSyncStrategy) => {
+    const pending = firebaseMergePrompt;
+    if (!pending) return;
+    setFirebaseMergePrompt(null);
+    void handleFirebaseSync({ strategy, pending });
   };
 
   const handleFirebaseSignIn = async (provider: FirebaseAuthProvider) => {
@@ -3727,7 +4078,9 @@ export default function App() {
       await signOutFromFirebase();
       setFirebaseUser(null);
       firebaseAuthSyncUserRef.current = "";
+      firebaseChoiceRequiredRef.current = "";
       lastFirebaseSyncFingerprintRef.current = "";
+      setFirebaseMergePrompt(null);
       showToast("Signed out. Your local cards remain on this device.");
     } catch (error: unknown) {
       setFirebaseError(firebaseErrorMessage(error));
@@ -3736,10 +4089,43 @@ export default function App() {
     }
   };
 
+  const handleRequestDeleteFirebaseAccount = () => {
+    if (!firebaseUser) return;
+    setFirebaseError(null);
+    setProfileOpen(false);
+    setDeleteAccountOpen(true);
+  };
+
+  const handleDeleteFirebaseAccount = async () => {
+    if (!firebaseUser || firebaseBusy) return;
+    setFirebaseBusy(true);
+    setFirebaseError(null);
+    try {
+      await deleteFirebaseAccount();
+      setFirebaseUser(null);
+      firebaseAuthSyncUserRef.current = "";
+      firebaseChoiceRequiredRef.current = "";
+      lastFirebaseSyncFingerprintRef.current = "";
+      setFirebaseMergePrompt(null);
+      window.localStorage.setItem(PROFILE_MODE_KEY, "guest");
+      setDeleteAccountOpen(false);
+      showToast("Google account and cloud data deleted. Local cards remain on this device.");
+    } catch (error: unknown) {
+      setFirebaseError(firebaseErrorMessage(error));
+    } finally {
+      setFirebaseBusy(false);
+    }
+  };
+
+  const handleDeferFirebaseMerge = () => {
+    setFirebaseMergePrompt(null);
+    showToast("Account connected. Choose a sync option from Settings when you are ready.");
+  };
+
   useEffect(() => {
     if (!firebaseConfigured || !firebaseUser || profileOnboardingOpen || firebaseAuthSyncUserRef.current === firebaseUser.uid) return;
     firebaseAuthSyncUserRef.current = firebaseUser.uid;
-    void handleFirebaseSync({ silent: true });
+    void handleFirebaseSync({ silent: true, promptForChoice: true });
   }, [firebaseConfigured, firebaseUser?.uid, profileOnboardingOpen]);
 
   useEffect(() => {
@@ -4100,7 +4486,7 @@ export default function App() {
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} onAddCard={() => handleOpenAddCard()} />}
-          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} wordBank={wordBank} onGenerateWordBatch={handleGenerateWordBatch} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} />}
+          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} wordBank={wordBank} onGenerateWordBatch={handleGenerateWordBatch} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} onStartReview={handleStartReview} />}
         </main>
       </div>
@@ -4148,15 +4534,19 @@ export default function App() {
         firebaseUser={firebaseUser}
         firebaseBusy={firebaseBusy}
         firebaseError={firebaseError}
-        onFirebaseSignIn={(provider) => { void handleFirebaseSignIn(provider); }}
-        onFirebaseSignOut={() => { void handleFirebaseSignOut(); }}
-        onFirebaseSync={() => { void handleFirebaseSync(); }}
-      />}
-      {profileOnboardingOpen && <ProfileOnboardingModal configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} firebaseError={firebaseError} onGoogleSignIn={() => { void handleFirebaseSignIn("google"); }} onComplete={handleCompleteProfileOnboarding} />}
-      {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} isOnline={isOnline} testingConnection={testingConnection} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
+         onFirebaseSignIn={(provider) => { void handleFirebaseSignIn(provider); }}
+         onFirebaseSignOut={() => { void handleFirebaseSignOut(); }}
+         onFirebaseSync={() => { void handleFirebaseSync(); }}
+         onFirebaseDeleteAccount={handleRequestDeleteFirebaseAccount}
+       />}
+       {profileOnboardingOpen && <ProfileOnboardingModal configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} firebaseError={firebaseError} onGoogleSignIn={() => { void handleFirebaseSignIn("google"); }} onComplete={handleCompleteProfileOnboarding} />}
+      {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} isOnline={isOnline} testingConnection={testingConnection} conflict={syncConflict} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onResolveConflict={handleResolveSyncConflict} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
       {resetProgressOpen && <ResetProgressModal onClose={() => setResetProgressOpen(false)} onConfirm={handleResetProgress} />}
+      {bulkDeleteIds && <BulkDeleteModal count={bulkDeleteIds.length} onClose={() => setBulkDeleteIds(null)} onConfirm={handleConfirmBulkDelete} />}
+      {deleteAccountOpen && firebaseUser && <DeleteAccountModal email={firebaseUser.email ?? ""} busy={firebaseBusy} error={firebaseError} onClose={() => { if (!firebaseBusy) { setDeleteAccountOpen(false); setFirebaseError(null); } }} onConfirm={() => { void handleDeleteFirebaseAccount(); }} />}
+      {firebaseMergePrompt && firebaseUser && <FirebaseMergeModal localCardCount={state.cards.length} remoteCardCount={firebaseMergePrompt.remoteState.cards.length} remoteProfileName={firebaseMergePrompt.remoteProfileName} busy={firebaseBusy} onClose={handleDeferFirebaseMerge} onResolve={handleFirebaseMergeChoice} />}
       {showInstallPrompt && <InstallPrompt canInstall={installPrompt.canInstall} isIos={installPrompt.isIos} isMobile={installPrompt.isMobile} onInstall={() => { void handleInstallApp(); }} onDismiss={handleDismissInstallPrompt} />}
-      {toast && <div className="toast" role="status"><Check size={16} aria-hidden="true" /> {toast}</div>}
+      {toast && <div className="toast" role="status" aria-live="polite"><Check size={16} aria-hidden="true" /><span>{toast.message}</span>{toast.action && <button type="button" className="toast__action" onClick={() => { const action = toast.action; setToast(null); action?.onClick(); }}>{toast.action.label}</button>}</div>}
     </div>
   );
 }

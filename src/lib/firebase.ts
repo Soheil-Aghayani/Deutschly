@@ -122,6 +122,15 @@ export async function signOutFromFirebase(): Promise<void> {
   await signOut(auth);
 }
 
+export async function deleteFirebaseAccount(): Promise<void> {
+  if (!firebaseConfigured) return;
+  const [auth, { deleteUser }] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
+  if (!auth.currentUser) throw new FirebaseSetupError("No signed-in account is available to delete.");
+  const { deleteDoc } = await import("firebase/firestore");
+  await deleteDoc(await userDocument(auth.currentUser.uid));
+  await deleteUser(auth.currentUser);
+}
+
 export async function loadFirebaseCloudDocument(uid: string): Promise<FirebaseCloudDocument | null> {
   if (!firebaseConfigured) return null;
   const { getDoc } = await import("firebase/firestore");
