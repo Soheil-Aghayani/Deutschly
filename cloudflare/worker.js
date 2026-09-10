@@ -46,7 +46,7 @@ const wordBatchSchema = {
           examples: { type: "array", items: { type: "string" } },
           tags: { type: "array", items: { type: "string" } },
         },
-        required: ["german", "english_meanings", "article", "article_variants", "plural", "part_of_speech", "examples", "tags"],
+        required: ["german", "english_meanings", "article"],
       },
     },
   },
@@ -173,8 +173,24 @@ function germanWordPrompt(input) {
     "If a noun has another common article with a different meaning, put those alternatives in article_variants and keep the primary meaning in article. Otherwise return an empty array.",
     "For verbs, adjectives, adverbs, and phrases use article none and an empty plural string.",
     "Give one to four concise English meanings, up to two short natural examples, a part of speech, and useful learner tags.",
+    "Never guess a noun article. If you are not confident about an article, omit that word rather than inventing one.",
     "Prefer high-frequency standard German. Do not include proper names, regionalisms, offensive terms, or duplicate headwords.",
     "The requested level is fixed; do not return words above it just to fill the count.",
+    "DATA START",
+    JSON.stringify({ level: input.level, count: input.count, existingWords: input.existingWords }),
+    "DATA END",
+  ].join("\n");
+}
+
+function germanWordRetryPrompt(input) {
+  return [
+    "The previous German word batch was unusable. Start over with a fresh list.",
+    `Return up to ${input.count} complete, common German headwords for CEFR ${input.level}.`,
+    "Return only JSON matching the supplied schema. Include at least one valid word if possible.",
+    "Do not return any German headword from existingWords, including a word with its article attached.",
+    "Use a bare German headword in german, the correct article in article, and one to four English meanings.",
+    "For nouns, use the standard article and everyday plural. If an article is uncertain, omit that word.",
+    "Examples, part_of_speech, and tags are helpful but must be concise and accurate.",
     "DATA START",
     JSON.stringify({ level: input.level, count: input.count, existingWords: input.existingWords }),
     "DATA END",
@@ -267,8 +283,8 @@ function normalizeWordBatch(payload, input) {
       const englishMeanings = readModelArray(rawWord.english_meanings ?? rawWord.englishMeanings, "English meanings", { maxItems: 4, maxLength: 120 });
       const plural = optionalModelText(rawWord.plural, "plural", 120);
       const partOfSpeech = optionalModelText(rawWord.part_of_speech ?? rawWord.partOfSpeech, "part of speech", 40);
-      const examples = readModelArray(rawWord.examples, "examples", { maxItems: 2, maxLength: 220 });
-      const tags = readModelArray(rawWord.tags, "tags", { maxItems: 8, maxLength: 32 });
+      const examples = rawWord.examples === undefined ? [] : readModelArray(rawWord.examples, "examples", { maxItems: 2, maxLength: 220 });
+      const tags = rawWord.tags === undefined ? [] : readModelArray(rawWord.tags, "tags", { maxItems: 8, maxLength: 32 });
       const key = germanWordKey(german);
       if (!key || seen.has(key) || englishMeanings.length === 0) continue;
       seen.add(key);
@@ -355,9 +371,26 @@ function consumeRateLimit(request) {
 
 async function handleWordBatch(request, env) {
   const input = parseWordBatchInput(await readJson(request));
-  const payload = await runStructuredModel(env, [{ role: "user", content: germanWordPrompt(input) }], wordBatchSchema, "word batch", { temperature: 0.25, maxTokens: 2600 });
-  const words = normalizeWordBatch(payload, input);
-  return { level: input.level, words, requestedCount: input.count, returnedCount: words.length, model: env.AI_MODEL || DEFAULT_MODEL, provider: "cloudflare-workers-ai" };
+  let lastError = null;
+  const attempts = [
+    { prompt: germanWordPrompt(input), temperature: 0.25, maxTokens: 2600 },
+    { prompt: germanWordRetryPrompt(input), temperature: 0.45, maxTokens: 3200 },
+  ];
+  for (const attempt of attempts) {
+    try {
+      const payload = await runStructuredModel(env, [{ role: "user", content: attempt.prompt }], wordBatchSchema, "word batch", { temperature: attempt.temperature, maxTokens: attempt.maxTokens });
+      const words = normalizeWordBatch(payload, input);
+      return { level: input.level, words, requestedCount: input.count, returnedCount: words.length, model: env.AI_MODEL || DEFAULT_MODEL, provider: "cloudflare-workers-ai" };
+    } catch (error) {
+      if (error instanceof WorkerError && error.status === 429) throw error;
+      if (error instanceof WorkerError && error.status === 502) {
+        lastError = error;
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError || new WorkerError(502, "The AI returned no valid new words. Try again later.");
 }
 
 async function handleCardReview(request, env) {
