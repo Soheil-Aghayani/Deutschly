@@ -1,5 +1,18 @@
 export type GermanWordArticle = "der" | "die" | "das" | "plural" | "none";
 export type GermanWordLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | "unknown";
+export type GermanWordPartOfSpeech =
+  | "noun"
+  | "verb"
+  | "adjective"
+  | "adverb"
+  | "pronoun"
+  | "preposition"
+  | "conjunction"
+  | "interjection"
+  | "numeral"
+  | "particle"
+  | "phrase"
+  | "grammar";
 
 export interface GermanWordSource {
   book: string;
@@ -24,6 +37,49 @@ export interface GermanWordRecord {
 
 const germanWordArticles = new Set<GermanWordArticle>(["der", "die", "das", "plural", "none"]);
 const germanWordLevels = new Set<GermanWordLevel>(["A1", "A2", "B1", "B2", "C1", "C2", "unknown"]);
+const germanWordPartOfSpeechAliases: Record<string, GermanWordPartOfSpeech> = {
+  noun: "noun",
+  nomen: "noun",
+  substantiv: "noun",
+  verb: "verb",
+  verben: "verb",
+  adjective: "adjective",
+  adjectiv: "adjective",
+  adj: "adjective",
+  adjektiv: "adjective",
+  adverb: "adverb",
+  adv: "adverb",
+  adverbial: "adverb",
+  pronoun: "pronoun",
+  pronomen: "pronoun",
+  preposition: "preposition",
+  präposition: "preposition",
+  praeposition: "preposition",
+  conjunction: "conjunction",
+  konjunktion: "conjunction",
+  interjection: "interjection",
+  interjektion: "interjection",
+  numeral: "numeral",
+  number: "numeral",
+  zahlwort: "numeral",
+  particle: "particle",
+  partikel: "particle",
+  phrase: "phrase",
+  expression: "phrase",
+  grammar: "grammar",
+  grammatik: "grammar",
+};
+
+export function formatGermanPartOfSpeech(value?: string): GermanWordPartOfSpeech | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value
+    .trim()
+    .toLocaleLowerCase("en-US")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+  if (!normalized) return undefined;
+  return germanWordPartOfSpeechAliases[normalized];
+}
 
 export function isGermanWordRecord(value: unknown): value is GermanWordRecord {
   if (!value || typeof value !== "object") return false;

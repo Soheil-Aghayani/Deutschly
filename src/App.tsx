@@ -78,7 +78,7 @@ import type { FirebaseAuthProvider, FirebaseUserSummary } from "./lib/firebase";
 import { generateGermanWordBatch, getAiUsageStatus, reviewCardWithGemini } from "./lib/gemini";
 import type { AiUsageStatus, GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel } from "./lib/gemini";
 import { playPracticeFeedbackSound } from "./lib/feedbackSounds";
-import { isGermanWordRecord, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./data/germanWordsCore";
+import { formatGermanPartOfSpeech, isGermanWordRecord, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./data/germanWordsCore";
 import type { GermanWordRecord } from "./data/germanWordsCore";
 import { loadGermanWordDatabase } from "./data/germanWordsRuntime";
 import { assessPdfCandidate, extractMenschenPdf, getMenschenLesson, normalizePdfCandidateStatuses } from "./lib/pdfImport";
@@ -119,6 +119,7 @@ interface Flashcard {
   german: string;
   translation: string;
   article: Article;
+  partOfSpeech?: string;
   plural?: string;
   example?: string;
   note?: string;
@@ -184,6 +185,7 @@ interface CardDraft {
   german: string;
   translation: string;
   article: Article;
+  partOfSpeech?: string;
   plural: string;
   example: string;
   note: string;
@@ -1281,6 +1283,7 @@ function germanWordToCardDraft(word: GermanWordRecord): Partial<CardDraft> {
     german: word.german,
     translation: word.englishMeanings.join(" / "),
     article: word.article,
+    partOfSpeech: word.partOfSpeech,
     plural: word.plural ?? "",
     example: word.examples?.[0] ?? "",
     tags: word.tags.join(", "),
@@ -1427,10 +1430,11 @@ function scheduleReview(card: Flashcard, rating: ReviewRating, todayKey: string)
   return scheduleAdaptiveReview(card, rating, todayKey);
 }
 
-function ArticleBadge({ article, compact = false }: { article: Article; compact?: boolean }) {
+function ArticleBadge({ article, compact = false, partOfSpeech }: { article: Article; compact?: boolean; partOfSpeech?: string }) {
   const meta = articleMeta[article];
   if (article === "none") {
-    return <span className={`article-badge article-badge--neutral${compact ? " article-badge--compact" : ""}`}>phrase</span>;
+    const label = formatGermanPartOfSpeech(partOfSpeech) ?? "phrase";
+    return <span className={`article-badge article-badge--neutral${compact ? " article-badge--compact" : ""}`} title={label}>{label}</span>;
   }
 
   return (
@@ -1806,7 +1810,7 @@ function OverviewPage({
             <div className="due-list">
               {dueCards.slice(0, 4).map((card) => (
                 <button type="button" className="due-row" key={card.id} onClick={onStartReview}>
-                  <ArticleBadge article={card.article} compact />
+                  <ArticleBadge article={card.article} partOfSpeech={card.partOfSpeech} compact />
                   <span className="due-row__word">{card.german}</span>
                   <ChevronRight size={15} aria-hidden="true" />
                 </button>
@@ -1908,7 +1912,7 @@ function StudyPage({
           <article className={`study-card${showAnswer ? " study-card--answered" : ""}`}>
             <div className="study-card__meta">
               <div className="study-card__source"><BookOpen size={15} aria-hidden="true" /> {card.deck} <span>·</span> {card.lesson}{card.sourcePage && <span> · p. {card.sourcePage}</span>}</div>
-              <ArticleBadge article={card.article} />
+              <ArticleBadge article={card.article} partOfSpeech={card.partOfSpeech} />
             </div>
             <div className="study-card__prompt">{showAnswer ? "Can you remember it?" : "What is the meaning of this word?"}</div>
             <div className="study-card__word" style={getStudyWordStyle(card)}>
@@ -2768,7 +2772,7 @@ function LibraryPage({
           </div>
           {visibleWordBankItems.length > 0 ? <div className="word-bank-generated__list">
             {visibleWordBankItems.map(({ word, decision }) => <div className={`word-bank-generated__row word-bank-generated__row--${decision}`} key={word.id}>
-              <ArticleBadge article={word.article} compact />
+              <ArticleBadge article={word.article} partOfSpeech={word.partOfSpeech} compact />
               <div><strong>{word.german}</strong><span>{word.englishMeanings.join(" / ")}</span></div>
               <div className="word-bank-inbox__actions">
                 {decision === "pending" && <><button type="button" className="button button--outline" onClick={() => onAddDatabaseWord(word, word.id)} aria-label={`Add ${word.german} as a flashcard`}><Plus size={14} aria-hidden="true" /> Add card</button><button type="button" className="button button--ghost" onClick={() => onWordBankDecision(word.id, "dismissed")} aria-label={`Do not add ${word.german}`}><X size={14} aria-hidden="true" /> Not for me</button></>}
@@ -2790,7 +2794,7 @@ function LibraryPage({
                 const inboxItem = wordBankInboxById.get(word.id);
                 const alreadyInLibrary = inboxItem?.decision === "added" || savedWordKeys.has(normalizeGermanWord(word.german));
                 return <button type="button" className={`word-bank-suggestion${alreadyInLibrary ? " word-bank-suggestion--added" : ""}`} role="option" aria-label={alreadyInLibrary ? `${word.german} is already in your library` : `Add ${word.german}`} key={word.id} disabled={alreadyInLibrary} onClick={() => { onAddDatabaseWord(word, inboxItem ? word.id : undefined); setWordBankQuery(""); }}>
-                  <ArticleBadge article={word.article} compact />
+                  <ArticleBadge article={word.article} partOfSpeech={word.partOfSpeech} compact />
                   <span className="word-bank-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}{word.source && <small className="word-bank-suggestion__source">{word.source.lesson} · p. {word.source.page}</small>}</span>
                   <span className="word-bank-suggestion__meta">{alreadyInLibrary ? <><Check size={15} aria-hidden="true" /><span>Added</span></> : <><span>{word.level}</span><Plus size={15} aria-hidden="true" /></>}</span>
                 </button>;
@@ -2803,7 +2807,7 @@ function LibraryPage({
       <section className="library-filters" aria-label="Filter saved flashcards">
         <div className="library-filters__label"><Filter size={16} aria-hidden="true" /><strong>Saved cards</strong><span aria-label={`${filteredCards.length} of ${cards.length} saved cards shown`}>{filteredCards.length} of {cards.length}</span></div>
         <label className="library-filter"><span>Lesson</span><select value={lessonFilter} onChange={(event) => setLessonFilter(event.target.value)}><option value="all">All lessons</option>{lessons.map((lesson) => <option key={lesson} value={lesson}>{lesson}</option>)}</select></label>
-        <label className="library-filter"><span>Article</span><select value={articleFilter} onChange={(event) => setArticleFilter(event.target.value as "all" | Article)}><option value="all">All articles</option><option value="der">der</option><option value="die">die</option><option value="das">das</option><option value="plural">die · plural</option><option value="none">Phrase</option></select></label>
+        <label className="library-filter"><span>Article</span><select value={articleFilter} onChange={(event) => setArticleFilter(event.target.value as "all" | Article)}><option value="all">All articles</option><option value="der">der</option><option value="die">die</option><option value="das">das</option><option value="plural">die · plural</option><option value="none">No article</option></select></label>
         <label className="library-filter"><span>State</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | CardStatus)}><option value="all">All states</option><option value="new">New</option><option value="learning">Learning</option><option value="review">Review</option></select></label>
         {tags.length > 0 && <span className="library-filters__tags" aria-label={`${tags.length} tags available`}>{tags.slice(0, 3).map((tag) => <button type="button" key={tag} className={`filter-chip${searchQuery.toLowerCase() === tag.toLowerCase() ? " filter-chip--active" : ""}`} onClick={() => onSearch(tag)} aria-pressed={searchQuery.toLowerCase() === tag.toLowerCase()}><Tag size={12} aria-hidden="true" />{tag}</button>)}{tags.length > 3 && <span className="filter-chip__more">+{tags.length - 3}</span>}</span>}
         <label className="filter-check"><input type="checkbox" checked={needsCheckOnly} onChange={(event) => setNeedsCheckOnly(event.target.checked)} /><span>Needs check</span></label>
@@ -2849,7 +2853,7 @@ function LibraryPage({
           {filteredCards.map((card) => (
             <div className="library-row" role="row" key={card.id}>
               <label className="library-row__select"><span className="sr-only">Select {card.german}</span><input type="checkbox" checked={selectedCardIds.includes(card.id)} onChange={() => toggleCardSelection(card.id)} /></label>
-              <div className="library-row__word"><ArticleBadge article={card.article} compact /><strong>{card.german}</strong>{card.plural && <small>plural: {card.plural}</small>}{card.tags && card.tags.length > 0 && <small className="library-row__tags">{card.tags.join(" · ")}</small>}{card.verification === "unverified" && <small className="verification-note">needs reference check</small>}</div>
+              <div className="library-row__word"><ArticleBadge article={card.article} partOfSpeech={card.partOfSpeech} compact /><strong>{card.german}</strong>{card.plural && <small>plural: {card.plural}</small>}{card.tags && card.tags.length > 0 && <small className="library-row__tags">{card.tags.join(" · ")}</small>}{card.verification === "unverified" && <small className="verification-note">needs reference check</small>}</div>
               <span className="library-row__translation">{card.translation}</span>
               <span className="library-row__lesson">{card.lesson}{card.sourcePage && <small>p. {card.sourcePage}</small>}</span>
               <span className={`status-pill status-pill--${card.status}`}>{card.status === "review" ? "Review" : card.status === "learning" ? "Learning" : "New"}</span>
@@ -2889,7 +2893,7 @@ function DeleteCardModal({ card, onClose, onConfirm }: { card: Flashcard; onClos
       <section ref={panelRef} className="modal-panel delete-card-modal" role="dialog" aria-modal="true" aria-labelledby="delete-card-title">
         <div className="modal-panel__heading"><div><span className="section-eyebrow">REMOVE FROM LIBRARY</span><h2 id="delete-card-title">Delete this card?</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close delete card dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
         <p className="modal-panel__intro">This removes the card and its review history from your library. You can add it again later, but this action cannot be undone here.</p>
-        <div className="delete-card-summary"><ArticleBadge article={card.article} compact /><div className="delete-card-summary__copy"><strong>{card.german}</strong><span>{card.translation}</span></div></div>
+        <div className="delete-card-summary"><ArticleBadge article={card.article} partOfSpeech={card.partOfSpeech} compact /><div className="delete-card-summary__copy"><strong>{card.german}</strong><span>{card.translation}</span></div></div>
         <div className="modal-panel__footer"><span><Info size={15} aria-hidden="true" /> Your other cards and course PDF stay saved.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Cancel</button><button type="button" className="button button--danger" onClick={onConfirm}><Trash2 size={15} aria-hidden="true" /> Delete card</button></div></div>
       </section>
     </div>
@@ -3056,13 +3060,13 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgres
           </div>
         </ProgressBreakdownSection>
         <ProgressBreakdownSection eyebrow="ARTICLE COLORS" title="Progress by article" icon={Languages} id="progress-by-article">
-          <p className="progress-breakdown-card__intro">Your recall balance across der, die, das, plural, and phrases.</p>
+          <p className="progress-breakdown-card__intro">Your recall balance across der, die, das, plural, and no-article items.</p>
           <div className="progress-breakdown-list">
             {articleStats.length > 0 ? articleStats.map(({ article, stats }) => (
               <div className="progress-breakdown-row" key={article}>
-                <div className="progress-breakdown-row__label"><div className="progress-breakdown-row__title"><ArticleBadge article={article} compact /><strong>{article === "plural" ? "Plural" : article === "none" ? "Phrases" : article}</strong></div><span>{stats.total} cards · {stats.inReview} in review · {stats.due} due</span></div>
+                <div className="progress-breakdown-row__label"><div className="progress-breakdown-row__title"><ArticleBadge article={article} compact /><strong>{article === "plural" ? "Plural" : article === "none" ? "No article" : article}</strong></div><span>{stats.total} cards · {stats.inReview} in review · {stats.due} due</span></div>
                 <div className="progress-breakdown-row__value"><strong>{stats.mastery}%</strong><span>mastery</span></div>
-                <div className="progress-breakdown-row__bar" role="progressbar" aria-label={`${article === "none" ? "Phrases" : article} mastery`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={stats.mastery}><span style={{ width: `${stats.mastery}%` }} /></div>
+                <div className="progress-breakdown-row__bar" role="progressbar" aria-label={`${article === "none" ? "No article" : article} mastery`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={stats.mastery}><span style={{ width: `${stats.mastery}%` }} /></div>
               </div>
             )) : <div className="progress-breakdown-empty"><Info size={17} aria-hidden="true" /><span>Add cards to see article progress.</span></div>}
           </div>
@@ -3664,7 +3668,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
             <div className="form-field-with-suggestions">
               <label className="form-field" htmlFor="card-german"><span>German *</span><input id="card-german" ref={germanInputRef} value={draft.german} onChange={(event) => update("german", event.target.value)} placeholder="e.g. gemütlich or Das Eis" required aria-autocomplete="list" aria-controls={wordSuggestions.length > 0 ? "card-word-suggestions" : undefined} aria-expanded={wordSuggestions.length > 0} /></label>
               {wordSuggestions.length > 0 && <div id="card-word-suggestions" className="word-suggestion-list" role="listbox" aria-label="German word bank suggestions">
-                {wordSuggestions.map((word) => <button type="button" className="word-suggestion" role="option" aria-label={`Use ${word.german}`} key={word.id} onClick={() => applyWordSuggestion(word)}><ArticleBadge article={word.article} compact /><span className="word-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}{word.source && <small className="word-suggestion__source">{word.source.lesson} · p. {word.source.page}</small>}</span><span className="word-suggestion__meta"><span>{word.level}</span><Check size={14} aria-hidden="true" /></span></button>)}
+                {wordSuggestions.map((word) => <button type="button" className="word-suggestion" role="option" aria-label={`Use ${word.german}`} key={word.id} onClick={() => applyWordSuggestion(word)}><ArticleBadge article={word.article} partOfSpeech={word.partOfSpeech} compact /><span className="word-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}{word.source && <small className="word-suggestion__source">{word.source.lesson} · p. {word.source.page}</small>}</span><span className="word-suggestion__meta"><span>{word.level}</span><Check size={14} aria-hidden="true" /></span></button>)}
               </div>}
             </div>
             <label className="form-field" htmlFor="card-translation"><span>Translation *</span><input id="card-translation" value={draft.translation} onChange={(event) => update("translation", event.target.value)} placeholder="e.g. cozy or ice cream" required /></label>
@@ -4051,6 +4055,7 @@ export default function App() {
       german: card.german,
       translation: card.translation,
       article: card.article,
+      partOfSpeech: card.partOfSpeech,
       plural: card.plural ?? "",
       example: card.example ?? "",
       note: card.note ?? "",
@@ -4376,6 +4381,7 @@ export default function App() {
           german: preparedDraft.german,
           translation: preparedDraft.translation,
           article: preparedDraft.article,
+          partOfSpeech: preparedDraft.partOfSpeech,
           plural: preparedDraft.plural || undefined,
           example: preparedDraft.example || undefined,
           note: preparedDraft.note || undefined,
@@ -4398,6 +4404,7 @@ export default function App() {
       german: preparedDraft.german,
       translation: preparedDraft.translation,
       article: preparedDraft.article,
+      partOfSpeech: preparedDraft.partOfSpeech,
       plural: preparedDraft.plural || undefined,
       example: preparedDraft.example || undefined,
       note: preparedDraft.note || undefined,

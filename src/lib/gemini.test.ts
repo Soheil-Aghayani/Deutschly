@@ -137,6 +137,11 @@ describe("Gemini German word agent bridge", () => {
     });
   });
 
+  it("normalizes a German part-of-speech label from the bridge", () => {
+    const result = parseGermanWordBatch({ level: "A1", words: [{ ...word, article: "none", german: "schnell", partOfSpeech: "Adjektiv" }] });
+    expect(result.words[0]?.partOfSpeech).toBe("adjective");
+  });
+
   it("preserves an optional course source on a generated word", () => {
     const result = parseGermanWordBatch({
       level: "A1",

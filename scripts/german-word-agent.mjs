@@ -5,6 +5,7 @@ const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
 const DEFAULT_OUTPUT = "src/data/germanWords.generated.json";
 const ALLOWED_LEVELS = new Set(["A1", "A2"]);
 const ALLOWED_ARTICLES = new Set(["der", "die", "das", "plural", "none"]);
+const ALLOWED_PARTS_OF_SPEECH = new Set(["noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection", "numeral", "particle", "phrase", "grammar"]);
 const LEGACY_REVIEW_CANDIDATES = {
   A1: [
     ["Name", "name", "noun"],
@@ -86,6 +87,35 @@ function asStringArray(value, maximumItems, maximumLength) {
     .slice(0, maximumItems);
 }
 
+function normalizePartOfSpeech(value) {
+  const normalized = asText(value, 40)
+    .toLocaleLowerCase("en-US")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+  const aliases = {
+    nomen: "noun",
+    substantiv: "noun",
+    verben: "verb",
+    adjectiv: "adjective",
+    adj: "adjective",
+    adjektiv: "adjective",
+    adv: "adverb",
+    adverbial: "adverb",
+    pronomen: "pronoun",
+    präposition: "preposition",
+    praeposition: "preposition",
+    konjunktion: "conjunction",
+    interjektion: "interjection",
+    number: "numeral",
+    zahlwort: "numeral",
+    partikel: "particle",
+    expression: "phrase",
+    grammatik: "grammar",
+  };
+  const result = aliases[normalized] || normalized;
+  return ALLOWED_PARTS_OF_SPEECH.has(result) ? result : "";
+}
+
 function parseModelJson(text) {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   return JSON.parse(fenced ? fenced[1] : text);
@@ -105,7 +135,8 @@ function promptFor(level, count, existingWords) {
     "For nouns, give the standard everyday plural. For mass nouns or a non-count meaning, use an empty plural string.",
     "If a noun has another common article with a different meaning, put those alternatives in article_variants and keep the primary meaning in article. Otherwise return an empty array.",
     "For verbs, adjectives, adverbs, and phrases use article none and an empty plural string.",
-    "Give one to four concise English meanings, up to two short natural examples, a part of speech, and useful learner tags.",
+    "Set part_of_speech to exactly one of noun, verb, adjective, adverb, pronoun, preposition, conjunction, interjection, numeral, particle, phrase, or grammar. A single lexical item such as schnell is adjective even when it can also be used adverbially; use phrase only for multiword expressions.",
+    "Give one to four concise English meanings, up to two short natural examples, and useful learner tags.",
     "Prefer high-frequency standard German. Do not include proper names, regionalisms, offensive terms, or duplicate headwords.",
     "The requested level is fixed; do not return words above it just to fill the count.",
     "DATA START",
@@ -127,7 +158,7 @@ const responseSchema = {
           article: { type: "STRING", enum: ["der", "die", "das", "plural", "none"] },
           article_variants: { type: "ARRAY", items: { type: "STRING", enum: ["der", "die", "das"] } },
           plural: { type: "STRING" },
-          part_of_speech: { type: "STRING" },
+          part_of_speech: { type: "STRING", enum: [...ALLOWED_PARTS_OF_SPEECH] },
           examples: { type: "ARRAY", items: { type: "STRING" } },
           tags: { type: "ARRAY", items: { type: "STRING" } },
         },
@@ -182,7 +213,8 @@ function normalizeGeneratedWords(payload, level, existingWords, requestedCount) 
     const variants = asStringArray(rawWord?.article_variants ?? rawWord?.articleAlternatives, 3, 8)
       .filter((variant) => ["der", "die", "das"].includes(variant) && variant !== article);
     const plural = article === "none" ? "" : asText(rawWord?.plural, 120);
-    const partOfSpeech = asText(rawWord?.part_of_speech ?? rawWord?.partOfSpeech, 40);
+    const partOfSpeech = normalizePartOfSpeech(rawWord?.part_of_speech ?? rawWord?.partOfSpeech);
+    if (!partOfSpeech) continue;
     const examples = asStringArray(rawWord?.examples, 2, 220);
     const tags = [...new Set([level.toLowerCase(), ...asStringArray(rawWord?.tags, 8, 32)])];
 

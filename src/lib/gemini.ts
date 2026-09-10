@@ -1,3 +1,4 @@
+import { formatGermanPartOfSpeech } from "../data/germanWords";
 import type { GermanWordArticle, GermanWordRecord, GermanWordSource } from "../data/germanWords";
 
 export type GeminiArticle = "der" | "die" | "das" | "plural" | "none";
@@ -268,7 +269,8 @@ function parseGermanWordRecord(value: unknown): GermanWordRecord {
     : readStringArray(value.articleAlternatives, "article variants", 3, 8)
       .filter((item): item is Extract<GermanWordArticle, "der" | "die" | "das"> => ["der", "die", "das"].includes(item) && item !== article);
   const plural = readOptionalText(value.plural, "plural", 120);
-  const partOfSpeech = readOptionalText(value.partOfSpeech, "part of speech", 40);
+  const rawPartOfSpeech = readOptionalText(value.partOfSpeech, "part of speech", 40);
+  const partOfSpeech = formatGermanPartOfSpeech(rawPartOfSpeech);
   const source = readWordSource(value.source);
   return {
     id: readText(value.id, "word id", 120),

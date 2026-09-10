@@ -119,6 +119,7 @@ const geminiConfidence = new Set(["high", "medium", "low"]);
 const geminiVerdicts = new Set(["looks-good", "needs-review"]);
 const germanWordLevels = new Set(["A1", "A2"]);
 const germanWordArticles = new Set(["der", "die", "das", "plural", "none"]);
+const germanWordPartsOfSpeech = new Set(["noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection", "numeral", "particle", "phrase", "grammar"]);
 
 function boundedString(value, field, { required = false, max = 320 } = {}) {
   if (typeof value !== "string") {
@@ -277,6 +278,37 @@ function modelText(value, field, max = 360) {
   return value.trim().slice(0, max);
 }
 
+function normalizePartOfSpeech(value) {
+  const raw = modelText(value, "part of speech", 40);
+  const normalized = raw
+    .toLocaleLowerCase("en-US")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+  const aliases = {
+    nomen: "noun",
+    substantiv: "noun",
+    verben: "verb",
+    adjectiv: "adjective",
+    adj: "adjective",
+    adjektiv: "adjective",
+    adv: "adverb",
+    adverbial: "adverb",
+    pronomen: "pronoun",
+    präposition: "preposition",
+    praeposition: "preposition",
+    konjunktion: "conjunction",
+    interjektion: "interjection",
+    number: "numeral",
+    zahlwort: "numeral",
+    partikel: "particle",
+    expression: "phrase",
+    grammatik: "grammar",
+  };
+  const result = aliases[normalized] || normalized;
+  if (!germanWordPartsOfSpeech.has(result)) throw new Error("AI model returned an invalid part of speech.");
+  return result;
+}
+
 function normalizeGeminiReview(payload) {
   if (!isRecord(payload)) throw new Error("AI model returned an invalid card review.");
   return {
@@ -349,7 +381,7 @@ function normalizeGermanWordBatch(payload, input) {
         .filter((value) => ["der", "die", "das"].includes(value) && value !== article);
       const englishMeanings = modelStringArray(rawWord.english_meanings ?? rawWord.englishMeanings, "English meanings", { maxItems: 4, maxLength: 120 });
       const plural = optionalModelText(rawWord.plural, "plural", 120);
-      const partOfSpeech = optionalModelText(rawWord.part_of_speech ?? rawWord.partOfSpeech, "part of speech", 40);
+      const partOfSpeech = normalizePartOfSpeech(rawWord.part_of_speech ?? rawWord.partOfSpeech);
       const examples = modelStringArray(rawWord.examples, "examples", { maxItems: 2, maxLength: 220 });
       const tags = modelStringArray(rawWord.tags, "tags", { maxItems: 8, maxLength: 32 });
       const key = germanWordKey(german);
@@ -385,7 +417,8 @@ function germanWordPrompt(input) {
     "For nouns, give the standard everyday plural. For mass nouns or a non-count meaning, use an empty plural string.",
     "If a noun has another common article with a different meaning, put those alternatives in article_variants and keep the primary meaning in article. Otherwise return an empty array.",
     "For verbs, adjectives, adverbs, and phrases use article none and an empty plural string.",
-    "Give one to four concise English meanings, up to two short natural examples, a part of speech, and useful learner tags.",
+    "Set part_of_speech to exactly one of noun, verb, adjective, adverb, pronoun, preposition, conjunction, interjection, numeral, particle, phrase, or grammar. A single lexical item such as schnell is adjective even when it can also be used adverbially; use phrase only for multiword expressions.",
+    "Give one to four concise English meanings, up to two short natural examples, and useful learner tags.",
     "Prefer high-frequency standard German. Do not include proper names, regionalisms, offensive terms, or duplicate headwords.",
     "The requested level is fixed; do not return words above it just to fill the count.",
     "DATA START",
@@ -407,7 +440,7 @@ const geminiGermanWordSchema = {
           article: { type: "STRING", enum: ["der", "die", "das", "plural", "none"] },
           article_variants: { type: "ARRAY", items: { type: "STRING", enum: ["der", "die", "das"] } },
           plural: { type: "STRING" },
-          part_of_speech: { type: "STRING" },
+          part_of_speech: { type: "STRING", enum: [...germanWordPartsOfSpeech] },
           examples: { type: "ARRAY", items: { type: "STRING" } },
           tags: { type: "ARRAY", items: { type: "STRING" } },
         },

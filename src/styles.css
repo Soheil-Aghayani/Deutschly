@@ -1642,6 +1642,7 @@ svg {
   color: var(--text-muted);
   background: var(--surface-muted);
   border-color: var(--border);
+  white-space: nowrap;
 }
 
 .side-column {

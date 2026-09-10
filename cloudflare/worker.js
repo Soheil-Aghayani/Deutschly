@@ -6,6 +6,7 @@ const CLOUDFLARE_FREE_DAILY_NEURONS = 10_000;
 const rateBuckets = new Map();
 
 const ARTICLES = new Set(["der", "die", "das", "plural", "none"]);
+const PARTS_OF_SPEECH = new Set(["noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection", "numeral", "particle", "phrase", "grammar"]);
 const KINDS = new Set(["word", "phrase", "grammar"]);
 const CONFIDENCE = new Set(["high", "medium", "low"]);
 const VERDICTS = new Set(["looks-good", "needs-review"]);
@@ -114,11 +115,11 @@ const wordBatchSchema = {
           article: { type: "string", enum: ["der", "die", "das", "plural", "none"] },
           article_variants: { type: "array", items: { type: "string", enum: ["der", "die", "das"] } },
           plural: { type: "string" },
-          part_of_speech: { type: "string" },
+          part_of_speech: { type: "string", enum: [...PARTS_OF_SPEECH] },
           examples: { type: "array", items: { type: "string" } },
           tags: { type: "array", items: { type: "string" } },
         },
-        required: ["german", "english_meanings", "article"],
+        required: ["german", "english_meanings", "article", "part_of_speech"],
       },
     },
   },
@@ -150,6 +151,37 @@ function boundedString(value, field, { required = false, max = 320 } = {}) {
 function readEnum(value, field, values) {
   if (typeof value !== "string" || !values.has(value)) throw new WorkerError(502, `The AI returned an invalid ${field}.`);
   return value;
+}
+
+function normalizePartOfSpeech(value) {
+  const raw = readModelText(value, "part of speech", 40);
+  const normalized = raw
+    .toLocaleLowerCase("en-US")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+  const aliases = {
+    nomen: "noun",
+    substantiv: "noun",
+    verben: "verb",
+    adjectiv: "adjective",
+    adj: "adjective",
+    adjektiv: "adjective",
+    adv: "adverb",
+    adverbial: "adverb",
+    pronomen: "pronoun",
+    präposition: "preposition",
+    praeposition: "preposition",
+    konjunktion: "conjunction",
+    interjektion: "interjection",
+    number: "numeral",
+    zahlwort: "numeral",
+    partikel: "particle",
+    expression: "phrase",
+    grammatik: "grammar",
+  };
+  const result = aliases[normalized] || normalized;
+  if (!PARTS_OF_SPEECH.has(result)) throw new WorkerError(502, "The AI returned an invalid part of speech.");
+  return result;
 }
 
 function readModelText(value, field, max = 360) {
@@ -244,7 +276,8 @@ function germanWordPrompt(input) {
     "For nouns, give the standard everyday plural. For mass nouns or a non-count meaning, use an empty plural string.",
     "If a noun has another common article with a different meaning, put those alternatives in article_variants and keep the primary meaning in article. Otherwise return an empty array.",
     "For verbs, adjectives, adverbs, and phrases use article none and an empty plural string.",
-    "Give one to four concise English meanings, up to two short natural examples, a part of speech, and useful learner tags.",
+    "Set part_of_speech to exactly one of noun, verb, adjective, adverb, pronoun, preposition, conjunction, interjection, numeral, particle, phrase, or grammar. A single lexical item such as schnell is adjective even when it can also be used adverbially; use phrase only for multiword expressions.",
+    "Give one to four concise English meanings, up to two short natural examples, and useful learner tags.",
     "Never guess a noun article. If you are not confident about an article, omit that word rather than inventing one.",
     "Prefer high-frequency standard German. Do not include proper names, regionalisms, offensive terms, or duplicate headwords.",
     "The requested level is fixed; do not return words above it just to fill the count.",
@@ -262,7 +295,7 @@ function germanWordRetryPrompt(input) {
     "Do not return any German headword from existingWords, including a word with its article attached.",
     "Use a bare German headword in german, the correct article in article, and one to four English meanings.",
     "For nouns, use the standard article and everyday plural. If an article is uncertain, omit that word.",
-    "Examples, part_of_speech, and tags are helpful but must be concise and accurate.",
+    "Set part_of_speech to exactly one canonical value from the schema. A single lexical item such as schnell is adjective; use phrase only for multiword expressions. Examples and tags must be concise and accurate.",
     "DATA START",
     JSON.stringify({ level: input.level, count: input.count, existingWords: input.existingWords }),
     "DATA END",
@@ -354,7 +387,7 @@ function normalizeWordBatch(payload, input) {
         .filter((value) => ["der", "die", "das"].includes(value) && value !== article);
       const englishMeanings = readModelArray(rawWord.english_meanings ?? rawWord.englishMeanings, "English meanings", { maxItems: 4, maxLength: 120 });
       const plural = optionalModelText(rawWord.plural, "plural", 120);
-      const partOfSpeech = optionalModelText(rawWord.part_of_speech ?? rawWord.partOfSpeech, "part of speech", 40);
+      const partOfSpeech = normalizePartOfSpeech(rawWord.part_of_speech ?? rawWord.partOfSpeech);
       const examples = rawWord.examples === undefined ? [] : readModelArray(rawWord.examples, "examples", { maxItems: 2, maxLength: 220 });
       const tags = rawWord.tags === undefined ? [] : readModelArray(rawWord.tags, "tags", { maxItems: 8, maxLength: 32 });
       const key = germanWordKey(german);

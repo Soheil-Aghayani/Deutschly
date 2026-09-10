@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GERMAN_WORD_DATABASE, findGermanWord, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./germanWords";
+import { GERMAN_WORD_DATABASE, findGermanWord, formatGermanPartOfSpeech, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./germanWords";
 
 describe("German word database", () => {
   it("loads generated records with the typed shape", () => {
@@ -20,6 +20,12 @@ describe("German word database", () => {
 
   it("normalizes article prefixes for future lookups", () => {
     expect(normalizeGermanWord("  Die   Wohnung ")).toBe("wohnung");
+  });
+
+  it("normalizes German and English part-of-speech labels", () => {
+    expect(formatGermanPartOfSpeech("Adjektiv")).toBe("adjective");
+    expect(formatGermanPartOfSpeech("adverb")).toBe("adverb");
+    expect(formatGermanPartOfSpeech("unknown label")).toBeUndefined();
   });
 
   it("ranks exact and prefix word-bank matches first", () => {
