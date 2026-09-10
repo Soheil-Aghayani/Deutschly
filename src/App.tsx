@@ -3134,13 +3134,14 @@ function ProgressBreakdownSection({ eyebrow, title, icon: Icon, id, children }: 
   );
 }
 
-function ProgressDisclosureSection({ eyebrow, title, id, open, onToggle, className = "", children }: { eyebrow: string; title: string; id: string; open: boolean; onToggle: () => void; className?: string; children: ReactNode }) {
+function ProgressDisclosureSection({ eyebrow, title, id, open, onToggle, className = "", collapsedPreview, children }: { eyebrow: string; title: string; id: string; open: boolean; onToggle: () => void; className?: string; collapsedPreview?: ReactNode; children: ReactNode }) {
   return (
     <article className={`progress-disclosure-card${className ? ` ${className}` : ""}${open ? " progress-disclosure-card--open" : ""}`}>
       <button type="button" className="progress-disclosure-card__heading" aria-expanded={open} aria-controls={id} onClick={onToggle}>
         <span><span className="section-eyebrow">{eyebrow}</span><span className="progress-disclosure-card__title" role="heading" aria-level={2}>{title}</span></span>
         <span className="progress-disclosure-card__toggle" aria-hidden="true"><ChevronDown size={18} /></span>
       </button>
+      {!open && collapsedPreview && <div className="progress-disclosure-card__preview">{collapsedPreview}</div>}
       <div id={id} className="progress-disclosure-card__body" aria-hidden={!open} inert={!open}>
         <div>{children}</div>
       </div>
@@ -3263,12 +3264,17 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onStartReview 
   const achievementPercent = achievementItems.length > 0 ? Math.round((unlockedAchievements / achievementItems.length) * 100) : 0;
   const selectedAchievement = achievementItems.find((achievement) => achievement.id === selectedAchievementId);
   const nextAchievement = achievementItems.find((achievement) => !achievement.unlocked);
+  const weeklyTotal = state.weeklyReviews.reduce((sum, value) => sum + value, 0);
+  const activeReviewDays = state.weeklyReviews.filter((value) => value > 0).length;
+  const peakReview = Math.max(...state.weeklyReviews, 0);
+  const achievementPreview = <div className="achievement-collapsed-preview"><div><strong>{unlockedAchievements} of {achievementItems.length} unlocked</strong><span>{nextAchievement ? `Next: ${nextAchievement.title}` : "All milestones complete"}</span></div><div className="achievement-collapsed-preview__progress" aria-hidden="true"><span style={{ width: `${achievementPercent}%` }} /></div></div>;
+  const activityPreview = <div className="activity-preview"><div className="activity-preview__copy"><strong>{weeklyTotal} reviews this week</strong><span>{activeReviewDays} active day{activeReviewDays === 1 ? "" : "s"} · peak {peakReview}</span></div><div className="activity-preview__bars" aria-hidden="true">{state.weeklyReviews.map((value, index) => <span key={`${value}-${index}`} style={{ height: `${Math.max(8, Math.round((value / Math.max(peakReview, 1)) * 100))}%` }} />)}</div></div>;
   return (
     <div className="page-stack progress-page">
       <section className="page-intro"><div><span className="page-kicker">KEEP THE MOMENTUM</span><h1>Your progress<span className="title-dot">.</span></h1><p>Consistency beats cramming. Here is the shape of your week.</p></div><div className="progress-page__actions"><div className="progress-summary"><span>Weekly average</span><strong>{average} reviews</strong></div></div></section>
       <section className="progress-level-grid">
         <article className="level-card"><div className="level-card__topline"><div className="level-card__icon"><Medal size={18} aria-hidden="true" /></div><span>LEARNER LEVEL</span><strong>Level {level.level}</strong></div><div className="level-card__score"><b>{state.xp}</b><span>XP earned</span></div><div className="level-progress" aria-label={`${level.percent}% to level ${level.level + 1}`}><span style={{ width: `${level.percent}%` }} /></div><div className="level-card__footer"><span>{level.current} / {level.needed} XP to next level</span><span>{level.percent}%</span></div><div className="level-card__reward"><Sparkles size={15} aria-hidden="true" /><span><strong>Up to {currentPracticeLength} cards per session</strong><small>{nextAchievement ? `${nextAchievement.title} is the next milestone. Level ${level.level + 1} unlocks up to ${nextPracticeLength} shuffled cards.` : `Level ${level.level + 1} unlocks sessions of up to ${nextPracticeLength} shuffled cards.`}</small></span></div></article>
-        <ProgressDisclosureSection eyebrow="SMALL WINS" title="Achievements" id="progress-achievements" open={achievementsOpen} onToggle={() => setAchievementsOpen((current) => !current)} className="achievement-card">
+        <ProgressDisclosureSection eyebrow="SMALL WINS" title="Achievements" id="progress-achievements" open={achievementsOpen} onToggle={() => setAchievementsOpen((current) => !current)} className="achievement-card" collapsedPreview={achievementPreview}>
           <div className="achievement-summary"><div><strong>{unlockedAchievements} of {achievementItems.length} unlocked</strong><span>Every review can unlock a small milestone.</span></div><strong>{achievementPercent}%</strong></div>
           <div className="achievement-progress" role="progressbar" aria-label="Achievements unlocked" aria-valuemin={0} aria-valuemax={achievementItems.length} aria-valuenow={unlockedAchievements}><span style={{ width: `${achievementPercent}%` }} /></div>
           <div className="achievement-list">
@@ -3284,7 +3290,7 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onStartReview 
         </ProgressDisclosureSection>
       </section>
       <section className="progress-overview-grid">
-        <ProgressDisclosureSection eyebrow="LAST 7 DAYS" title="Review activity" id="progress-review-activity" open={activityOpen} onToggle={() => setActivityOpen((current) => !current)} className="progress-chart-card">
+        <ProgressDisclosureSection eyebrow="LAST 7 DAYS" title="Review activity" id="progress-review-activity" open={activityOpen} onToggle={() => setActivityOpen((current) => !current)} className="progress-chart-card" collapsedPreview={activityPreview}>
           <div className="large-chart" aria-label="Review activity for the last seven days">
             {state.weeklyReviews.map((value, index) => (
               <div className={`large-chart__column${index === state.weeklyReviews.length - 1 ? " large-chart__column--today" : ""}`} key={`${value}-${index}`}><div className="large-chart__value">{value}</div><div className="large-chart__track"><span style={{ height: `${Math.max(8, Math.round((value / maxValue) * 100))}%` }} /></div><span>{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index]}</span></div>
@@ -3915,27 +3921,38 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
         <p className="modal-panel__intro">Add a word, phrase, or grammar item. Deutschly checks your entry for duplicates and common issues before it joins the review queue.</p>
         {liveMatch && <div className={`card-live-match card-live-match--${liveMatch.type}`} role="status"><Info size={15} aria-hidden="true" /><span><strong>{liveMatch.type === "exact" ? "This card is already saved." : "A card with this headword already exists."}</strong><small>{liveMatch.card.german} · {liveMatch.card.translation}. Press Check card to compare the meaning.</small></span></div>}
         <form onSubmit={handleSubmit}>
-          <div className="form-grid form-grid--two">
-            <div className="form-field-with-suggestions">
-              <label className="form-field" htmlFor="card-german"><span>German *</span><input id="card-german" ref={germanInputRef} value={draft.german} onChange={(event) => update("german", event.target.value)} placeholder="e.g. gemütlich or Das Eis" required aria-autocomplete="list" aria-controls={wordSuggestions.length > 0 ? "card-word-suggestions" : undefined} aria-expanded={wordSuggestions.length > 0} /></label>
-              {wordSuggestions.length > 0 && <div id="card-word-suggestions" className="word-suggestion-list" role="listbox" aria-label="German word bank suggestions">
-                {wordSuggestions.map((word) => <button type="button" className="word-suggestion" role="option" aria-label={`Use ${word.german}`} key={word.id} onClick={() => applyWordSuggestion(word)}><ArticleBadge article={word.article} partOfSpeech={word.partOfSpeech} compact /><span className="word-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}{word.source && <small className="word-suggestion__source">{word.source.lesson} · p. {word.source.page}</small>}</span><span className="word-suggestion__meta"><span>{word.level}</span><Check size={14} aria-hidden="true" /></span></button>)}
-              </div>}
+          <section className="flashcard-form__section" aria-labelledby="flashcard-core-heading">
+            <div className="flashcard-form__section-heading"><span>1</span><div><strong id="flashcard-core-heading">Word and meaning</strong><small>Start with the pair you want to remember.</small></div></div>
+            <div className="form-grid form-grid--two">
+              <div className="form-field-with-suggestions">
+                <label className="form-field" htmlFor="card-german"><span>German *</span><input id="card-german" ref={germanInputRef} value={draft.german} onChange={(event) => update("german", event.target.value)} placeholder="e.g. gemütlich or Das Eis" required aria-autocomplete="list" aria-controls={wordSuggestions.length > 0 ? "card-word-suggestions" : undefined} aria-expanded={wordSuggestions.length > 0} /></label>
+                {wordSuggestions.length > 0 && <div id="card-word-suggestions" className="word-suggestion-list" role="listbox" aria-label="German word bank suggestions">
+                  {wordSuggestions.map((word) => <button type="button" className="word-suggestion" role="option" aria-label={`Use ${word.german}`} key={word.id} onClick={() => applyWordSuggestion(word)}><ArticleBadge article={word.article} partOfSpeech={word.partOfSpeech} compact /><span className="word-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}{word.source && <small className="word-suggestion__source">{word.source.lesson} · p. {word.source.page}</small>}</span><span className="word-suggestion__meta"><span>{word.level}</span><Check size={14} aria-hidden="true" /></span></button>)}
+                </div>}
+              </div>
+              <label className="form-field" htmlFor="card-translation"><span>Translation *</span><input id="card-translation" value={draft.translation} onChange={(event) => update("translation", event.target.value)} placeholder="e.g. cozy or ice cream" required /></label>
             </div>
-            <label className="form-field" htmlFor="card-translation"><span>Translation *</span><input id="card-translation" value={draft.translation} onChange={(event) => update("translation", event.target.value)} placeholder="e.g. cozy or ice cream" required /></label>
-          </div>
-          <div className="form-grid form-grid--three">
-            <label className="form-field" htmlFor="card-article"><span>Article</span><select id="card-article" value={draft.article} onChange={(event) => update("article", event.target.value as Article)}><option value="der">der · masculine</option><option value="die">die · feminine</option><option value="das">das · neuter</option><option value="plural">die · plural</option><option value="none">No article</option></select></label>
-            <label className="form-field" htmlFor="card-plural"><span>Plural</span><input id="card-plural" value={draft.plural} onChange={(event) => update("plural", event.target.value)} placeholder="e.g. Bücher" /></label>
-            <label className="form-field" htmlFor="card-kind"><span>Item type</span><select id="card-kind" value={draft.kind} onChange={(event) => update("kind", event.target.value as CardKind)}><option value="word">Vocabulary</option><option value="phrase">Phrase</option><option value="grammar">Grammar</option></select></label>
-          </div>
-          <label className="form-field" htmlFor="card-example"><span>Example sentence</span><textarea id="card-example" value={draft.example} onChange={(event) => update("example", event.target.value)} placeholder="Write a sentence you can imagine using..." rows={2} /></label>
-          <label className="form-field" htmlFor="card-note"><span>Personal note</span><textarea id="card-note" value={draft.note} onChange={(event) => update("note", event.target.value)} placeholder="A memory hint, related word, or pronunciation note" rows={2} /></label>
-          <div className="form-grid form-grid--three">
-            <label className="form-field" htmlFor="card-tags"><span>Tags</span><input id="card-tags" value={draft.tags} onChange={(event) => update("tags", event.target.value)} placeholder="e.g. lesson-1, difficult, travel" /></label>
-            <label className="form-field" htmlFor="card-lesson"><span>Lesson or collection</span><input id="card-lesson" value={draft.lesson} onChange={(event) => update("lesson", event.target.value)} placeholder="e.g. Lesson 1" /></label>
-            <label className="form-field" htmlFor="card-source-page"><span>PDF page <small>(optional)</small></span><input id="card-source-page" type="number" min="1" value={draft.sourcePage ?? ""} onChange={(event) => update("sourcePage", event.target.value ? Number(event.target.value) : undefined)} placeholder="e.g. 14" /></label>
-          </div>
+          </section>
+          <section className="flashcard-form__section" aria-labelledby="flashcard-detail-heading">
+            <div className="flashcard-form__section-heading"><span>2</span><div><strong id="flashcard-detail-heading">Make it memorable</strong><small>Add the grammar signal and context that help recall.</small></div></div>
+            <div className="form-grid form-grid--three">
+              <label className="form-field" htmlFor="card-article"><span>Article</span><select id="card-article" value={draft.article} onChange={(event) => update("article", event.target.value as Article)}><option value="der">der · masculine</option><option value="die">die · feminine</option><option value="das">das · neuter</option><option value="plural">die · plural</option><option value="none">No article</option></select></label>
+              <label className="form-field" htmlFor="card-plural"><span>Plural</span><input id="card-plural" value={draft.plural} onChange={(event) => update("plural", event.target.value)} placeholder="e.g. Bücher" /></label>
+              <label className="form-field" htmlFor="card-kind"><span>Item type</span><select id="card-kind" value={draft.kind} onChange={(event) => update("kind", event.target.value as CardKind)}><option value="word">Vocabulary</option><option value="phrase">Phrase</option><option value="grammar">Grammar</option></select></label>
+            </div>
+            <div className="form-grid form-grid--two">
+              <label className="form-field" htmlFor="card-example"><span>Example sentence</span><textarea id="card-example" value={draft.example} onChange={(event) => update("example", event.target.value)} placeholder="Write a sentence you can imagine using..." rows={2} /></label>
+              <label className="form-field" htmlFor="card-note"><span>Personal note</span><textarea id="card-note" value={draft.note} onChange={(event) => update("note", event.target.value)} placeholder="A memory hint, related word, or pronunciation note" rows={2} /></label>
+            </div>
+          </section>
+          <section className="flashcard-form__section" aria-labelledby="flashcard-organize-heading">
+            <div className="flashcard-form__section-heading"><span>3</span><div><strong id="flashcard-organize-heading">Organize your card</strong><small>Keep it easy to find in your personal library.</small></div></div>
+            <div className="form-grid form-grid--three">
+              <label className="form-field" htmlFor="card-tags"><span>Tags</span><input id="card-tags" value={draft.tags} onChange={(event) => update("tags", event.target.value)} placeholder="e.g. lesson-1, difficult, travel" /></label>
+              <label className="form-field" htmlFor="card-lesson"><span>Lesson or collection</span><input id="card-lesson" value={draft.lesson} onChange={(event) => update("lesson", event.target.value)} placeholder="e.g. Lesson 1" /></label>
+              <label className="form-field" htmlFor="card-source-page"><span>PDF page <small>(optional)</small></span><input id="card-source-page" type="number" min="1" value={draft.sourcePage ?? ""} onChange={(event) => update("sourcePage", event.target.value ? Number(event.target.value) : undefined)} placeholder="e.g. 14" /></label>
+            </div>
+          </section>
           {checkResult && <CardCheckPanel result={checkResult} referenceChecked={referenceChecked} onReferenceChecked={setReferenceChecked} onApplySuggestion={applySuggestion} aiReview={aiReview} aiError={aiError} aiChecking={aiChecking} onAiCheck={() => void handleAiCheck()} onApplyAiReview={applyAiReview} />}
           <div className="modal-panel__footer">
             <span><Info size={15} aria-hidden="true" /> {checkResult ? "Confirm the details after checking the references." : "A quick check helps keep your library clean."}</span>

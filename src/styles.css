@@ -4857,6 +4857,66 @@ kbd {
   margin-top: 20px;
 }
 
+.flashcard-form__section {
+  padding: 14px;
+  margin: 0 0 12px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.flashcard-form__section-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.flashcard-form__section-heading > span {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--primary);
+  border-radius: 8px;
+}
+
+.flashcard-form__section-heading div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flashcard-form__section-heading strong {
+  color: var(--text-strong);
+  font-size: 11px;
+}
+
+.flashcard-form__section-heading small {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.flashcard-form__section .form-grid {
+  margin-bottom: 0;
+}
+
+.flashcard-form__section .form-field,
+.flashcard-form__section .form-field-with-suggestions {
+  margin-bottom: 10px;
+}
+
+.flashcard-form__section .form-grid:last-child .form-field {
+  margin-bottom: 0;
+}
+
 .form-grid {
   display: grid;
   gap: 11px;
@@ -6602,6 +6662,97 @@ kbd {
 
 .progress-disclosure-card--open .progress-disclosure-card__body {
   grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.progress-disclosure-card__preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 20px 18px;
+  padding: 12px 14px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.progress-disclosure-card__preview strong {
+  display: block;
+  color: var(--text-strong);
+  font-size: 11px;
+}
+
+.achievement-collapsed-preview > div:first-child span,
+.activity-preview__copy span {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+}
+
+.achievement-collapsed-preview,
+.activity-preview {
+  width: 100%;
+}
+
+.achievement-collapsed-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.achievement-collapsed-preview > div:first-child,
+.activity-preview__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.achievement-collapsed-preview__progress {
+  width: 96px;
+  height: 7px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: var(--surface);
+  border-radius: 999px;
+}
+
+.achievement-collapsed-preview__progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  margin: 0;
+  background: var(--primary);
+  border-radius: inherit;
+}
+
+.activity-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: 12px;
+}
+
+.activity-preview__bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 34px;
+}
+
+.activity-preview__bars span {
+  display: block;
+  width: 8px;
+  min-height: 4px;
+  background: var(--primary);
+  border-radius: 999px 999px 3px 3px;
+  opacity: 0.74;
+}
+
+.activity-preview__bars span:last-child {
+  background: var(--success);
   opacity: 1;
 }
 
@@ -8371,6 +8522,35 @@ kbd {
   .form-grid--three {
     grid-template-columns: 1fr;
     gap: 0;
+  }
+
+  .flashcard-form__section {
+    padding: 12px;
+  }
+
+  .flashcard-form__section-heading {
+    align-items: flex-start;
+  }
+
+  .progress-disclosure-card__preview {
+    margin: 0 14px 14px;
+  }
+
+  .activity-preview {
+    grid-template-columns: minmax(0, 1fr) 72px;
+    gap: 9px;
+  }
+
+  .activity-preview__bars {
+    gap: 3px;
+  }
+
+  .activity-preview__bars span {
+    width: 6px;
+  }
+
+  .achievement-collapsed-preview__progress {
+    width: 72px;
   }
 
   .modal-panel__footer {
