@@ -2478,10 +2478,10 @@ function LibraryPage({
     try {
       const words = await onGenerateWordBatch(wordBankLevel, Number(wordBankCount));
       setLastGeneratedWords(words);
-      if (words.length === 0) setWordBankError("Gemini returned no new words. Try another level or run it again later.");
+      if (words.length === 0) setWordBankError("The AI returned no new words. Try another level or run it again later.");
     } catch (error) {
       setLastGeneratedWords([]);
-      setWordBankError(error instanceof Error ? error.message : "Gemini could not generate new words. Check the sync server and try again.");
+      setWordBankError(error instanceof Error ? error.message : "The AI could not generate new words. Check the sync server and try again.");
     } finally {
       setWordBankGenerating(false);
     }
@@ -2562,7 +2562,7 @@ function LibraryPage({
         <div className="word-bank-generator">
           <div className="word-bank-generator__copy">
             <span className="word-bank-generator__icon" aria-hidden="true"><Sparkles size={16} /></span>
-            <div><strong>Grow the bank with Gemini</strong><small>Generate common words, save them locally, then review each one before adding a card.</small></div>
+            <div><strong>Grow the bank with AI</strong><small>Generate common words locally, then review each one before adding a card.</small></div>
           </div>
           <form className="word-bank-generator__form" onSubmit={handleGenerateWordBatch}>
             <label><span>Level</span><select value={wordBankLevel} onChange={(event) => setWordBankLevel(event.target.value as GermanWordBatchLevel)} disabled={wordBankGenerating}><option value="A1">A1</option><option value="A2">A2</option></select></label>
@@ -2570,7 +2570,7 @@ function LibraryPage({
             <button type="submit" className="button button--primary" disabled={wordBankGenerating}>{wordBankGenerating ? <><RefreshCw size={15} className="spin" aria-hidden="true" /> Generating...</> : <><Sparkles size={15} aria-hidden="true" /> Generate words</>}</button>
           </form>
         </div>
-        {wordBankError && <div className="word-bank-generator__error" role="alert"><Info size={15} aria-hidden="true" /><span>{wordBankError}</span><button type="button" className="text-button" onClick={onOpenSync}><Cloud size={14} aria-hidden="true" /> Set up bridge</button></div>}
+        {wordBankError && <div className="word-bank-generator__error" role="alert"><Info size={15} aria-hidden="true" /><span>{wordBankError}</span><button type="button" className="text-button" onClick={onOpenSync}><Cloud size={14} aria-hidden="true" /> Set up AI bridge</button></div>}
         {lastGeneratedWords.length > 0 && <div className="word-bank-generated" aria-live="polite">
           <div className="word-bank-generated__heading"><div><strong>{lastGeneratedWords.length} new {lastGeneratedWords.length === 1 ? "word" : "words"} added</strong><span>Saved to your word bank. Backup or sync it when you are ready.</span></div><span>{wordBankLevel}</span></div>
           <div className="word-bank-generated__list">
@@ -2927,10 +2927,10 @@ function CardCheckPanel({ result, referenceChecked, onReferenceChecked, onApplyS
 
       <div className="card-check__ai">
         <div className="card-check__ai-heading">
-          <div><Sparkles size={16} aria-hidden="true" /><span><strong>Optional Gemini review</strong><small>Check tricky articles, plurals, meanings, and duplicate clues.</small></span></div>
-          <button type="button" className="button button--ghost" onClick={onAiCheck} disabled={aiChecking}>{aiChecking ? <RefreshCw size={14} className="spin" aria-hidden="true" /> : <Sparkles size={14} aria-hidden="true" />}{aiChecking ? "Checking..." : "Ask Gemini"}</button>
+          <div><Sparkles size={16} aria-hidden="true" /><span><strong>Optional AI review</strong><small>Check tricky articles, plurals, meanings, and duplicate clues.</small></span></div>
+          <button type="button" className="button button--ghost" onClick={onAiCheck} disabled={aiChecking}>{aiChecking ? <RefreshCw size={14} className="spin" aria-hidden="true" /> : <Sparkles size={14} aria-hidden="true" />}{aiChecking ? "Checking..." : "Ask AI"}</button>
         </div>
-        <small className="card-check__ai-note">The local checker stays the source of truth. Gemini suggestions are never saved automatically.</small>
+        <small className="card-check__ai-note">The local checker stays the source of truth. AI suggestions are never saved automatically.</small>
         {aiError && <div className="card-check__ai-error" role="alert"><Info size={14} aria-hidden="true" /><span>{aiError}</span></div>}
         {aiReview && (
           <div className={`card-check__ai-result card-check__ai-result--${aiReview.verdict}`}>
@@ -3312,11 +3312,12 @@ function SyncModal({
           <div><span className="section-eyebrow">PRIVATE DEVICE SYNC</span><h2 id="sync-title">Connect your devices</h2></div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close sync settings" title="Close"><X size={19} aria-hidden="true" /></button>
         </div>
-        <p className="modal-panel__intro">Run the Deutschly sync server on your PC, then use the same room code on your phone. Your cards stay in this private room instead of going to a third-party service. If the server starts with <code>GEMINI_API_FILE</code>, it also powers the optional Gemini card review without putting the key in your browser.</p>
+        <p className="modal-panel__intro">Run the Deutschly bridge on your PC, then use the same room code on your phone. Your cards stay in this private room instead of going to a third-party service. The bridge can use Gemini or a free local Ollama model without putting an AI key in your browser.</p>
         <div className="sync-modal__steps" aria-label="Sync setup steps">
-          <div><strong>1</strong><span>On the PC, run <code>npm run sync-server -- --host 0.0.0.0</code> so the phone can reach it.</span></div>
-          <div><strong>2</strong><span>Open the app on both devices over the same Wi-Fi network.</span></div>
-          <div><strong>3</strong><span>Save the same room on both devices. Auto-sync can keep them up to date.</span></div>
+          <div><strong>1</strong><span>Open a terminal in the folder that contains <code>package.json</code>. For this project: <code>C:\Users\Soheil\Documents\ChatGPT\Gamify</code>.</span></div>
+          <div><strong>2</strong><span>On the PC, run <code>npm run sync-server -- --host 0.0.0.0</code>. For free local AI, add <code>--ai-provider ollama</code>.</span></div>
+          <div><strong>3</strong><span>Open the app on both devices over the same Wi-Fi network.</span></div>
+          <div><strong>4</strong><span>Save the same room on both devices. Auto-sync can keep them up to date.</span></div>
         </div>
         <div className="form-grid">
           <label className="form-field" htmlFor="sync-endpoint"><span>Sync server URL</span><input id="sync-endpoint" value={endpoint} onChange={(event) => onEndpointChange(event.target.value)} placeholder="/api/sync or http://192.168.1.20:8787/api/sync" /></label>
@@ -3408,7 +3409,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
     try {
       setAiReview(await reviewCardWithGemini(geminiEndpoint, input));
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : "Gemini could not review this card.");
+      setAiError(error instanceof Error ? error.message : "The AI could not review this card.");
     } finally {
       setAiChecking(false);
     }

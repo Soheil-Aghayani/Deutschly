@@ -72,26 +72,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function bridgeUnavailableMessage(): string {
   const hostname = typeof window !== "undefined" ? window.location.hostname : "";
   if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return "Gemini is ready on this device once the local bridge is running. Start npm run sync-server on this PC, then try again.";
+    return "The local AI is ready once the bridge is running. Start npm run sync-server from the Deutschly project folder, then try again.";
   }
-  return "Gemini needs a reachable HTTPS bridge in the published app. Run the bridge on your PC, then add its URL in Set up sync. The checked word bank is still available here.";
+  return "The AI needs a reachable HTTPS bridge in the published app. Run the bridge on your PC, then add its URL in Set up sync. The checked word bank is still available here.";
 }
 
 function readText(value: unknown, field: string, maxLength: number): string {
-  if (typeof value !== "string") throw new GeminiRequestError(`Gemini returned an invalid ${field}.`);
+  if (typeof value !== "string") throw new GeminiRequestError(`The AI returned an invalid ${field}.`);
   return value.trim().slice(0, maxLength);
 }
 
 function readEnum<T extends string>(value: unknown, field: string, values: Set<T>): T {
   if (typeof value !== "string" || !values.has(value as T)) {
-    throw new GeminiRequestError(`Gemini returned an invalid ${field}.`);
+    throw new GeminiRequestError(`The AI returned an invalid ${field}.`);
   }
   return value as T;
 }
 
 export function parseGeminiCardReview(payload: unknown): GeminiCardReview {
   const source = isRecord(payload) && isRecord(payload.review) ? payload.review : payload;
-  if (!isRecord(source)) throw new GeminiRequestError("Gemini returned an invalid card review.");
+  if (!isRecord(source)) throw new GeminiRequestError("The AI returned an invalid card review.");
 
   return {
     verdict: readEnum(source.verdict, "review verdict", VERDICTS),
@@ -146,10 +146,10 @@ async function readResponse(response: Response): Promise<Record<string, unknown>
       ? bridgeUnavailableMessage()
       : isRecord(payload) && typeof payload.error === "string"
         ? payload.error
-        : `Gemini request failed (${response.status}).`;
+        : `AI request failed (${response.status}).`;
     throw new GeminiRequestError(message, response.status);
   }
-  if (!isRecord(payload)) throw new GeminiRequestError("The Gemini bridge returned an invalid response.", response.status);
+  if (!isRecord(payload)) throw new GeminiRequestError("The AI bridge returned an invalid response.", response.status);
   return payload;
 }
 
@@ -173,7 +173,7 @@ export function geminiWordBatchUrl(endpoint: string): string {
 }
 
 function readStringArray(value: unknown, field: string, maxItems: number, maxLength: number): string[] {
-  if (!Array.isArray(value) || value.length > maxItems) throw new GeminiRequestError(`Gemini returned an invalid ${field}.`);
+  if (!Array.isArray(value) || value.length > maxItems) throw new GeminiRequestError(`The AI returned an invalid ${field}.`);
   return value.map((item) => readText(item, field, maxLength)).filter(Boolean);
 }
 
@@ -183,11 +183,11 @@ function readOptionalText(value: unknown, field: string, maxLength: number): str
 
 function readWordSource(value: unknown): GermanWordSource | undefined {
   if (value === undefined) return undefined;
-  if (!isRecord(value)) throw new GeminiRequestError("Gemini returned an invalid word source.");
+  if (!isRecord(value)) throw new GeminiRequestError("The AI returned an invalid word source.");
 
   const page = value.page;
   if (typeof page !== "number" || !Number.isInteger(page) || page < 1) {
-    throw new GeminiRequestError("Gemini returned an invalid source page.");
+    throw new GeminiRequestError("The AI returned an invalid source page.");
   }
 
   const context = readOptionalText(value.context, "source context", 240);
@@ -200,7 +200,7 @@ function readWordSource(value: unknown): GermanWordSource | undefined {
 }
 
 function parseGermanWordRecord(value: unknown): GermanWordRecord {
-  if (!isRecord(value)) throw new GeminiRequestError("Gemini returned an invalid German word.");
+  if (!isRecord(value)) throw new GeminiRequestError("The AI returned an invalid German word.");
   const article = readEnum(value.article, "article", GERMAN_WORD_ARTICLES);
   const level = readEnum(value.level, "word level", GERMAN_WORD_LEVELS);
   const articleAlternatives = value.articleAlternatives === undefined
@@ -226,9 +226,9 @@ function parseGermanWordRecord(value: unknown): GermanWordRecord {
 }
 
 export function parseGermanWordBatch(payload: unknown): GermanWordBatchResponse {
-  if (!isRecord(payload)) throw new GeminiRequestError("Gemini returned an invalid word batch.");
+  if (!isRecord(payload)) throw new GeminiRequestError("The AI returned an invalid word batch.");
   const level = readEnum(payload.level, "word level", new Set<GermanWordBatchLevel>(["A1", "A2"]));
-  if (!Array.isArray(payload.words)) throw new GeminiRequestError("Gemini returned an invalid word list.");
+  if (!Array.isArray(payload.words)) throw new GeminiRequestError("The AI returned an invalid word list.");
   const words = payload.words.map(parseGermanWordRecord);
   return {
     level,

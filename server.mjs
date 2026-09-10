@@ -15,7 +15,11 @@ const port = Number(readArg("--port", process.env.DEUTSCHLY_SYNC_PORT || "8787")
 const dataFile = join(process.cwd(), ".deutschly", "sync.json");
 const maxBodyBytes = 5 * 1024 * 1024;
 const maxGeminiBodyBytes = 48 * 1024;
+const aiProvider = readArg("--ai-provider", process.env.AI_PROVIDER || "gemini").trim().toLowerCase();
 const geminiModel = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
+const ollamaBaseUrl = readArg("--ollama-url", process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").trim().replace(/\/+$/, "");
+const ollamaModel = readArg("--ollama-model", process.env.OLLAMA_MODEL || "qwen3:4b");
+const supportedAiProviders = new Set(["gemini", "ollama"]);
 let storeWriteQueue = Promise.resolve();
 
 function responseHeaders(request) {
@@ -174,6 +178,34 @@ async function readGeminiApiKey() {
   }
 }
 
+function aiModelName() {
+  return aiProvider === "ollama" ? ollamaModel : geminiModel;
+}
+
+function aiDisplayName() {
+  return aiProvider === "ollama" ? "Ollama" : aiProvider === "gemini" ? "Gemini" : aiProvider;
+}
+
+async function readAiApiKey() {
+  return aiProvider === "gemini" ? readGeminiApiKey() : "";
+}
+
+async function isAiConfigured() {
+  if (aiProvider === "ollama") return true;
+  if (!supportedAiProviders.has(aiProvider)) return false;
+  return Boolean(await readGeminiApiKey());
+}
+
+function aiConfigurationMessage() {
+  if (aiProvider === "ollama") {
+    return `Ollama is selected, but its local service is not ready. Start Ollama and run ollama pull ${ollamaModel}.`;
+  }
+  if (aiProvider === "gemini") {
+    return "Gemini is not configured. Set GEMINI_API_KEY or GEMINI_API_FILE before starting the server.";
+  }
+  return `Unsupported AI_PROVIDER \"${aiProvider}\". Use gemini or ollama.`;
+}
+
 function geminiPrompt(card) {
   return [
     "You are a careful German teacher helping with Menschen A1.1 flashcards.",
@@ -215,27 +247,38 @@ function readGeminiResponseText(payload, emptyMessage = "Gemini did not return a
   return text;
 }
 
-function parseGeminiJson(text, responseName = "response") {
+function parseStructuredJson(text, responseName = "response", providerName = "AI model") {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  try {
-    return JSON.parse(fenced ? fenced[1] : text);
-  } catch {
-    throw new Error(`Gemini returned invalid ${responseName} JSON.`);
+  const candidates = [fenced ? fenced[1] : text, text.trim()];
+  const firstObject = text.indexOf("{");
+  const lastObject = text.lastIndexOf("}");
+  if (firstObject >= 0 && lastObject > firstObject) candidates.push(text.slice(firstObject, lastObject + 1));
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate.trim());
+    } catch {
+      // Try the next safe JSON candidate.
+    }
   }
+  throw new Error(`${providerName} returned invalid ${responseName} JSON.`);
+}
+
+function parseGeminiJson(text, responseName = "response") {
+  return parseStructuredJson(text, responseName, "Gemini");
 }
 
 function modelEnum(value, field, values) {
-  if (typeof value !== "string" || !values.has(value)) throw new Error(`Gemini returned an invalid ${field}.`);
+  if (typeof value !== "string" || !values.has(value)) throw new Error(`AI model returned an invalid ${field}.`);
   return value;
 }
 
 function modelText(value, field, max = 360) {
-  if (typeof value !== "string") throw new Error(`Gemini returned an invalid ${field}.`);
+  if (typeof value !== "string") throw new Error(`AI model returned an invalid ${field}.`);
   return value.trim().slice(0, max);
 }
 
 function normalizeGeminiReview(payload) {
-  if (!isRecord(payload)) throw new Error("Gemini returned an invalid card review.");
+  if (!isRecord(payload)) throw new Error("AI model returned an invalid card review.");
   return {
     verdict: modelEnum(payload.verdict, "review verdict", geminiVerdicts),
     article: modelEnum(payload.article, "article", geminiArticles),
@@ -250,7 +293,7 @@ function normalizeGeminiReview(payload) {
 }
 
 function modelStringArray(value, field, { maxItems = 6, maxLength = 160 } = {}) {
-  if (!Array.isArray(value) || value.length > maxItems) throw new Error(`Gemini returned an invalid ${field}.`);
+  if (!Array.isArray(value) || value.length > maxItems) throw new Error(`AI model returned an invalid ${field}.`);
   return value.map((item) => modelText(item, field, maxLength)).filter(Boolean);
 }
 
@@ -290,7 +333,7 @@ function createGermanWordId(level, german) {
 
 function normalizeGermanWordBatch(payload, input) {
   const rawWords = isRecord(payload) && Array.isArray(payload.words) ? payload.words : null;
-  if (!rawWords) throw new Error("Gemini returned an invalid word batch.");
+  if (!rawWords) throw new Error("AI model returned an invalid word batch.");
 
   const excluded = new Set(input.existingWords.map(germanWordKey));
   const seen = new Set(excluded);
@@ -375,7 +418,69 @@ const geminiGermanWordSchema = {
   required: ["words"],
 };
 
+function toJsonSchema(value) {
+  if (Array.isArray(value)) return value.map(toJsonSchema);
+  if (!isRecord(value)) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, nested]) => [
+    key,
+    key === "type" && typeof nested === "string" ? nested.toLowerCase() : toJsonSchema(nested),
+  ]));
+}
+
+const ollamaReviewSchema = toJsonSchema(geminiReviewSchema);
+const ollamaGermanWordSchema = toJsonSchema(geminiGermanWordSchema);
+
+function readOllamaResponseText(payload, emptyMessage = "Ollama did not return a response.") {
+  const text = payload?.message?.content;
+  if (typeof text !== "string" || !text.trim()) throw new Error(emptyMessage);
+  return text.trim();
+}
+
+async function requestOllamaJson(prompt, schema, { responseName, temperature, timeoutMs }) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${ollamaBaseUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: ollamaModel,
+        messages: [{ role: "user", content: prompt }],
+        stream: false,
+        think: false,
+        format: schema,
+        options: { temperature },
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) throw new Error(`Ollama could not find model \"${ollamaModel}\". Run ollama pull ${ollamaModel} first.`);
+      throw new Error(`Ollama request failed (${response.status}).`);
+    }
+
+    const payload = await response.json();
+    return parseStructuredJson(readOllamaResponseText(payload, `Ollama did not return a ${responseName}.`), responseName, "Ollama");
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error(`Ollama took too long to generate this ${responseName}. Try again.`);
+    if (error instanceof TypeError) throw new Error(`Ollama is not reachable at ${ollamaBaseUrl}. Start Ollama, then run ollama pull ${ollamaModel}.`);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function requestGermanWordBatch(input, apiKey) {
+  if (aiProvider === "ollama") {
+    const payload = await requestOllamaJson(germanWordPrompt(input), ollamaGermanWordSchema, {
+      responseName: "word batch",
+      temperature: 0.25,
+      timeoutMs: 45_000,
+    });
+    return normalizeGermanWordBatch(payload, input);
+  }
+
+  if (aiProvider !== "gemini") throw new Error(aiConfigurationMessage());
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 45_000);
   try {
@@ -449,6 +554,20 @@ async function requestGeminiReview(card, apiKey) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function requestAiReview(card, apiKey) {
+  if (aiProvider === "ollama") {
+    const payload = await requestOllamaJson(geminiPrompt(card), ollamaReviewSchema, {
+      responseName: "card review",
+      temperature: 0.2,
+      timeoutMs: 30_000,
+    });
+    return normalizeGeminiReview(payload);
+  }
+
+  if (aiProvider !== "gemini") throw new Error(aiConfigurationMessage());
+  return requestGeminiReview(card, apiKey);
 }
 
 function normalizeLookup(value) {
@@ -579,14 +698,23 @@ async function handleRequest(request, response) {
   }
 
   if (request.method === "GET" && requestUrl.pathname === "/api/health") {
-    sendJson(request, response, 200, { app: "deutschly-sync", version: 1, status: "ok", geminiConfigured: Boolean(await readGeminiApiKey()) });
+    const aiConfigured = await isAiConfigured();
+    sendJson(request, response, 200, {
+      app: "deutschly-sync",
+      version: 1,
+      status: "ok",
+      aiProvider,
+      aiModel: aiModelName(),
+      aiConfigured,
+      geminiConfigured: aiProvider === "gemini" && aiConfigured,
+    });
     return;
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/gemini/check-card") {
-    const apiKey = await readGeminiApiKey();
-    if (!apiKey) {
-      sendJson(request, response, 503, { error: "Gemini is not configured. Set GEMINI_API_KEY or GEMINI_API_FILE before starting the server." });
+    const apiKey = await readAiApiKey();
+    if (!(await isAiConfigured())) {
+      sendJson(request, response, 503, { error: aiConfigurationMessage() });
       return;
     }
 
@@ -607,19 +735,19 @@ async function handleRequest(request, response) {
     }
 
     try {
-      const review = await requestGeminiReview(card, apiKey);
-      sendJson(request, response, 200, { review, model: geminiModel });
+      const review = await requestAiReview(card, apiKey);
+      sendJson(request, response, 200, { review, model: aiModelName(), provider: aiProvider });
     } catch (error) {
-      console.error("Deutschly Gemini request failed", error instanceof Error ? error.message : error);
-      sendJson(request, response, 502, { error: error instanceof Error ? error.message : "Gemini could not review this card." });
+      console.error(`Deutschly ${aiDisplayName()} request failed`, error instanceof Error ? error.message : error);
+      sendJson(request, response, 502, { error: error instanceof Error ? error.message : `${aiDisplayName()} could not review this card.` });
     }
     return;
   }
 
   if (request.method === "POST" && requestUrl.pathname === "/api/gemini/word-batch") {
-    const apiKey = await readGeminiApiKey();
-    if (!apiKey) {
-      sendJson(request, response, 503, { error: "Gemini is not configured. Set GEMINI_API_KEY or GEMINI_API_FILE before starting the server." });
+    const apiKey = await readAiApiKey();
+    if (!(await isAiConfigured())) {
+      sendJson(request, response, 503, { error: aiConfigurationMessage() });
       return;
     }
 
@@ -641,10 +769,10 @@ async function handleRequest(request, response) {
 
     try {
       const words = await requestGermanWordBatch(input, apiKey);
-      sendJson(request, response, 200, { level: input.level, words, requestedCount: input.count, returnedCount: words.length, model: geminiModel });
+      sendJson(request, response, 200, { level: input.level, words, requestedCount: input.count, returnedCount: words.length, model: aiModelName(), provider: aiProvider });
     } catch (error) {
-      console.error("Deutschly Gemini word batch failed", error instanceof Error ? error.message : error);
-      sendJson(request, response, 502, { error: error instanceof Error ? error.message : "Gemini could not generate this word batch." });
+      console.error(`Deutschly ${aiDisplayName()} word batch failed`, error instanceof Error ? error.message : error);
+      sendJson(request, response, 502, { error: error instanceof Error ? error.message : `${aiDisplayName()} could not generate this word batch.` });
     }
     return;
   }
@@ -711,5 +839,6 @@ const server = createServer((request, response) => {
 server.listen(port, host, () => {
   const displayHost = host === "0.0.0.0" ? "localhost" : host;
   console.log(`Deutschly sync server listening on http://${displayHost}:${port}`);
+  console.log(`AI provider: ${aiDisplayName()} (${aiModelName()})`);
   console.log("Use the same room code on the PC and phone. Keep this server on a private network.");
 });
