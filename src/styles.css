@@ -5493,6 +5493,45 @@ kbd {
 
 .settings-modal {
   width: min(700px, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.settings-modal .settings-sections {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1px 6px 4px 1px;
+  margin-right: -6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: 12px;
+  scrollbar-color: rgba(120, 130, 154, 0.55) transparent;
+  scrollbar-width: thin;
+}
+
+.settings-modal .settings-sections::-webkit-scrollbar {
+  width: 7px;
+}
+
+.settings-modal .settings-sections::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-modal .settings-sections::-webkit-scrollbar-thumb {
+  background: rgba(120, 130, 154, 0.55);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+.settings-modal > .modal-panel__footer {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  box-shadow: 0 -10px 18px color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
 .settings-sections {
