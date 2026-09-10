@@ -1,6 +1,6 @@
 import type { FirebaseApp } from "firebase/app";
 import type { Auth, Unsubscribe, User } from "firebase/auth";
-import type { Firestore } from "firebase/firestore";
+import type { Firestore } from "firebase/firestore/lite";
 
 export type FirebaseAuthProvider = "google" | "github";
 
@@ -63,13 +63,13 @@ function toUserSummary(user: User): FirebaseUserSummary {
 }
 
 async function getFirebaseDb(): Promise<Firestore> {
-  const { getFirestore } = await import("firebase/firestore");
+  const { getFirestore } = await import("firebase/firestore/lite");
   firebaseDb ??= getFirestore(await getFirebaseAppAsync());
   return firebaseDb;
 }
 
 async function userDocument(uid: string) {
-  const { doc } = await import("firebase/firestore");
+  const { doc } = await import("firebase/firestore/lite");
   return doc(await getFirebaseDb(), "users", uid);
 }
 
@@ -126,14 +126,14 @@ export async function deleteFirebaseAccount(): Promise<void> {
   if (!firebaseConfigured) return;
   const [auth, { deleteUser }] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
   if (!auth.currentUser) throw new FirebaseSetupError("No signed-in account is available to delete.");
-  const { deleteDoc } = await import("firebase/firestore");
+  const { deleteDoc } = await import("firebase/firestore/lite");
   await deleteDoc(await userDocument(auth.currentUser.uid));
   await deleteUser(auth.currentUser);
 }
 
 export async function loadFirebaseCloudDocument(uid: string): Promise<FirebaseCloudDocument | null> {
   if (!firebaseConfigured) return null;
-  const { getDoc } = await import("firebase/firestore");
+  const { getDoc } = await import("firebase/firestore/lite");
   const snapshot = await getDoc(await userDocument(uid));
   if (!snapshot.exists()) return null;
   const value = snapshot.data();
@@ -147,7 +147,7 @@ export async function loadFirebaseCloudDocument(uid: string): Promise<FirebaseCl
 
 export async function saveFirebaseCloudDocument(uid: string, document: { state: unknown; profileName?: string }): Promise<string> {
   if (!firebaseConfigured) throw new FirebaseSetupError("Firebase is not configured for this build yet.");
-  const { setDoc } = await import("firebase/firestore");
+  const { setDoc } = await import("firebase/firestore/lite");
   const updatedAt = new Date().toISOString();
   await setDoc(await userDocument(uid), {
     state: cloneForFirestore(document.state),

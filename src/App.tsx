@@ -76,8 +76,9 @@ import type { FirebaseAuthProvider, FirebaseUserSummary } from "./lib/firebase";
 import { generateGermanWordBatch, reviewCardWithGemini } from "./lib/gemini";
 import type { GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel } from "./lib/gemini";
 import { playPracticeFeedbackSound } from "./lib/feedbackSounds";
-import { GERMAN_WORD_DATABASE, isGermanWordRecord, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./data/germanWords";
-import type { GermanWordRecord } from "./data/germanWords";
+import { isGermanWordRecord, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./data/germanWordsCore";
+import type { GermanWordRecord } from "./data/germanWordsCore";
+import { loadGermanWordDatabase } from "./data/germanWordsRuntime";
 import { assessPdfCandidate, extractMenschenPdf, getMenschenLesson, normalizePdfCandidateStatuses } from "./lib/pdfImport";
 import type { PdfCandidate, PdfCandidateStatus } from "./lib/pdfImport";
 import { checkSyncHealth, createSyncRoom, normalizeSyncRoom, pullSync, pushSync } from "./lib/sync";
@@ -3319,6 +3320,7 @@ export default function App() {
     return value && value > Date.now() ? value : null;
   });
   const [weakCardsOnly, setWeakCardsOnly] = useState(false);
+  const [databaseWords, setDatabaseWords] = useState<GermanWordRecord[]>([]);
   const toastTimerRef = useRef<number | undefined>(undefined);
   const stateRef = useRef(state);
   const profileNameRef = useRef(profileName);
@@ -3329,6 +3331,7 @@ export default function App() {
   const firebaseAuthSyncUserRef = useRef("");
   const firebaseChoiceRequiredRef = useRef("");
   const lastFirebaseSyncFingerprintRef = useRef("");
+  const germanWordDatabasePromiseRef = useRef<Promise<GermanWordRecord[]> | null>(null);
 
   const todayKey = getDayKey();
   stateRef.current = state;
@@ -3336,7 +3339,7 @@ export default function App() {
   const cardPendingDeletion = deleteCardId ? state.cards.find((card) => card.id === deleteCardId) : undefined;
   const profileDisplayName = profileName || PROFILE_DISPLAY_FALLBACK;
   const profileAvatar = getDailyAvatar(profileDisplayName, todayKey);
-  const wordBank = useMemo(() => mergeGermanWordRecords(GERMAN_WORD_DATABASE, state.wordBank), [state.wordBank]);
+  const wordBank = useMemo(() => mergeGermanWordRecords(databaseWords, state.wordBank), [databaseWords, state.wordBank]);
   const dueCards = useMemo(() => state.cards
     .filter((card) => card.due <= todayKey)
     .sort((first, second) => {
@@ -3353,6 +3356,19 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  const ensureGermanWordDatabase = () => {
+    germanWordDatabasePromiseRef.current ??= loadGermanWordDatabase().then((words) => {
+      setDatabaseWords(words);
+      return words;
+    });
+    return germanWordDatabasePromiseRef.current;
+  };
+
+  useEffect(() => {
+    if (activeTab !== "library" && !addCardOpen) return;
+    void ensureGermanWordDatabase();
+  }, [activeTab, addCardOpen]);
 
   useEffect(() => {
     setPdfCandidates(state.pdfImport?.candidates ?? []);
