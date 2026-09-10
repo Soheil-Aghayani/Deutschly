@@ -107,7 +107,8 @@ export function parseGeminiCardReview(payload: unknown): GeminiCardReview {
 }
 
 export function geminiReviewUrl(endpoint: string): string {
-  const normalizedEndpoint = endpoint.trim();
+  const configuredBridge = String(import.meta.env.VITE_AI_BRIDGE_URL || "").trim();
+  const normalizedEndpoint = endpoint.trim() || configuredBridge;
   if (!normalizedEndpoint) return "/api/gemini/check-card";
   const fallbackOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost";
 

@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "deutschly-ai",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-09-10",
+  "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast",
+    "ALLOWED_ORIGINS": "https://soheil-aghayani.github.io,https://deutschly-app-2026.web.app,https://deutschly-app-2026.firebaseapp.com,http://localhost:5173,http://127.0.0.1:5173"
+  }
+}

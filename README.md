@@ -120,6 +120,17 @@ If the sync URL is configured in Deutschly, the app uses the same private server
 
 The same private bridge exposes `POST /api/gemini/word-batch` for an A1 or A2 curation pass. It validates the level, removes duplicate headwords, and returns structured records without external sources or URLs. Generated words are written only after the agent validates their shape and deduplicates them against the local database. The route works with either configured AI provider.
 
+### Public AI for the published app
+
+The repository also includes a Cloudflare Workers AI bridge for phones and computers that cannot reach a private PC server. It uses the same AI routes over HTTPS, so users do not install Ollama or configure a Gemini key. The browser only receives the Worker URL; the model runs behind Cloudflare's AI binding. Deploy it from the project folder with:
+
+```powershell
+npm exec --yes wrangler -- login
+npm exec --yes wrangler -- deploy --config wrangler.jsonc
+```
+
+Then set the printed Worker URL as the GitHub repository variable `VITE_AI_BRIDGE_URL` and rerun the Pages workflow. The `ALLOWED_ORIGINS` list in `wrangler.jsonc` limits browser callers to the published app and local development origins. The free plan has daily request and AI-neuron limits, so the app still keeps its local checked word bank available when the AI allowance is full. See [`cloudflare/README.md`](cloudflare/README.md) for the exact deployment and test commands.
+
 To add reviewed Gemini batches to the local database, run the bounded word agent from the project folder. It reads the key from the file, compares every batch with existing headwords, and writes only new records to `src/data/germanWords.generated.json`:
 
 ```powershell

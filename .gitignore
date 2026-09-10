@@ -9,3 +9,6 @@ dist/
 npm-debug.log*
 .deutschly/
 .firebase/
+.wrangler/
+.dev.vars
+.dev.vars.*

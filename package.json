@@ -10,6 +10,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:worker": "node --test cloudflare/worker.node.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "words:agent": "node scripts/german-word-agent.mjs",
