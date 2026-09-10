@@ -1671,6 +1671,130 @@ svg {
   white-space: nowrap;
 }
 
+.article-badge--pos-noun {
+  color: #3864a8;
+  background: #edf3ff;
+  border-color: #d6e3ff;
+}
+
+.article-badge--pos-adjective {
+  color: #956008;
+  background: #fff5d9;
+  border-color: #f5df9f;
+}
+
+.article-badge--pos-verb {
+  color: #2d6a9c;
+  background: #eaf6ff;
+  border-color: #cce8fb;
+}
+
+.article-badge--pos-adverb {
+  color: #7542a5;
+  background: #f3edff;
+  border-color: #dfd1ff;
+}
+
+.article-badge--pos-phrase {
+  color: #a25b1b;
+  background: #fff1e2;
+  border-color: #f6d8b8;
+}
+
+.article-badge--pos-grammar {
+  color: #a33d68;
+  background: #fff0f6;
+  border-color: #f6d2e2;
+}
+
+.article-badge--pos-pronoun,
+.article-badge--pos-conjunction {
+  color: #197667;
+  background: #e8f8f3;
+  border-color: #c9ece2;
+}
+
+.article-badge--pos-preposition,
+.article-badge--pos-particle {
+  color: #49657b;
+  background: #edf4f8;
+  border-color: #d5e3ea;
+}
+
+.article-badge--pos-interjection {
+  color: #a33856;
+  background: #fff0f2;
+  border-color: #f4d1d8;
+}
+
+.article-badge--pos-numeral {
+  color: #765b13;
+  background: #fff6dc;
+  border-color: #f1dfaa;
+}
+
+.app-shell[data-theme="dark"] .article-badge--pos-noun {
+  color: #b7ccff;
+  background: #273b65;
+  border-color: #3c5c98;
+}
+
+.app-shell[data-theme="dark"] .article-badge--pos-adjective {
+  color: #ffd581;
+  background: #55431d;
+  border-color: #80662b;
+}
+
+.app-shell[data-theme="dark"] .article-badge--pos-verb {
+  color: #a7d8ff;
+  background: #1c405a;
+  border-color: #2b648d;
+}
+
+.app-shell[data-theme="dark"] .article-badge--pos-adverb {
+  color: #d3b8ff;
+  background: #3e2d5a;
+  border-color: #674b95;
+}
+
+.app-shell[data-theme="dark"] .article-badge--pos-phrase {
+  color: #ffc18b;
+  background: #513420;
+  border-color: #845634;
+}
+
+.app-shell[data-theme="dark"] .article-badge--pos-grammar {
+  color: #ffb3d1;
+  background: #522c41;
+  border-color: #814463;
+}
+
+.app-shell[data-theme="dark"] .article-badge--pos-pronoun,
+.app-shell[data-theme="dark"] .article-badge--pos-conjunction {
+  color: #9ee6d2;
+  background: #1b4842;
+  border-color: #34786b;
+}
+
+.app-shell[data-theme="dark"] .article-badge--pos-preposition,
+.app-shell[data-theme="dark"] .article-badge--pos-particle {
+  color: #b9d4e5;
+  background: #293b48;
+  border-color: #456273;
+}
+
+.app-shell[data-theme="dark"] .article-badge--pos-interjection {
+  color: #ffb0bf;
+  background: #522b38;
+  border-color: #814353;
+}
+
+.app-shell[data-theme="dark"] .article-badge--pos-numeral {
+  color: #ffda86;
+  background: #55431c;
+  border-color: #80652a;
+}
+
 .side-column {
   gap: 14px;
 }
@@ -3199,6 +3323,31 @@ kbd {
   border-top: 1px solid var(--border);
 }
 
+.word-bank-inbox .word-bank-generated__row {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+}
+
+.word-bank-inbox__select,
+.word-bank-inbox__select-spacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+}
+
+.word-bank-inbox__select {
+  cursor: pointer;
+}
+
+.word-bank-inbox__select input,
+.word-bank-inbox__select-all input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
 .word-bank-generated__row > div {
   display: grid;
   gap: 2px;
@@ -3254,6 +3403,41 @@ kbd {
   text-align: center;
   background: rgba(255, 255, 255, 0.78);
   border-radius: 999px;
+}
+
+.word-bank-inbox__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  margin-top: 10px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.word-bank-inbox__select-all {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  gap: 8px;
+  color: var(--text-strong);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.word-bank-inbox__selected-count {
+  flex: 1 1 auto;
+  min-width: 120px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.word-bank-inbox__bulk-add {
+  min-height: 42px;
+  white-space: nowrap;
 }
 
 .word-bank-inbox__actions {
@@ -8263,15 +8447,33 @@ kbd {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
+  .word-bank-inbox .word-bank-generated__row {
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+
   .word-bank-generated__row .button {
     grid-column: 2;
     justify-self: start;
   }
 
   .word-bank-inbox__actions {
-    grid-column: 2;
+    grid-column: 3;
     justify-content: flex-start;
     width: 100%;
+  }
+
+  .word-bank-inbox__bulk {
+    align-items: flex-start;
+  }
+
+  .word-bank-inbox__selected-count {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .word-bank-inbox__bulk-add {
+    flex: 1 1 100%;
+    justify-content: center;
   }
 
   .library-source-card {

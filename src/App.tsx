@@ -1540,8 +1540,8 @@ function scheduleReview(card: Flashcard, rating: ReviewRating, todayKey: string)
 function ArticleBadge({ article, compact = false, partOfSpeech }: { article: Article; compact?: boolean; partOfSpeech?: string }) {
   const meta = articleMeta[article];
   if (article === "none") {
-    const label = formatGermanPartOfSpeech(partOfSpeech) ?? "phrase";
-    return <span className={`article-badge article-badge--neutral${compact ? " article-badge--compact" : ""}`} title={label}>{label}</span>;
+    const normalizedPartOfSpeech = formatGermanPartOfSpeech(partOfSpeech) ?? "phrase";
+    return <span className={`article-badge article-badge--neutral article-badge--pos-${normalizedPartOfSpeech}${compact ? " article-badge--compact" : ""}`} title={normalizedPartOfSpeech} aria-label={normalizedPartOfSpeech}>{normalizedPartOfSpeech}</span>;
   }
 
   return (
@@ -2702,6 +2702,7 @@ function LibraryPage({
   onSearch,
   onAddCard,
   onAddDatabaseWord,
+  onAddWordBankBatch,
   onOpenSync,
   wordBank,
   wordBankInboxItems,
@@ -2734,6 +2735,7 @@ function LibraryPage({
   onSearch: (value: string) => void;
   onAddCard: () => void;
   onAddDatabaseWord: (word: GermanWordRecord, wordBankId?: string) => void;
+  onAddWordBankBatch: (wordIds: string[]) => void;
   onOpenSync: () => void;
   wordBank: GermanWordRecord[];
   wordBankInboxItems: WordBankInboxItem[];
@@ -2769,6 +2771,7 @@ function LibraryPage({
   const [aiUsageRefreshKey, setAiUsageRefreshKey] = useState(0);
   const [needsCheckOnly, setNeedsCheckOnly] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [selectedWordBankIds, setSelectedWordBankIds] = useState<string[]>([]);
   const [bulkTag, setBulkTag] = useState("");
   const pageSize = useResponsivePageSize();
   const lessons = [...new Set(cards.map((card) => card.lesson).filter(Boolean))].sort();
@@ -2781,6 +2784,8 @@ function LibraryPage({
   const visibleWordBankItems = useMemo(() => wordBankInboxItems.filter((item) => item.decision === wordBankInboxFilter), [wordBankInboxFilter, wordBankInboxItems]);
   const wordBankInboxTotalPages = Math.max(1, Math.ceil(visibleWordBankItems.length / pageSize));
   const paginatedWordBankItems = getPageSlice(visibleWordBankItems, wordBankInboxPage, pageSize);
+  const pendingWordBankIds = useMemo(() => visibleWordBankItems.map(({ word }) => word.id), [visibleWordBankItems]);
+  const allPendingWordBankSelected = pendingWordBankIds.length > 0 && pendingWordBankIds.every((id) => selectedWordBankIds.includes(id));
   const wordBankInboxById = useMemo(() => new Map(wordBankInboxItems.map((item) => [item.word.id, item])), [wordBankInboxItems]);
   const savedWordKeys = useMemo(() => new Set(cards.map((card) => normalizeGermanWord(card.german))), [cards]);
   const handleGenerateWordBatch = async (event: FormEvent<HTMLFormElement>) => {
@@ -2830,6 +2835,13 @@ function LibraryPage({
       return next.length === current.length ? current : next;
     });
   }, [cards]);
+  useEffect(() => {
+    const pendingIds = new Set(wordBankInboxItems.filter((item) => item.decision === "pending").map((item) => item.word.id));
+    setSelectedWordBankIds((current) => {
+      const next = current.filter((id) => pendingIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [wordBankInboxItems]);
   const visibleCardIds = paginatedCards.map((card) => card.id);
   const selectedVisibleCount = visibleCardIds.filter((id) => selectedCardIds.includes(id)).length;
   const allVisibleSelected = visibleCardIds.length > 0 && selectedVisibleCount === visibleCardIds.length;
@@ -2840,6 +2852,14 @@ function LibraryPage({
   };
   const toggleCardSelection = (id: string) => {
     setSelectedCardIds((current) => current.includes(id) ? current.filter((cardId) => cardId !== id) : [...current, id]);
+  };
+  const toggleWordBankSelection = (id: string) => {
+    setSelectedWordBankIds((current) => current.includes(id) ? current.filter((wordId) => wordId !== id) : [...current, id]);
+  };
+  const toggleAllPendingWordBankSelection = () => {
+    setSelectedWordBankIds((current) => allPendingWordBankSelected
+      ? current.filter((id) => !pendingWordBankIds.includes(id))
+      : [...current, ...pendingWordBankIds.filter((id) => !current.includes(id))]);
   };
   const handleBulkTag = () => {
     const tag = bulkTag.trim();
@@ -2907,9 +2927,15 @@ function LibraryPage({
               return <button type="button" key={decision} className={`word-bank-inbox__filter${wordBankInboxFilter === decision ? " word-bank-inbox__filter--active" : ""}`} onClick={() => setWordBankInboxFilter(decision)} aria-pressed={wordBankInboxFilter === decision}>{label} <span>{wordBankInboxCounts[decision]}</span></button>;
             })}
           </div>
+          {wordBankInboxFilter === "pending" && visibleWordBankItems.length > 0 && <div className="word-bank-inbox__bulk">
+            <label className="word-bank-inbox__select-all"><input type="checkbox" checked={allPendingWordBankSelected} onChange={toggleAllPendingWordBankSelection} /><span>Select all {visibleWordBankItems.length} waiting</span></label>
+            <span className="word-bank-inbox__selected-count" role="status" aria-live="polite">{selectedWordBankIds.length > 0 ? `${selectedWordBankIds.length} selected` : "Choose words to add together"}</span>
+            <button type="button" className="button button--outline word-bank-inbox__bulk-add" onClick={() => onAddWordBankBatch(selectedWordBankIds)} disabled={selectedWordBankIds.length === 0}><CheckCircle2 size={15} aria-hidden="true" /> Add selected cards</button>
+          </div>}
           {visibleWordBankItems.length > 0 ? <>
           <div className="word-bank-generated__list">
             {paginatedWordBankItems.map(({ word, decision }) => <div className={`word-bank-generated__row word-bank-generated__row--${decision}`} key={word.id}>
+              {decision === "pending" ? <label className="word-bank-inbox__select"><input type="checkbox" checked={selectedWordBankIds.includes(word.id)} onChange={() => toggleWordBankSelection(word.id)} /><span className="sr-only">Select {word.german}</span></label> : <span className="word-bank-inbox__select-spacer" aria-hidden="true" />}
               <ArticleBadge article={word.article} partOfSpeech={word.partOfSpeech} compact />
               <div><strong>{word.german}</strong><span>{word.englishMeanings.join(" / ")}</span></div>
               <div className="word-bank-inbox__actions">
@@ -4262,6 +4288,82 @@ export default function App() {
     handleOpenAddCard(germanWordToCardDraft(word), wordBankId ?? null);
   };
 
+  const handleAddWordBankBatch = (wordIds: string[]) => {
+    const selectedIds = [...new Set(wordIds)];
+    if (selectedIds.length === 0) return;
+    const selectedWords = selectedIds
+      .map((id) => wordBank.find((word) => word.id === id))
+      .filter((word): word is GermanWordRecord => Boolean(word));
+    if (selectedWords.length === 0) return;
+
+    const createdAt = new Date().toISOString();
+    const batchId = Date.now();
+    let addedCount = 0;
+    let existingCount = 0;
+    let needsReviewCount = 0;
+    setState((current) => {
+      const nextCards = [...current.cards];
+      const wordBankDecisions = { ...current.wordBankDecisions };
+      const wordBankDecisionUpdatedAt = { ...current.wordBankDecisionUpdatedAt };
+
+      selectedWords.forEach((word, index) => {
+        const preparedDraft = prepareCardDraft(createCardDraft(germanWordToCardDraft(word)));
+        const match = findCardMatch(nextCards, preparedDraft);
+        if (match?.type === "exact") {
+          existingCount += 1;
+          wordBankDecisions[word.id] = "added";
+          wordBankDecisionUpdatedAt[word.id] = createdAt;
+          return;
+        }
+        if (match?.type === "possible") {
+          needsReviewCount += 1;
+          return;
+        }
+
+        nextCards.unshift({
+          id: `custom-${batchId}-${index}`,
+          german: preparedDraft.german,
+          translation: preparedDraft.translation,
+          article: preparedDraft.article,
+          partOfSpeech: preparedDraft.partOfSpeech,
+          plural: preparedDraft.plural || undefined,
+          example: preparedDraft.example || undefined,
+          note: preparedDraft.note || undefined,
+          tags: normalizeTags(preparedDraft.tags.split(",")),
+          sourcePage: preparedDraft.sourcePage,
+          lesson: preparedDraft.lesson,
+          deck: "My cards",
+          kind: preparedDraft.kind,
+          due: todayKey,
+          interval: 0,
+          status: "new",
+          stability: 0.7,
+          difficulty: 5,
+          verification: "unverified",
+          updatedAt: createdAt,
+        });
+        wordBankDecisions[word.id] = "added";
+        wordBankDecisionUpdatedAt[word.id] = createdAt;
+        addedCount += 1;
+      });
+
+      return {
+        ...current,
+        cards: nextCards,
+        wordBankDecisions,
+        wordBankDecisionUpdatedAt,
+        lastSyncedAt: createdAt,
+      };
+    });
+
+    const summary = [
+      addedCount > 0 ? `${addedCount} card${addedCount === 1 ? "" : "s"} added to your review queue` : "",
+      existingCount > 0 ? `${existingCount} already in your library` : "",
+      needsReviewCount > 0 ? `${needsReviewCount} need individual review because the meaning may differ` : "",
+    ].filter(Boolean).join(" · ");
+    showToast(summary || "No cards were added.");
+  };
+
   const handleWordBankDecision = (wordId: string, decision: WordBankDecision) => {
     const updatedAt = new Date().toISOString();
     setState((current) => ({
@@ -5371,7 +5473,7 @@ export default function App() {
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={studyCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} onCompleteSession={handlePracticeComplete} />}
-          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} wordBankInboxItems={wordBankInboxItems} onWordBankDecision={handleWordBankDecision} onGenerateWordBatch={handleGenerateWordBatch} aiEndpoint={syncEndpoint} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
+          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onAddWordBankBatch={handleAddWordBankBatch} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} wordBankInboxItems={wordBankInboxItems} onWordBankDecision={handleWordBankDecision} onGenerateWordBatch={handleGenerateWordBatch} aiEndpoint={syncEndpoint} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onStartReview={handleStartReview} />}
         </main>
       </div>
