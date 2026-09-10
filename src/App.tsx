@@ -285,13 +285,44 @@ function firebaseErrorMessage(error: unknown, context: FirebaseErrorContext = "a
     if (context === "sync") return "Deutschly could not reach the cloud. Turn on your VPN and try syncing again.";
     return "Deutschly could not reach the account service. Turn on your VPN and try again.";
   }
+  const message = error instanceof Error ? error.message : "";
+  if (code === "auth/popup-blocked") return "Google sign-in was blocked by the browser. Allow popups for Deutschly, then try again, or continue as a guest.";
+  if (code === "auth/missing-initial-state" || /missing initial state|sessionStorage|storage-partitioned/i.test(message)) {
+    return "Google sign-in needs a fresh browser session. Open Deutschly in Chrome or Safari, refresh once, and try again, or continue as a guest.";
+  }
   if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return "The sign-in window was closed.";
   if (code === "auth/operation-not-allowed") return "This sign-in provider is not enabled in Firebase yet.";
   if (code === "auth/unauthorized-domain") return "Add this website to Firebase Authentication authorized domains.";
   if (code === "auth/requires-recent-login") return "Sign in again, then retry account deletion for security.";
   if (code === "permission-denied" || code === "firestore/permission-denied") return "Firebase denied access. Check the Firestore rules for this account.";
-  if (error instanceof Error && error.message.trim()) return error.message;
+  if (message.trim()) return message;
   return "Firebase could not complete the account or sync request.";
+}
+
+function canUseBrowserSessionStorage(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const key = "deutschly:auth-storage-check";
+    window.sessionStorage.setItem(key, "ok");
+    window.sessionStorage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isMobileAuthBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const coarsePointer = typeof window !== "undefined"
+    && typeof window.matchMedia === "function"
+    && window.matchMedia("(pointer: coarse)").matches;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || coarsePointer;
+}
+
+function shouldUseFirebaseRedirect(): boolean {
+  if (typeof window === "undefined") return false;
+  const firebaseHost = /(^|\.)web\.app$|(^|\.)firebaseapp\.com$/i.test(window.location.hostname);
+  return firebaseHost && !isMobileAuthBrowser() && canUseBrowserSessionStorage();
 }
 
 const navItems: Array<{ id: Tab; label: string; icon: LucideIcon }> = [
@@ -4313,7 +4344,7 @@ export default function App() {
     setFirebaseBusy(true);
     setFirebaseError(null);
     try {
-      const useRedirect = /(^|\.)web\.app$|(^|\.)firebaseapp\.com$/i.test(window.location.hostname);
+      const useRedirect = shouldUseFirebaseRedirect();
       const user = await signInWithFirebaseProvider(provider, useRedirect);
       if (user) {
         setFirebaseUser(user);
