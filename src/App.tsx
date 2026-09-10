@@ -75,8 +75,8 @@ import {
   subscribeToFirebaseAuth,
 } from "./lib/firebase";
 import type { FirebaseAuthProvider, FirebaseUserSummary } from "./lib/firebase";
-import { generateGermanWordBatch, reviewCardWithGemini } from "./lib/gemini";
-import type { GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel } from "./lib/gemini";
+import { generateGermanWordBatch, getAiUsageStatus, reviewCardWithGemini } from "./lib/gemini";
+import type { AiUsageStatus, GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel } from "./lib/gemini";
 import { playPracticeFeedbackSound } from "./lib/feedbackSounds";
 import { isGermanWordRecord, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./data/germanWordsCore";
 import type { GermanWordRecord } from "./data/germanWordsCore";
@@ -1765,6 +1765,7 @@ function StudyPage({
   reminderTime,
   sessionReviewed,
   sessionTotal,
+  queueSession,
   showAnswer,
   onShowAnswer,
   onRate,
@@ -1775,6 +1776,7 @@ function StudyPage({
   reminderTime: string;
   sessionReviewed: number;
   sessionTotal: number;
+  queueSession: boolean;
   showAnswer: boolean;
   onShowAnswer: () => void;
   onRate: (rating: ReviewRating) => void;
@@ -1789,9 +1791,9 @@ function StudyPage({
         <button type="button" className="back-button" onClick={onBack}><ArrowLeft size={17} aria-hidden="true" /> Back to overview</button>
         <div className="complete-card">
           <div className="complete-card__icon" aria-hidden="true"><Sparkles size={28} /></div>
-          <span className="page-kicker">Review session complete</span>
-          <h1>Alles klar.</h1>
-          <p>You are all caught up for now. Come back when the next review window opens.</p>
+          <span className="page-kicker">{queueSession ? "Selected review complete" : "Review session complete"}</span>
+          <h1>{queueSession ? "Queue cleared." : "Alles klar."}</h1>
+          <p>{queueSession ? `You reviewed ${sessionReviewed} selected card${sessionReviewed === 1 ? "" : "s"}.` : "You are all caught up for now. Come back when the next review window opens."}</p>
           <div className="complete-card__actions">
             <button type="button" className="button button--primary" onClick={onBack}>Back to overview <ArrowRight size={16} aria-hidden="true" /></button>
             <button type="button" className="button button--outline" onClick={onAddCard}><Plus size={16} aria-hidden="true" /> Add a card</button>
@@ -1802,15 +1804,15 @@ function StudyPage({
   }
 
   const total = Math.max(sessionTotal, dueCards.length, 1);
-  const currentPosition = Math.min(sessionReviewed + 1, total);
-  const progress = Math.max(10, Math.round((sessionReviewed / total) * 100));
+  const remaining = Math.max(total - sessionReviewed, 0);
+  const progress = Math.min(100, Math.round((sessionReviewed / total) * 100));
   const displayWord = `${card.article !== "none" ? `${card.article} ` : ""}${card.german}`;
 
   return (
     <div className="page-stack study-page">
       <div className="study-topbar">
         <button type="button" className="back-button" onClick={onBack}><ArrowLeft size={17} aria-hidden="true" /> Back to overview</button>
-        <div className="study-counter"><strong>{currentPosition}</strong><span>of {total} cards</span></div>
+        <div className="study-counter" aria-label={`${sessionReviewed} cards reviewed, ${remaining} cards remaining`}><strong>{sessionReviewed}</strong><span>reviewed · {remaining} left</span></div>
       </div>
       <div className="study-progress-bar" aria-label={`${progress}% of review session`}><span style={{ width: `${progress}%` }} /></div>
 
@@ -2395,6 +2397,86 @@ function ResourceShelf() {
   );
 }
 
+function formatUsageCountdown(seconds: number | null): string {
+  if (seconds === null) return "unknown";
+  if (seconds <= 0) return "now";
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds === 0 ? `${minutes}m` : `${minutes}m ${remainingSeconds}s`;
+}
+
+function AiQuotaStatus({ endpoint, refreshKey }: { endpoint: string; refreshKey: number }) {
+  const [usage, setUsage] = useState<AiUsageStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [manualRefreshKey, setManualRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const nextUsage = await getAiUsageStatus(endpoint);
+        if (!mounted) return;
+        setUsage(nextUsage);
+        setError(null);
+      } catch (nextError) {
+        if (!mounted) return;
+        setError(nextError instanceof Error ? nextError.message : "AI usage is unavailable right now.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void load();
+    const refreshTimer = window.setInterval(() => void load(), 60_000);
+    return () => {
+      mounted = false;
+      window.clearInterval(refreshTimer);
+    };
+  }, [endpoint, manualRefreshKey, refreshKey]);
+
+  useEffect(() => {
+    const clock = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(clock);
+  }, []);
+
+  const secondsUntil = (value?: string) => {
+    if (!value) return null;
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) ? Math.max(0, Math.ceil((timestamp - now) / 1_000)) : null;
+  };
+  const windowCountdown = secondsUntil(usage?.resetAt);
+  const dailyCountdown = secondsUntil(usage?.dailyResetAt);
+  const remaining = usage?.remaining ?? null;
+  const limit = usage?.limit ?? null;
+
+  return (
+    <div className="ai-usage-status" role="status" aria-live="polite" aria-busy={loading}>
+      <span className="ai-usage-status__icon" aria-hidden="true"><Activity size={15} /></span>
+      <div className="ai-usage-status__copy">
+        <div className="ai-usage-status__heading">
+          <strong>AI availability</strong>
+          {limit !== null && <span>{remaining} of {limit} requests left</span>}
+        </div>
+        {usage ? (
+          <small>
+            {limit !== null ? `This window resets in ${formatUsageCountdown(windowCountdown)}.` : "The local AI bridge controls its own provider limit."}
+            {usage.dailyNeurons ? ` Daily pool: ${usage.dailyNeurons.toLocaleString()} neurons; resets in ${formatUsageCountdown(dailyCountdown)}.` : ""}
+          </small>
+        ) : (
+          <small>{loading ? "Checking the AI bridge..." : error || "Usage information is not available."}</small>
+        )}
+      </div>
+      <button type="button" className="icon-button icon-button--small ai-usage-status__refresh" onClick={() => setManualRefreshKey((current) => current + 1)} disabled={loading} aria-label="Refresh AI usage" title="Refresh AI usage">
+        <RefreshCw size={14} className={loading ? "spin" : undefined} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 function LibraryPage({
   cards,
   searchQuery,
@@ -2412,6 +2494,7 @@ function LibraryPage({
   onOpenSync,
   wordBank,
   onGenerateWordBatch,
+  aiEndpoint,
   onEditCard,
   weakCardsOnly,
   onWeakCardsOnlyChange,
@@ -2423,6 +2506,7 @@ function LibraryPage({
   onBulkDelete,
   onBulkTag,
   onBulkExport,
+  onStartReviewQueue,
 }: {
   cards: Flashcard[];
   searchQuery: string;
@@ -2440,6 +2524,7 @@ function LibraryPage({
   onOpenSync: () => void;
   wordBank: GermanWordRecord[];
   onGenerateWordBatch: (level: GermanWordBatchLevel, count: number) => Promise<GermanWordRecord[]>;
+  aiEndpoint: string;
   onEditCard: (card: Flashcard) => void;
   weakCardsOnly: boolean;
   onWeakCardsOnlyChange: (value: boolean) => void;
@@ -2451,6 +2536,7 @@ function LibraryPage({
   onBulkDelete: (ids: string[]) => void;
   onBulkTag: (ids: string[], tag: string) => void;
   onBulkExport: (ids: string[]) => void;
+  onStartReviewQueue: (ids: string[]) => void;
 }) {
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
@@ -2463,6 +2549,7 @@ function LibraryPage({
   const [wordBankGenerating, setWordBankGenerating] = useState(false);
   const [wordBankError, setWordBankError] = useState<string | null>(null);
   const [lastGeneratedWords, setLastGeneratedWords] = useState<GermanWordRecord[]>([]);
+  const [aiUsageRefreshKey, setAiUsageRefreshKey] = useState(0);
   const [needsCheckOnly, setNeedsCheckOnly] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [bulkTag, setBulkTag] = useState("");
@@ -2484,6 +2571,7 @@ function LibraryPage({
       setWordBankError(error instanceof Error ? error.message : "The AI could not generate new words. Check the sync server and try again.");
     } finally {
       setWordBankGenerating(false);
+      setAiUsageRefreshKey((current) => current + 1);
     }
   };
   const filteredCards = cards.filter((card) => {
@@ -2571,6 +2659,7 @@ function LibraryPage({
           </form>
         </div>
         {wordBankError && <div className="word-bank-generator__error" role="alert"><Info size={15} aria-hidden="true" /><span>{wordBankError}</span><button type="button" className="text-button" onClick={onOpenSync}><Cloud size={14} aria-hidden="true" /> Set up AI bridge</button></div>}
+        <AiQuotaStatus endpoint={aiEndpoint} refreshKey={aiUsageRefreshKey} />
         {lastGeneratedWords.length > 0 && <div className="word-bank-generated" aria-live="polite">
           <div className="word-bank-generated__heading"><div><strong>{lastGeneratedWords.length} new {lastGeneratedWords.length === 1 ? "word" : "words"} added</strong><span>Saved to your word bank. Backup or sync it when you are ready.</span></div><span>{wordBankLevel}</span></div>
           <div className="word-bank-generated__list">
@@ -2614,6 +2703,7 @@ function LibraryPage({
         {selectedCardIds.length > 0 && <div className="library-bulk-toolbar__actions">
           <label className="library-bulk-tag" htmlFor="bulk-card-tag"><span className="sr-only">Tag selected cards</span><input id="bulk-card-tag" value={bulkTag} onChange={(event) => setBulkTag(event.target.value.slice(0, 24))} placeholder="Add a tag" maxLength={24} /></label>
           <button type="button" className="button button--outline" onClick={handleBulkTag} disabled={!bulkTag.trim()}>Add tag</button>
+          <button type="button" className="button button--primary" onClick={() => onStartReviewQueue(selectedCardIds)}><Play size={15} aria-hidden="true" /> Review selected</button>
           <button type="button" className="button button--outline" onClick={() => onBulkExport(selectedCardIds)}><Download size={15} aria-hidden="true" /> Export selected</button>
           <button type="button" className="button button--ghost settings-danger-action" onClick={() => onBulkDelete(selectedCardIds)}><Trash2 size={15} aria-hidden="true" /> Delete selected</button>
           <button type="button" className="text-button" onClick={() => setSelectedCardIds([])}>Clear selection</button>
@@ -3502,6 +3592,7 @@ export default function App() {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermissionState>(() => getNotificationPermission());
   const [activeTab, setActiveTab] = useState<Tab>(() => getInitialTab());
   const [studySession, setStudySession] = useState({ reviewed: 0, total: 0 });
+  const [studyQueueIds, setStudyQueueIds] = useState<string[] | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [addCardOpen, setAddCardOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -3567,6 +3658,9 @@ export default function App() {
       if (difficultyOrder !== 0) return difficultyOrder;
       return timestamp(first.lastReviewedAt) - timestamp(second.lastReviewedAt);
     }), [state.cards, todayKey]);
+  const studyCards = useMemo(() => studyQueueIds === null
+    ? dueCards
+    : studyQueueIds.map((id) => state.cards.find((card) => card.id === id)).filter((card): card is Flashcard => Boolean(card)), [dueCards, state.cards, studyQueueIds]);
   const syncConfigured = Boolean(syncEndpoint.trim() && syncRoom.length >= 6);
   const syncFingerprint = useMemo(() => getSyncFingerprint(state), [state]);
   const showInstallPrompt = !installDismissed && !installPrompt.isInstalled && (installPrompt.canInstall || installPrompt.isIos || installPrompt.isMobile);
@@ -3610,6 +3704,13 @@ export default function App() {
   useEffect(() => {
     updateReviewBadge(dueCards.length);
   }, [dueCards.length]);
+
+  useEffect(() => {
+    if (studyQueueIds === null || studyQueueIds.length === 0) return;
+    const existingIds = new Set(state.cards.map((card) => card.id));
+    const validIds = studyQueueIds.filter((id) => existingIds.has(id));
+    if (validIds.length !== studyQueueIds.length) setStudyQueueIds(validIds);
+  }, [state.cards, studyQueueIds]);
 
   useEffect(() => {
     const refreshNotificationPermission = () => setNotificationPermission(getNotificationPermission());
@@ -3679,7 +3780,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeTab, addCardOpen, showAnswer, dueCards]);
+  }, [activeTab, addCardOpen, showAnswer, dueCards, studyCards]);
 
   const showToast = (message: string, action?: ToastAction) => {
     setToast({ message, action });
@@ -3923,20 +4024,36 @@ export default function App() {
   };
 
   const handleTabChange = (tab: Tab) => {
-    if (tab === "study" && activeTab !== "study") setStudySession({ reviewed: 0, total: dueCards.length });
+    if (tab === "study" && activeTab !== "study" && (studyQueueIds === null || studyQueueIds.length === 0)) {
+      setStudyQueueIds(null);
+      setStudySession({ reviewed: 0, total: dueCards.length });
+    }
     setActiveTab(tab);
     if (tab !== "study") setShowAnswer(false);
   };
 
   const handleStartReview = () => {
     if (dueCards.length === 0) {
+      setStudyQueueIds(null);
       setActiveTab("practice");
       setShowAnswer(false);
       return;
     }
+    setStudyQueueIds(null);
     setStudySession({ reviewed: 0, total: dueCards.length });
     setActiveTab("study");
     setShowAnswer(false);
+  };
+
+  const handleStartReviewQueue = (ids: string[]) => {
+    const existingIds = new Set(stateRef.current.cards.map((card) => card.id));
+    const queueIds = ids.filter((id, index) => existingIds.has(id) && ids.indexOf(id) === index);
+    if (queueIds.length === 0) return;
+    setStudyQueueIds(queueIds);
+    setStudySession({ reviewed: 0, total: queueIds.length });
+    setActiveTab("study");
+    setShowAnswer(false);
+    showToast(`Review queue ready with ${queueIds.length} cards.`);
   };
 
   const handlePracticeXp = (amount: number) => {
@@ -3992,8 +4109,9 @@ export default function App() {
   };
 
   function handleRate(rating: ReviewRating) {
-    const card = dueCards[0];
+    const card = studyCards[0];
     if (!card) return;
+    const wasQueueSession = studyQueueIds !== null;
     const previousState = stateRef.current;
     const previousCard = previousState.cards.find((item) => item.id === card.id);
     if (!previousCard) return;
@@ -4037,6 +4155,9 @@ export default function App() {
       };
     });
     setStudySession((current) => ({ ...current, reviewed: Math.min(current.reviewed + 1, Math.max(current.total, 1)) }));
+    if (wasQueueSession) {
+      setStudyQueueIds((current) => current ? current.filter((id) => id !== card.id) : current);
+    }
     setShowAnswer(false);
     showToast(`${rating === "again" ? "We’ll bring it back tomorrow" : `Next review in ${schedule.interval} days`} · +${xpAward} XP`, {
       label: "Undo",
@@ -4060,6 +4181,7 @@ export default function App() {
           lastSyncedAt: restoredAt,
         }));
         setStudySession((current) => ({ ...current, reviewed: Math.max(0, current.reviewed - 1) }));
+        if (wasQueueSession) setStudyQueueIds((current) => current && !current.includes(previousCard.id) ? [previousCard.id, ...current] : current);
         setShowAnswer(false);
         showToast(`${previousCard.german} review undone.`);
       },
@@ -4771,9 +4893,9 @@ export default function App() {
 
         <main id="main-content" className="main-content">
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
-          {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
+          {activeTab === "study" && <StudyPage dueCards={studyCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} onCompleteSession={handlePracticeComplete} />}
-          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} onGenerateWordBatch={handleGenerateWordBatch} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} />}
+          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} onGenerateWordBatch={handleGenerateWordBatch} aiEndpoint={syncEndpoint} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} onStartReview={handleStartReview} />}
         </main>
       </div>

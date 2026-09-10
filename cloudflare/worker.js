@@ -2,6 +2,7 @@ const DEFAULT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const MAX_BODY_BYTES = 48 * 1024;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 12;
+const CLOUDFLARE_FREE_DAILY_NEURONS = 10_000;
 const rateBuckets = new Map();
 
 const ARTICLES = new Set(["der", "die", "das", "plural", "none"]);
@@ -452,17 +453,69 @@ async function readJson(request) {
   }
 }
 
+function rateLimitKey(request) {
+  return request.headers.get("CF-Connecting-IP") || "unknown";
+}
+
+function nextUtcReset(now) {
+  const reset = new Date(now);
+  reset.setUTCHours(24, 0, 0, 0);
+  return reset.toISOString();
+}
+
+function getRateLimitState(request, now = Date.now()) {
+  const key = rateLimitKey(request);
+  const existing = rateBuckets.get(key);
+  if (!existing || now - existing.startedAt >= RATE_LIMIT_WINDOW_MS) {
+    return {
+      key,
+      count: 0,
+      limit: RATE_LIMIT_MAX,
+      remaining: RATE_LIMIT_MAX,
+      resetAt: new Date(now + RATE_LIMIT_WINDOW_MS).toISOString(),
+    };
+  }
+  return {
+    key,
+    count: existing.count,
+    limit: RATE_LIMIT_MAX,
+    remaining: Math.max(0, RATE_LIMIT_MAX - existing.count),
+    resetAt: new Date(existing.startedAt + RATE_LIMIT_WINDOW_MS).toISOString(),
+  };
+}
+
+function rateLimitHeaders(state) {
+  return {
+    "X-AI-RateLimit-Limit": String(state.limit),
+    "X-AI-RateLimit-Remaining": String(state.remaining),
+    "X-AI-RateLimit-Reset": String(Math.ceil(Date.parse(state.resetAt) / 1_000)),
+  };
+}
+
+function usagePayload(request) {
+  const state = getRateLimitState(request);
+  return {
+    scope: "cloudflare-worker-ip-minute",
+    limit: state.limit,
+    remaining: state.remaining,
+    resetAt: state.resetAt,
+    dailyNeurons: CLOUDFLARE_FREE_DAILY_NEURONS,
+    dailyResetAt: nextUtcReset(Date.now()),
+  };
+}
+
 function consumeRateLimit(request) {
+  const state = getRateLimitState(request);
+  if (state.remaining <= 0) return { ...state, allowed: false };
   const key = request.headers.get("CF-Connecting-IP") || "unknown";
   const now = Date.now();
   const existing = rateBuckets.get(key);
   if (!existing || now - existing.startedAt >= RATE_LIMIT_WINDOW_MS) {
     rateBuckets.set(key, { startedAt: now, count: 1 });
-    return true;
+  } else {
+    existing.count += 1;
   }
-  if (existing.count >= RATE_LIMIT_MAX) return false;
-  existing.count += 1;
-  return true;
+  return { ...getRateLimitState(request), allowed: true };
 }
 
 async function handleWordBatch(request, env) {
@@ -506,15 +559,19 @@ export default {
     if (request.method === "GET" && url.pathname === "/api/health") {
       return json(request, env, 200, { app: "deutschly-ai", version: 1, status: "ok", provider: "cloudflare-workers-ai", model: env.AI_MODEL || DEFAULT_MODEL });
     }
+    if (request.method === "GET" && url.pathname === "/api/usage") {
+      return json(request, env, 200, { usage: usagePayload(request) }, rateLimitHeaders(getRateLimitState(request)));
+    }
 
     const isCardRoute = request.method === "POST" && url.pathname === "/api/gemini/check-card";
     const isWordRoute = request.method === "POST" && url.pathname === "/api/gemini/word-batch";
     if (!isCardRoute && !isWordRoute) return json(request, env, 404, { error: "Not found" });
     if (!allowedOrigin(request, env) && request.headers.get("Origin")) return json(request, env, 403, { error: "This origin is not allowed." });
-    if (!consumeRateLimit(request)) return json(request, env, 429, { error: "Too many AI requests. Try again in a minute." }, { "Retry-After": "60" });
+    const rateLimit = consumeRateLimit(request);
+    if (!rateLimit.allowed) return json(request, env, 429, { error: "Too many AI requests. Try again in a minute." }, { ...rateLimitHeaders(rateLimit), "Retry-After": "60" });
 
     try {
-      return json(request, env, 200, isCardRoute ? await handleCardReview(request, env) : await handleWordBatch(request, env));
+      return json(request, env, 200, isCardRoute ? await handleCardReview(request, env) : await handleWordBatch(request, env), rateLimitHeaders(rateLimit));
     } catch (error) {
       const status = error instanceof WorkerError ? error.status : 500;
       const message = error instanceof WorkerError ? error.message : "The AI service could not complete this request.";

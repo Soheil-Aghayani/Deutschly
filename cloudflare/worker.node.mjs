@@ -60,6 +60,16 @@ test("returns a health response", async () => {
   assert.equal((await response.json()).status, "ok");
 });
 
+test("reports the protective request window without consuming it", async () => {
+  const response = await worker.fetch(request("/api/usage", undefined, "10.0.0.1"), env);
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.usage.limit, 12);
+  assert.equal(payload.usage.remaining, 12);
+  assert.equal(response.headers.get("X-AI-RateLimit-Remaining"), "12");
+  assert.equal(payload.usage.dailyNeurons, 10_000);
+});
+
 test("reviews a card and generates a normalized word", async () => {
   const reviewResponse = await worker.fetch(request("/api/gemini/check-card", {
     card: {

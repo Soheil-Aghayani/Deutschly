@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { generateGermanWordBatch, geminiReviewUrl, geminiWordBatchUrl, parseGeminiCardReview, parseGermanWordBatch, reviewCardWithGemini } from "./gemini";
+import { aiUsageUrl, generateGermanWordBatch, geminiReviewUrl, geminiWordBatchUrl, getAiUsageStatus, parseAiUsageStatus, parseGeminiCardReview, parseGermanWordBatch, reviewCardWithGemini } from "./gemini";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -92,6 +92,40 @@ describe("Gemini German word agent bridge", () => {
     expect(geminiWordBatchUrl("")).toBe("/api/gemini/word-batch");
     expect(geminiWordBatchUrl("/api/sync")).toBe("/api/gemini/word-batch");
     expect(geminiWordBatchUrl("http://192.168.1.20:8787/api/sync")).toBe("http://192.168.1.20:8787/api/gemini/word-batch");
+  });
+
+  it("maps the sync server URL to the AI usage route", () => {
+    expect(aiUsageUrl("/api/sync")).toBe("/api/usage");
+  });
+
+  it("parses the AI usage window and daily allocation", () => {
+    expect(parseAiUsageStatus({
+      usage: {
+        scope: "cloudflare-worker-ip-minute",
+        limit: 12,
+        remaining: 9,
+        resetAt: "2026-09-10T20:00:00.000Z",
+        dailyNeurons: 10_000,
+        dailyResetAt: "2026-09-11T00:00:00.000Z",
+      },
+    })).toEqual({
+      scope: "cloudflare-worker-ip-minute",
+      limit: 12,
+      remaining: 9,
+      resetAt: "2026-09-10T20:00:00.000Z",
+      dailyNeurons: 10_000,
+      dailyResetAt: "2026-09-11T00:00:00.000Z",
+    });
+  });
+
+  it("loads AI usage without sending a body", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      usage: { scope: "cloudflare-worker-ip-minute", limit: 12, remaining: 12 },
+    }), { status: 200 }));
+    const result = await getAiUsageStatus("/api/sync");
+
+    expect(result.remaining).toBe(12);
+    expect(fetchMock).toHaveBeenCalledWith("/api/usage", expect.objectContaining({ method: "GET", cache: "no-store" }));
   });
 
   it("parses a structured batch without requiring source fields", () => {

@@ -5,6 +5,7 @@ This Worker gives the published app a public HTTPS AI endpoint without putting a
 - `POST /api/gemini/check-card`
 - `POST /api/gemini/word-batch`
 - `GET /api/health`
+- `GET /api/usage`
 
 ## Deploy
 
@@ -32,4 +33,4 @@ The Worker allowlist is in `wrangler.jsonc`. Add another exact HTTPS origin ther
 Invoke-RestMethod 'https://deutschly-ai.<your-subdomain>.workers.dev/api/health'
 ```
 
-Cloudflare's free Workers plan includes a daily request allowance, and Workers AI has a separate free daily neuron allowance. If the AI allowance is exhausted, the Worker returns a clear temporary-quota error and the checked local word bank remains usable.
+The app displays the bridge's protective per-IP request window through `/api/usage`. This is separate from Cloudflare's account-level daily Workers AI neuron allowance, which remains visible in the Cloudflare dashboard. If the AI allowance is exhausted, the Worker returns a clear temporary-quota error and the checked local word bank remains usable.

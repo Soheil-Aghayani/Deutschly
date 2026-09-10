@@ -49,6 +49,15 @@ export interface GermanWordBatchResponse {
   model?: string;
 }
 
+export interface AiUsageStatus {
+  scope: string;
+  limit: number | null;
+  remaining: number | null;
+  resetAt?: string;
+  dailyNeurons?: number;
+  dailyResetAt?: string;
+}
+
 export class GeminiRequestError extends Error {
   status: number;
 
@@ -174,6 +183,53 @@ export async function reviewCardWithGemini(endpoint: string, input: GeminiCardRe
 
 export function geminiWordBatchUrl(endpoint: string): string {
   return geminiReviewUrl(endpoint).replace(/\/check-card$/, "/word-batch");
+}
+
+export function aiUsageUrl(endpoint: string): string {
+  return geminiReviewUrl(endpoint).replace(/\/api\/gemini\/check-card$/, "/api/usage");
+}
+
+function readOptionalNumber(value: unknown, field: string): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new GeminiRequestError(`The AI returned an invalid ${field}.`);
+  return value;
+}
+
+function readOptionalIsoDate(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new GeminiRequestError(`The AI returned an invalid ${field}.`);
+  return value;
+}
+
+export function parseAiUsageStatus(payload: unknown): AiUsageStatus {
+  const source = isRecord(payload) && isRecord(payload.usage) ? payload.usage : payload;
+  if (!isRecord(source)) throw new GeminiRequestError("The AI returned an invalid usage status.");
+  const dailyNeurons = readOptionalNumber(source.dailyNeurons, "daily neuron allocation");
+  const resetAt = readOptionalIsoDate(source.resetAt, "usage reset time");
+  const dailyResetAt = readOptionalIsoDate(source.dailyResetAt, "daily reset time");
+  return {
+    scope: readText(source.scope ?? "unknown", "usage scope", 64),
+    limit: readOptionalNumber(source.limit, "usage limit"),
+    remaining: readOptionalNumber(source.remaining, "remaining usage"),
+    ...(resetAt ? { resetAt } : {}),
+    ...(dailyNeurons === null ? {} : { dailyNeurons }),
+    ...(dailyResetAt ? { dailyResetAt } : {}),
+  };
+}
+
+export async function getAiUsageStatus(endpoint: string): Promise<AiUsageStatus> {
+  let response: Response;
+  try {
+    response = await fetch(aiUsageUrl(endpoint), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch {
+    throw new GeminiRequestError(bridgeUnavailableMessage());
+  }
+
+  return parseAiUsageStatus(await readResponse(response));
 }
 
 function readStringArray(value: unknown, field: string, maxItems: number, maxLength: number): string[] {

@@ -711,6 +711,17 @@ async function handleRequest(request, response) {
     return;
   }
 
+  if (request.method === "GET" && requestUrl.pathname === "/api/usage") {
+    sendJson(request, response, 200, {
+      usage: {
+        scope: "local-server-provider",
+        limit: null,
+        remaining: null,
+      },
+    });
+    return;
+  }
+
   if (request.method === "POST" && requestUrl.pathname === "/api/gemini/check-card") {
     const apiKey = await readAiApiKey();
     if (!(await isAiConfigured())) {
