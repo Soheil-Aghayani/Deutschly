@@ -198,6 +198,8 @@ interface StatCardProps {
   detail: string;
   tone: "indigo" | "orange" | "mint";
   menuItems?: OverflowMenuItem[];
+  active?: boolean;
+  complete?: boolean;
 }
 
 interface OverflowMenuItem {
@@ -1419,10 +1421,10 @@ function useModalFocus<T extends HTMLElement>(onClose?: () => void, preferredFoc
   return panelRef;
 }
 
-function StatCard({ icon: Icon, label, value, detail, tone, menuItems = [] }: StatCardProps) {
+function StatCard({ icon: Icon, label, value, detail, tone, menuItems = [], active = false, complete = false }: StatCardProps) {
   return (
-    <article className="stat-card">
-      <div className={`stat-card__icon stat-card__icon--${tone}`} aria-hidden="true">
+    <article className={`stat-card${active ? " stat-card--active" : ""}${complete ? " stat-card--complete" : ""}`}>
+      <div className={`stat-card__icon stat-card__icon--${tone}${active ? " stat-card__icon--active" : ""}${complete ? " stat-card__icon--complete" : ""}`} aria-hidden="true">
         <Icon size={18} strokeWidth={2.2} />
       </div>
       <div className="stat-card__content">
@@ -1494,6 +1496,8 @@ function OverviewPage({
   reminderSnoozedUntil: number | null;
 }) {
   const progress = Math.min(100, Math.round((state.reviewsToday / state.dailyGoal) * 100));
+  const hasActivityToday = state.reviewsToday > 0;
+  const goalComplete = progress >= 100;
   const dateLabel = formatDate(currentTime);
   const greeting = getGreeting(currentTime);
   const reminderTarget = reminderSnoozedUntil ? new Date(reminderSnoozedUntil) : getNextReminderAt(state.reminderTime, currentTime);
@@ -1530,14 +1534,14 @@ function OverviewPage({
       </section>
 
       <section className="dashboard-hero-grid" aria-label="Daily study overview">
-        <article className="hero-card">
+        <article className={`hero-card${goalComplete ? " hero-card--goal-complete" : ""}`}>
           <div className="hero-card__topline">
-          <span className="hero-card__eyebrow"><Flame size={14} aria-hidden="true" /> {state.streak > 0 ? `${state.streak}-day streak` : "Today's path"}</span>
-            <span className="hero-card__goal"><Target size={14} aria-hidden="true" /> Daily goal</span>
+          <span className={`hero-card__eyebrow${hasActivityToday ? " hero-card__eyebrow--active" : ""}${goalComplete ? " hero-card__eyebrow--complete" : ""}`}><Flame size={14} aria-hidden="true" /> {state.streak > 0 ? `${state.streak}-day streak` : "Today's path"}</span>
+            <span className={`hero-card__goal${goalComplete ? " hero-card__goal--complete" : ""}`}><Target size={14} aria-hidden="true" /> {goalComplete ? "Goal complete" : "Daily goal"}</span>
           </div>
           <div className="hero-card__body">
             <div className="hero-card__copy">
-              <h2>{state.reviewsToday > 0 ? "Keep going!" : "Start your streak."}</h2>
+              <h2>{goalComplete ? "Streak secured!" : state.reviewsToday > 0 ? "Keep going!" : "Start your streak."}</h2>
               <button type="button" className="button button--light" onClick={onStartReview}>
                 {dueCards.length > 0 ? "Start review" : "Open practice"}
                 <ArrowRight size={17} aria-hidden="true" />
@@ -1587,7 +1591,7 @@ function OverviewPage({
       </section>
 
       <section className="stats-grid" aria-label="Your statistics">
-        <StatCard icon={Flame} label="Current streak" value={`${state.streak} days`} detail={`Best: ${state.bestStreak} days`} tone="orange" menuItems={[{ label: "View progress", onSelect: onViewProgress }]} />
+        <StatCard icon={Flame} label="Current streak" value={`${state.streak} days`} detail={`Best: ${state.bestStreak} days`} tone="orange" active={hasActivityToday} complete={goalComplete} menuItems={[{ label: "View progress", onSelect: onViewProgress }]} />
         <StatCard icon={BookMarked} label="Mastered cards" value={String(state.mastered)} detail="+18 this month" tone="indigo" menuItems={[{ label: "Open library", onSelect: onOpenLibrary }]} />
         <StatCard icon={Timer} label="Study time" value={`${state.studyMinutes} min`} detail="Today · 24 min goal" tone="mint" menuItems={[{ label: "View progress", onSelect: onViewProgress }]} />
       </section>
@@ -1998,7 +2002,7 @@ function shuffleCards(cards: Flashcard[]): Flashcard[] {
   return shuffled;
 }
 
-function PracticePage({ cards, level, onAddCard, onAwardXp }: { cards: Flashcard[]; level: number; onAddCard: () => void; onAwardXp: (amount: number) => void }) {
+function PracticePage({ cards, level, onAddCard, onAwardXp, onCompleteSession }: { cards: Flashcard[]; level: number; onAddCard: () => void; onAwardXp: (amount: number) => void; onCompleteSession: (cardCount: number) => void }) {
   const [mode, setMode] = useState<PracticeMode>("mixed");
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
@@ -2118,7 +2122,10 @@ function PracticePage({ cards, level, onAddCard, onAwardXp }: { cards: Flashcard
     setSessionXp((current) => current + xpAward);
     setSessionAttempts((current) => [...current, { cardId: card.id, german: card.german, answer: answer.trim(), correct, xp: xpAward }]);
     if (correct) setScore((current) => current + 1);
-    if (isFinalQuestion) setSessionComplete(true);
+    if (isFinalQuestion) {
+      onCompleteSession(sessionCards.length);
+      setSessionComplete(true);
+    }
   };
 
   const nextCard = () => {
@@ -3902,6 +3909,39 @@ export default function App() {
     }
   };
 
+  const handlePracticeComplete = (cardCount: number) => {
+    const safeCardCount = Math.max(1, Math.round(cardCount));
+    const previousState = stateRef.current;
+    const previousReviewsToday = previousState.lastReviewDay === todayKey ? previousState.reviewsToday : 0;
+    const completesDailyGoal = previousReviewsToday < previousState.dailyGoal
+      && previousReviewsToday + safeCardCount >= previousState.dailyGoal;
+    const updatedAt = new Date().toISOString();
+    setState((current) => {
+      const reviewsToday = current.lastReviewDay === todayKey ? current.reviewsToday : 0;
+      const nextReviewsToday = reviewsToday + safeCardCount;
+      const weeklyReviews = [...current.weeklyReviews];
+      const lastIndex = weeklyReviews.length - 1;
+      if (lastIndex >= 0) weeklyReviews[lastIndex] = (weeklyReviews[lastIndex] ?? 0) + safeCardCount;
+      const nextStreak = current.lastStudyDay === todayKey
+        ? current.streak
+        : current.lastStudyDay === addDays(todayKey, -1) ? current.streak + 1 : 1;
+      const achievements = new Set(current.achievements);
+      if (nextReviewsToday >= current.dailyGoal) achievements.add("daily-goal");
+      return {
+        ...current,
+        reviewsToday: nextReviewsToday,
+        lastReviewDay: todayKey,
+        lastStudyDay: todayKey,
+        streak: nextStreak,
+        bestStreak: Math.max(current.bestStreak, nextStreak),
+        weeklyReviews,
+        achievements: [...achievements],
+        lastSyncedAt: updatedAt,
+      };
+    });
+    showToast(completesDailyGoal ? "Daily goal complete. Your streak is secured." : `${safeCardCount} practice cards added to today's path.`);
+  };
+
   function handleRate(rating: ReviewRating) {
     const card = dueCards[0];
     if (!card) return;
@@ -4683,7 +4723,7 @@ export default function App() {
         <main id="main-content" className="main-content">
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
-          {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} />}
+          {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} onCompleteSession={handlePracticeComplete} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} wordBank={wordBank} onGenerateWordBatch={handleGenerateWordBatch} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} onStartReview={handleStartReview} />}
         </main>

@@ -723,6 +723,11 @@ svg {
   box-shadow: var(--shadow-md);
 }
 
+.hero-card--goal-complete {
+  border-color: rgba(22, 138, 104, 0.28);
+  background: linear-gradient(145deg, var(--surface) 0%, color-mix(in srgb, var(--success-soft) 92%, var(--success) 8%) 100%);
+}
+
 .hero-card__topline,
 .continue-card__topline,
 .continue-card__footer,
@@ -751,6 +756,19 @@ svg {
   fill: currentColor;
 }
 
+.hero-card__eyebrow--active {
+  color: var(--orange);
+}
+
+.hero-card__eyebrow--complete {
+  color: var(--success);
+}
+
+.hero-card__eyebrow--complete svg {
+  color: var(--success);
+  animation: streak-flame-pop 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .hero-card__goal {
   display: inline-flex;
   align-items: center;
@@ -762,6 +780,12 @@ svg {
   background: var(--primary-soft);
   border: 1px solid rgba(79, 70, 229, 0.13);
   border-radius: 7px;
+}
+
+.hero-card__goal--complete {
+  color: var(--success);
+  background: var(--success-soft);
+  border-color: rgba(22, 138, 104, 0.18);
 }
 
 .hero-card__body {
@@ -892,6 +916,24 @@ svg {
 .stat-card__icon--orange {
   color: var(--orange);
   background: var(--orange-soft);
+}
+
+.stat-card__icon--active svg {
+  fill: currentColor;
+}
+
+.stat-card__icon--active {
+  animation: streak-icon-pulse 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.stat-card__icon--complete {
+  color: #ffffff;
+  background: linear-gradient(145deg, var(--orange), #b95b17);
+  box-shadow: 0 7px 14px rgba(227, 122, 40, 0.24);
+}
+
+.stat-card__icon--complete svg {
+  animation: streak-flame-pop 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .card-label {
@@ -1068,6 +1110,15 @@ svg {
   border: 1px solid var(--border);
   border-radius: 15px;
   box-shadow: var(--shadow-sm);
+}
+
+.stat-card--active {
+  border-color: rgba(227, 122, 40, 0.2);
+}
+
+.stat-card--complete {
+  border-color: rgba(227, 122, 40, 0.32);
+  box-shadow: 0 10px 24px rgba(227, 122, 40, 0.12);
 }
 
 .stat-card__icon {
@@ -6024,6 +6075,18 @@ kbd {
 
 .mobile-nav {
   display: none;
+}
+
+@keyframes streak-icon-pulse {
+  0% { transform: scale(0.88); }
+  58% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@keyframes streak-flame-pop {
+  0% { opacity: 0.7; transform: scale(0.82) rotate(-8deg); }
+  48% { opacity: 1; transform: scale(1.16) rotate(5deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
 }
 
 @keyframes toast-in {
