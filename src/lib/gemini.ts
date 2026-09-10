@@ -72,9 +72,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function bridgeUnavailableMessage(): string {
   const hostname = typeof window !== "undefined" ? window.location.hostname : "";
   if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return "The local Gemini bridge is not running. Start npm run sync-server on this PC, then try again.";
+    return "Gemini is ready on this device once the local bridge is running. Start npm run sync-server on this PC, then try again.";
   }
-  return "This published app cannot reach a private Gemini bridge. Run the bridge on your PC and set a reachable HTTPS bridge URL in Set up sync.";
+  return "Gemini needs a reachable HTTPS bridge in the published app. Run the bridge on your PC, then add its URL in Set up sync. The checked word bank is still available here.";
 }
 
 function readText(value: unknown, field: string, maxLength: number): string {

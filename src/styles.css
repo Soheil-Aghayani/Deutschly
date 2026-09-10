@@ -2999,12 +2999,26 @@ kbd {
 
 .word-bank-generator__error {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
   align-items: flex-start;
   padding: 9px 0 0;
   color: var(--danger);
   font-size: 10px;
   line-height: 1.45;
+}
+
+.word-bank-generator__error > span {
+  flex: 1 1 260px;
+}
+
+.word-bank-generator__error .text-button {
+  flex: 0 0 auto;
+  padding: 0;
+  color: var(--danger);
+  font-size: 10px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .word-bank-generated {

@@ -68,7 +68,7 @@ describe("Gemini card review bridge", () => {
       note: "",
       kind: "word",
       existingMatches: [],
-    })).rejects.toThrow("published app cannot reach a private Gemini bridge");
+    })).rejects.toThrow("reachable HTTPS bridge in the published app");
   });
 
   it("rejects a response with an unsupported article", () => {
