@@ -1642,7 +1642,7 @@ function OverviewPage({
             </button>
           </article>
 
-          <button type="button" className="source-card" onClick={onOpenLibrary} aria-label="Open the Menschen PDF in your library">
+          <button type="button" className="source-card" onClick={onOpenLibrary}>
             <div className="source-card__icon" aria-hidden="true"><FileText size={18} /></div>
             <div>
               <strong>Menschen PDF</strong>
@@ -1659,7 +1659,7 @@ function OverviewPage({
 function DeckCard({ icon: Icon, title, subtitle, progress, count, tone, onClick, onAddCard }: { icon: LucideIcon; title: string; subtitle: string; progress: number; count: string; tone: "indigo" | "mint"; onClick: () => void; onAddCard: () => void }) {
   return (
     <article className="deck-card">
-      <button type="button" className="deck-card__main" onClick={onClick} aria-label={`Open ${title} in your library`}>
+      <button type="button" className="deck-card__main" onClick={onClick}>
         <div className={`deck-card__icon deck-card__icon--${tone}`} aria-hidden="true"><Icon size={19} /></div>
         <span className="deck-card__subtitle">{subtitle}</span>
         <h3>{title}</h3>
