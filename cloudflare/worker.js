@@ -10,6 +10,77 @@ const CONFIDENCE = new Set(["high", "medium", "low"]);
 const VERDICTS = new Set(["looks-good", "needs-review"]);
 const LEVELS = new Set(["A1", "A2"]);
 
+const FALLBACK_WORDS = [
+  ["A1", "Antwort", ["answer"], "die", "Antworten", "noun", ["Ich kenne die Antwort."], ["communication"]],
+  ["A1", "Auto", ["car"], "das", "Autos", "noun", ["Das Auto ist neu."], ["transport"]],
+  ["A1", "Baum", ["tree"], "der", "Bäume", "noun", ["Der Baum ist alt."], ["nature"]],
+  ["A1", "Blume", ["flower"], "die", "Blumen", "noun", ["Die Blume ist schön."], ["nature"]],
+  ["A1", "Buch", ["book"], "das", "Bücher", "noun", ["Ich lese ein Buch."], ["everyday"]],
+  ["A1", "Bruder", ["brother"], "der", "Brüder", "noun", ["Mein Bruder ist nett."], ["family"]],
+  ["A1", "Ecke", ["corner"], "die", "Ecken", "noun", ["Der Laden ist an der Ecke."], ["places"]],
+  ["A1", "Fenster", ["window"], "das", "Fenster", "noun", ["Das Fenster ist offen."], ["home"]],
+  ["A1", "Frage", ["question"], "die", "Fragen", "noun", ["Ich habe eine Frage."], ["communication"]],
+  ["A1", "Garten", ["garden"], "der", "Gärten", "noun", ["Der Garten ist klein."], ["home"]],
+  ["A1", "Haus", ["house", "home"], "das", "Häuser", "noun", ["Das Haus ist groß."], ["home"]],
+  ["A1", "Hund", ["dog"], "der", "Hunde", "noun", ["Der Hund schläft."], ["animals"]],
+  ["A1", "Katze", ["cat"], "die", "Katzen", "noun", ["Die Katze ist schwarz."], ["animals"]],
+  ["A1", "Küche", ["kitchen"], "die", "Küchen", "noun", ["Die Küche ist sauber."], ["home"]],
+  ["A1", "Lehrer", ["teacher"], "der", "Lehrer", "noun", ["Der Lehrer spricht langsam."], ["people"]],
+  ["A1", "Schule", ["school"], "die", "Schulen", "noun", ["Die Schule beginnt um acht Uhr."], ["education"]],
+  ["A1", "Schwester", ["sister"], "die", "Schwestern", "noun", ["Meine Schwester studiert."], ["family"]],
+  ["A1", "Straße", ["street"], "die", "Straßen", "noun", ["Die Straße ist lang."], ["places"]],
+  ["A1", "Supermarkt", ["supermarket"], "der", "Supermärkte", "noun", ["Der Supermarkt ist in der Nähe."], ["shopping"]],
+  ["A1", "Weg", ["way", "path"], "der", "Wege", "noun", ["Der Weg ist kurz."], ["places"]],
+  ["A1", "Wetter", ["weather"], "das", "", "noun", ["Das Wetter ist gut."], ["nature"]],
+  ["A1", "Wohnung", ["apartment"], "die", "Wohnungen", "noun", ["Meine Wohnung ist hell."], ["home"]],
+  ["A1", "Zug", ["train"], "der", "Züge", "noun", ["Der Zug kommt pünktlich."], ["transport"]],
+  ["A1", "fahren", ["drive", "ride"], "none", "", "verb", ["Wir fahren nach Berlin."], ["travel"]],
+  ["A1", "finden", ["find"], "none", "", "verb", ["Ich finde den Schlüssel."], ["everyday"]],
+  ["A1", "fragen", ["ask"], "none", "", "verb", ["Darf ich etwas fragen?"], ["communication"]],
+  ["A1", "kaufen", ["buy"], "none", "", "verb", ["Wir kaufen Brot."], ["shopping"]],
+  ["A1", "lesen", ["read"], "none", "", "verb", ["Sie liest ein Buch."], ["everyday"]],
+  ["A1", "schreiben", ["write"], "none", "", "verb", ["Ich schreibe eine E-Mail."], ["communication"]],
+  ["A1", "sehen", ["see", "watch"], "none", "", "verb", ["Wir sehen einen Film."], ["everyday"]],
+  ["A1", "suchen", ["look for", "search"], "none", "", "verb", ["Ich suche meine Brille."], ["everyday"]],
+  ["A1", "warten", ["wait"], "none", "", "verb", ["Wir warten auf den Bus."], ["everyday"]],
+  ["A1", "wichtig", ["important"], "none", "", "adjective", ["Das ist wichtig."], ["description"]],
+  ["A1", "schnell", ["fast", "quick"], "none", "", "adjective", ["Der Zug ist schnell."], ["description"]],
+  ["A2", "Erfahrung", ["experience"], "die", "Erfahrungen", "noun", ["Das war eine gute Erfahrung."], ["work"]],
+  ["A2", "Entscheidung", ["decision"], "die", "Entscheidungen", "noun", ["Das ist eine wichtige Entscheidung."], ["everyday"]],
+  ["A2", "Grund", ["reason"], "der", "Gründe", "noun", ["Was ist der Grund?"], ["communication"]],
+  ["A2", "Möglichkeit", ["possibility", "option"], "die", "Möglichkeiten", "noun", ["Es gibt eine andere Möglichkeit."], ["everyday"]],
+  ["A2", "Meinung", ["opinion"], "die", "Meinungen", "noun", ["Das ist meine Meinung."], ["communication"]],
+  ["A2", "Unterschied", ["difference"], "der", "Unterschiede", "noun", ["Ich sehe keinen Unterschied."], ["description"]],
+  ["A2", "Veränderung", ["change"], "die", "Veränderungen", "noun", ["Die Veränderung ist deutlich."], ["everyday"]],
+  ["A2", "Umgebung", ["surroundings", "area"], "die", "Umgebungen", "noun", ["Die Umgebung ist ruhig."], ["places"]],
+  ["A2", "Verkehr", ["traffic"], "der", "", "noun", ["Heute ist viel Verkehr."], ["transport"]],
+  ["A2", "Gesundheit", ["health"], "die", "", "noun", ["Gesundheit ist wichtig."], ["health"]],
+  ["A2", "Geschichte", ["story", "history"], "die", "Geschichten", "noun", ["Ich kenne diese Geschichte."], ["culture"]],
+  ["A2", "Lösung", ["solution"], "die", "Lösungen", "noun", ["Wir suchen eine Lösung."], ["work"]],
+  ["A2", "Ursache", ["cause"], "die", "Ursachen", "noun", ["Wir kennen die Ursache nicht."], ["everyday"]],
+  ["A2", "Termin", ["appointment", "date"], "der", "Termine", "noun", ["Ich habe morgen einen Termin."], ["everyday"]],
+  ["A2", "Zukunft", ["future"], "die", "", "noun", ["Wir denken an die Zukunft."], ["time"]],
+  ["A2", "Vergangenheit", ["past"], "die", "", "noun", ["Das gehört zur Vergangenheit."], ["time"]],
+  ["A2", "Beziehung", ["relationship"], "die", "Beziehungen", "noun", ["Sie haben eine gute Beziehung."], ["people"]],
+  ["A2", "Einladung", ["invitation"], "die", "Einladungen", "noun", ["Danke für die Einladung."], ["communication"]],
+  ["A2", "Erklärung", ["explanation"], "die", "Erklärungen", "noun", ["Die Erklärung ist klar."], ["communication"]],
+  ["A2", "Prüfung", ["exam", "test"], "die", "Prüfungen", "noun", ["Die Prüfung ist am Montag."], ["education"]],
+  ["A2", "Fehler", ["mistake", "error"], "der", "Fehler", "noun", ["Jeder macht Fehler."], ["learning"]],
+  ["A2", "Sprache", ["language"], "die", "Sprachen", "noun", ["Deutsch ist eine schöne Sprache."], ["language"]],
+  ["A2", "Verhalten", ["behavior"], "das", "", "noun", ["Sein Verhalten ist freundlich."], ["people"]],
+  ["A2", "Vorteil", ["advantage"], "der", "Vorteile", "noun", ["Das ist ein großer Vorteil."], ["description"]],
+  ["A2", "Nachteil", ["disadvantage"], "der", "Nachteile", "noun", ["Das ist ein kleiner Nachteil."], ["description"]],
+].map(([level, german, englishMeanings, article, plural, partOfSpeech, examples, tags]) => ({
+  level,
+  german,
+  englishMeanings,
+  article,
+  ...(plural ? { plural } : {}),
+  partOfSpeech,
+  examples,
+  tags,
+}));
+
 const reviewSchema = {
   type: "object",
   additionalProperties: false,
@@ -309,6 +380,31 @@ function normalizeWordBatch(payload, input) {
   return words.slice(0, input.count);
 }
 
+function fallbackWordBatch(input) {
+  const excluded = new Set(input.existingWords.map(germanWordKey));
+  const seen = new Set(excluded);
+  return FALLBACK_WORDS
+    .filter((word) => word.level === input.level)
+    .filter((word) => {
+      const key = germanWordKey(word.german);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, input.count)
+    .map((word) => ({
+      id: createWordId(input.level, word.german),
+      german: word.german,
+      englishMeanings: word.englishMeanings,
+      article: word.article,
+      ...(word.plural ? { plural: word.plural } : {}),
+      level: input.level,
+      ...(word.partOfSpeech ? { partOfSpeech: word.partOfSpeech } : {}),
+      ...(word.examples.length > 0 ? { examples: word.examples } : {}),
+      tags: word.tags,
+    }));
+}
+
 function allowedOrigin(request, env) {
   const origin = request.headers.get("Origin") || "";
   if (!origin) return "";
@@ -389,6 +485,10 @@ async function handleWordBatch(request, env) {
       }
       throw error;
     }
+  }
+  const fallbackWords = fallbackWordBatch(input);
+  if (fallbackWords.length > 0) {
+    return { level: input.level, words: fallbackWords, requestedCount: input.count, returnedCount: fallbackWords.length, model: "curated-fallback", provider: "cloudflare-workers-ai-fallback" };
   }
   throw lastError || new WorkerError(502, "The AI returned no valid new words. Try again later.");
 }
