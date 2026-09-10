@@ -37,7 +37,9 @@ import {
   Mic,
   Moon,
   MoreHorizontal,
+  Pause,
   Pencil,
+  Play,
   Plus,
   RefreshCw,
   Search,
@@ -1780,7 +1782,7 @@ function StudyPage({
                   <div className="study-answer__translation">{card.translation}</div>
                   {card.example && <div className="study-answer__example"><span>Example</span><p>{card.example}</p><PronunciationButton text={card.example} /></div>}
                   {card.note && <div className="study-answer__note"><Info size={14} aria-hidden="true" /> {card.note}</div>}
-                  <VoiceRecorder prompt={`Record yourself saying ${displayWord}`} />
+                  <VoiceRecorder text={displayWord} />
                 </>
               ) : (
                 <div className="study-answer__hidden"><Eye size={18} aria-hidden="true" /> Answer hidden until you recall it</div>
@@ -1849,10 +1851,22 @@ function PronunciationButton({ text, slow = false }: { text: string; slow?: bool
   );
 }
 
-function VoiceRecorder({ prompt }: { prompt: string }) {
+function formatAudioTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const roundedSeconds = Math.floor(seconds);
+  const minutes = Math.floor(roundedSeconds / 60);
+  const remainder = String(roundedSeconds % 60).padStart(2, "0");
+  return `${minutes}:${remainder}`;
+}
+
+function VoiceRecorder({ text }: { text: string }) {
   const [recording, setRecording] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioTime, setAudioTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -1860,6 +1874,9 @@ function VoiceRecorder({ prompt }: { prompt: string }) {
   useEffect(() => () => {
     recorderRef.current?.stop();
     streamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
+
+  useEffect(() => () => {
     if (audioUrl) URL.revokeObjectURL(audioUrl);
   }, [audioUrl]);
 
@@ -1870,6 +1887,10 @@ function VoiceRecorder({ prompt }: { prompt: string }) {
     }
     try {
       setError(null);
+      setIsPlaying(false);
+      setAudioTime(0);
+      setAudioDuration(0);
+      setAudioUrl(null);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
@@ -1882,6 +1903,8 @@ function VoiceRecorder({ prompt }: { prompt: string }) {
           if (current) URL.revokeObjectURL(current);
           return URL.createObjectURL(blob);
         });
+        setIsPlaying(false);
+        setAudioTime(0);
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         recorderRef.current = null;
@@ -1900,11 +1923,57 @@ function VoiceRecorder({ prompt }: { prompt: string }) {
     setRecording(false);
   };
 
+  const togglePlayback = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      try {
+        await audio.play();
+      } catch {
+        setError("Your recording could not be played in this browser.");
+      }
+    } else {
+      audio.pause();
+    }
+  };
+
+  const handleSeek = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextTime = Number(event.target.value);
+    if (!audioRef.current || !Number.isFinite(nextTime)) return;
+    audioRef.current.currentTime = nextTime;
+    setAudioTime(nextTime);
+  };
+
   return (
     <div className="voice-recorder">
-      <div><Mic size={14} aria-hidden="true" /><span>{prompt}</span></div>
-      {recording ? <button type="button" className="button button--ghost voice-recorder__stop" onClick={stopRecording}><Square size={13} aria-hidden="true" /> Stop</button> : <button type="button" className="button button--ghost" onClick={() => void startRecording()}><Mic size={13} aria-hidden="true" /> Record</button>}
-      {audioUrl && <audio controls src={audioUrl} aria-label="Your pronunciation recording" />}
+      <div className="voice-recorder__header">
+        <div className="voice-recorder__copy"><strong>Pronunciation check</strong><span>Record yourself saying {text}</span></div>
+        <div className="voice-recorder__actions">
+          {recording ? <button type="button" className="button button--ghost voice-recorder__stop" onClick={stopRecording}><Square size={13} aria-hidden="true" /> Stop recording</button> : <button type="button" className="button button--ghost voice-recorder__record" onClick={() => void startRecording()}><Mic size={14} aria-hidden="true" /> Record</button>}
+          <button type="button" className="button button--ghost voice-recorder__model" onClick={() => speakGerman(text)}><Volume2 size={14} aria-hidden="true" /> Hear model</button>
+          {recording && <span className="voice-recorder__status" role="status">Recording...</span>}
+        </div>
+      </div>
+      {audioUrl && <div className="voice-recorder__player">
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          preload="metadata"
+          aria-hidden="true"
+          onLoadedMetadata={(event) => setAudioDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
+          onTimeUpdate={(event) => setAudioTime(event.currentTarget.currentTime)}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => { setIsPlaying(false); setAudioTime(0); }}
+        />
+        <button type="button" className="icon-button icon-button--small voice-recorder__play" onClick={() => void togglePlayback()} aria-label={isPlaying ? "Pause your pronunciation recording" : "Play your pronunciation recording"} title={isPlaying ? "Pause recording" : "Play recording"}>
+          {isPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+        </button>
+        <div className="voice-recorder__timeline">
+          <input type="range" min="0" max={Math.max(audioDuration, 0.01)} step="0.01" value={Math.min(audioTime, Math.max(audioDuration, 0.01))} onChange={handleSeek} aria-label="Seek in your pronunciation recording" />
+          <div><span>Your recording is ready. Compare it with the model.</span><time>{formatAudioTime(audioTime)} / {formatAudioTime(audioDuration)}</time></div>
+        </div>
+      </div>}
       {error && <small role="status">{error}</small>}
     </div>
   );
@@ -3449,6 +3518,7 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (addCardOpen || activeTab !== "study") return;
+      if (event.target instanceof HTMLElement && ["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(event.target.tagName)) return;
       if (event.code === "Space") {
         event.preventDefault();
         setShowAnswer(true);
