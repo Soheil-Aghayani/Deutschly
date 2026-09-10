@@ -1,6 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
-import Avatar from "boring-avatars";
 import {
   Activity,
   ArrowLeft,
@@ -62,8 +61,12 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { InstallPrompt } from "./components/InstallPrompt";
+import { PaginationControls } from "./components/PaginationControls";
 import { useInstallPrompt } from "./hooks/useInstallPrompt";
-import { getDailyAvatar } from "./lib/avatar";
+import { getAvataaarsOptions } from "./lib/avatar";
+import { achievementCatalog, getAchievementDefinition } from "./lib/achievements";
+import { getPageSlice } from "./lib/pagination";
+import type { AchievementDefinition, AchievementId } from "./lib/achievements";
 import {
   finishFirebaseRedirectSignIn,
   isFirebaseConfigured,
@@ -169,6 +172,7 @@ interface AppState {
   correctReviews: number;
   bestStreak: number;
   achievements: string[];
+  achievementUnlockedAt: Record<string, string>;
   weeklyReviews: number[];
   reminderEnabled: boolean;
   reminderTime: string;
@@ -230,6 +234,28 @@ interface WordBankInboxItem {
   decision: WordBankDecision;
 }
 
+const MOBILE_PAGE_SIZE = 3;
+const DESKTOP_PAGE_SIZE = 6;
+
+function getResponsivePageSize(): number {
+  if (typeof window === "undefined") return DESKTOP_PAGE_SIZE;
+  return window.matchMedia("(max-width: 720px)").matches ? MOBILE_PAGE_SIZE : DESKTOP_PAGE_SIZE;
+}
+
+function useResponsivePageSize(): number {
+  const [pageSize, setPageSize] = useState(getResponsivePageSize);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 720px)");
+    const updatePageSize = () => setPageSize(mediaQuery.matches ? MOBILE_PAGE_SIZE : DESKTOP_PAGE_SIZE);
+    updatePageSize();
+    mediaQuery.addEventListener?.("change", updatePageSize);
+    return () => mediaQuery.removeEventListener?.("change", updatePageSize);
+  }, []);
+
+  return pageSize;
+}
+
 const STORAGE_KEY = "deutschly:state:v1";
 const WORD_BANK_KEY = "deutschly:word-bank:v1";
 const SYNC_ENDPOINT_KEY = "deutschly:sync:endpoint:v1";
@@ -243,7 +269,6 @@ const PROFILE_MODE_KEY = "deutschly:profile:mode:v1";
 const PROFILE_NAME_MAX_LENGTH = 32;
 const PROFILE_DISPLAY_FALLBACK = "Learner";
 const LATIN_PROFILE_NAME_PATTERN = /^[\p{Script=Latin}]+(?:[\s.'’'-]+[\p{Script=Latin}]+)*$/u;
-const PROFILE_AVATAR_COLORS = ["#EEF0FF", "#8D8BFF", "#56C39E", "#F6A261", "#F2B4BE"];
 
 function getSyncBaselineStorageKey(endpoint: string, room: string): string {
   return `${SYNC_BASELINE_KEY}:${encodeURIComponent(endpoint.trim())}:${normalizeSyncRoom(room)}`;
@@ -276,6 +301,62 @@ function GoogleLogo({ size = 18 }: { size?: number }) {
       <path fill="#4CAF50" d="M24 44c5.146 0 9.864-1.971 13.409-5.181l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.236 0-9.626-3.326-11.283-7.946l-6.522 5.025C9.507 39.556 16.227 44 24 44Z" />
       <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.084 5.581l.003-.002 6.19 5.238C36.971 39.207 44 34 44 24c0-1.341-.138-2.65-.389-3.917Z" />
     </svg>
+  );
+}
+
+function ProfileAvatarArt({ options }: { options: ReturnType<typeof getAvataaarsOptions> }) {
+  const clipId = `profile-avatar-${useId().replace(/:/g, "")}`;
+  const skinColors: Record<string, string> = { Light: "#f8d7c1", Pale: "#f3c6a8", Tanned: "#d99a6c", Brown: "#ae6b45", DarkBrown: "#75452f" };
+  const hairColors: Record<string, string> = { BrownDark: "#2c1b18", Black: "#1c1b1b", Blonde: "#d6b370", PastelPink: "#d986ae", Red: "#a64b35" };
+  const clothesColors: Record<string, string> = { PastelBlue: "#8ed0e8", PastelGreen: "#83cdb1", PastelOrange: "#f0a36d", Heather: "#7f8ca8", Blue01: "#4d74d8", Gray01: "#657080" };
+  const skin = skinColors[options.skinColor] ?? skinColors.Light;
+  const hair = hairColors[options.hairColor] ?? hairColors.BrownDark;
+  const clothes = clothesColors[options.clotheColor] ?? clothesColors.PastelBlue;
+  const hasLongHair = options.topType.startsWith("LongHair");
+  const hasHijab = options.topType === "Hijab";
+  const hasGlasses = options.accessoriesType !== "Blank";
+  const isWink = options.eyeType === "Wink";
+  const isSurprised = options.eyeType === "Surprised";
+  const isSerious = options.mouthType === "Serious";
+
+  return (
+    <svg className="profile-avatar__art" viewBox="0 0 264 280" role="img" aria-label="Generated learner avatar" focusable="false">
+      <defs><clipPath id={clipId}><circle cx="132" cy="132" r="132" /></clipPath></defs>
+      <circle cx="132" cy="132" r="132" fill="#eef1ff" />
+      <g clipPath={`url(#${clipId})`}>
+        <path d="M27 280c4-55 44-86 105-86s101 31 105 86H27Z" fill={clothes} />
+        <path d="M75 212c16-12 36-18 57-18s41 6 57 18l-15 68H90l-15-68Z" fill="rgba(255,255,255,.16)" />
+        <ellipse cx="132" cy="125" rx="59" ry="70" fill={skin} />
+        <path d="M74 113c-1-48 21-78 59-78 40 0 62 28 58 79-14-19-27-29-46-34-22 18-46 27-71 27Z" fill={hair} />
+        {hasLongHair && <path d="M72 104c-17 36-9 104 19 126l25-18-6-93-38-15Zm120 0c17 36 9 104-19 126l-25-18 6-93 38-15Z" fill={hair} />}
+        {hasHijab && <path d="M65 120c-9-58 18-91 67-91s76 33 67 91l-18-12c-2-30-20-49-49-49s-47 19-49 49l-18 12Z" fill="#3c4774" />}
+        <path d="M96 121c8-5 17-5 25 0" fill="none" stroke="#593b32" strokeWidth="4" strokeLinecap="round" />
+        <path d="M143 121c8-5 17-5 25 0" fill="none" stroke="#593b32" strokeWidth="4" strokeLinecap="round" />
+        <ellipse cx="109" cy="137" rx={isSurprised ? 6 : 4} ry={isSurprised ? 8 : 4} fill="#2e3140" />
+        <ellipse cx="155" cy="137" rx={isWink ? 2 : isSurprised ? 6 : 4} ry={isWink ? 1 : isSurprised ? 8 : 4} fill="#2e3140" />
+        {hasGlasses && <><rect x="91" y="125" width="37" height="25" rx="10" fill="none" stroke="#4b5577" strokeWidth="4" /><rect x="136" y="125" width="37" height="25" rx="10" fill="none" stroke="#4b5577" strokeWidth="4" /><path d="M128 133h8" stroke="#4b5577" strokeWidth="4" /></>}
+        <path d="M125 143c-4 9-5 16 4 17" fill="none" stroke="#b87962" strokeWidth="3" strokeLinecap="round" />
+        <path d={isSerious ? "M119 174h26" : "M117 171c9 8 20 8 30 0"} fill="none" stroke="#8b4e4a" strokeWidth="4" strokeLinecap="round" />
+        {options.facialHairType !== "Blank" && <path d="M101 160c8 32 54 32 62 0-10 8-20 11-31 11s-21-3-31-11Z" fill={hair} opacity=".82" />}
+        {options.topType === "ShortHairTheCaesar" && <path d="M74 83c9-36 31-52 60-52 26 0 45 13 56 39-30-17-71-16-116 13Z" fill={hair} />}
+      </g>
+    </svg>
+  );
+}
+
+function ProfileAvatar({ name, dayKey, photoURL, size, className = "" }: { name: string; dayKey: string; photoURL?: string; size: number; className?: string }) {
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const avatarOptions = getAvataaarsOptions(name.trim() || PROFILE_DISPLAY_FALLBACK, dayKey);
+  const imageURL = photoURL?.trim();
+
+  useEffect(() => {
+    setPhotoFailed(false);
+  }, [imageURL]);
+
+  return (
+    <span className={`profile-avatar${className ? ` ${className}` : ""}`} style={{ width: size, height: size }} aria-hidden="true">
+      {imageURL && !photoFailed ? <img src={imageURL} alt="" referrerPolicy="no-referrer" onError={() => setPhotoFailed(true)} /> : <ProfileAvatarArt options={avatarOptions} />}
+    </span>
   );
 }
 
@@ -715,6 +796,7 @@ function createInitialState(): AppState {
     correctReviews: 0,
     bestStreak: 0,
     achievements: [],
+    achievementUnlockedAt: {},
     weeklyReviews: Array.from({ length: 7 }, () => 0),
     reminderEnabled: true,
     reminderTime: "19:00",
@@ -751,6 +833,7 @@ function resetLearningProgress(state: AppState, todayKey: string, resetAt: strin
     correctReviews: 0,
     bestStreak: 0,
     achievements: [],
+    achievementUnlockedAt: {},
     weeklyReviews: Array.from({ length: 7 }, () => 0),
     lastReviewDay: undefined,
     lastStudyDay: undefined,
@@ -873,6 +956,16 @@ function normalizeWordBankDecisionUpdatedAt(value: unknown, inboxIds: string[]):
   return normalized;
 }
 
+function normalizeAchievementUnlockedAt(value: unknown, achievementIds: string[]): Record<string, string> {
+  const source = isRecord(value) ? value : {};
+  const normalized: Record<string, string> = {};
+  achievementIds.forEach((id) => {
+    const unlockedAt = source[id];
+    if (typeof unlockedAt === "string" && Number.isFinite(Date.parse(unlockedAt))) normalized[id] = unlockedAt;
+  });
+  return normalized;
+}
+
 function wordBankDecisionPriority(decision: WordBankDecision): number {
   if (decision === "added") return 3;
   if (decision === "dismissed") return 2;
@@ -950,6 +1043,9 @@ function normalizeAppState(value: unknown): AppState {
       };
     })()
     : undefined;
+  const achievements = Array.isArray(value.achievements)
+    ? value.achievements.filter((item): item is string => typeof item === "string").map((item) => item.slice(0, 40)).slice(0, 24)
+    : fallback.achievements;
 
   return {
     ...fallback,
@@ -968,9 +1064,8 @@ function normalizeAppState(value: unknown): AppState {
     totalReviews: typeof value.totalReviews === "number" ? Math.max(0, Math.round(value.totalReviews)) : fallback.totalReviews,
     correctReviews: typeof value.correctReviews === "number" ? Math.max(0, Math.round(value.correctReviews)) : fallback.correctReviews,
     bestStreak: typeof value.bestStreak === "number" ? Math.max(0, Math.round(value.bestStreak)) : fallback.bestStreak,
-    achievements: Array.isArray(value.achievements)
-      ? value.achievements.filter((item): item is string => typeof item === "string").map((item) => item.slice(0, 40)).slice(0, 24)
-      : fallback.achievements,
+    achievements,
+    achievementUnlockedAt: normalizeAchievementUnlockedAt(value.achievementUnlockedAt, achievements),
     weeklyReviews,
     reminderEnabled: typeof value.reminderEnabled === "boolean" ? value.reminderEnabled : fallback.reminderEnabled,
     reminderTime: typeof value.reminderTime === "string" ? value.reminderTime : fallback.reminderTime,
@@ -1083,6 +1178,14 @@ function mergeDeletedCardIds(local: Record<string, string>, remote: Record<strin
   return merged;
 }
 
+function mergeAchievementUnlockedAt(local: Record<string, string> | undefined, remote: Record<string, string> | undefined): Record<string, string> {
+  const merged: Record<string, string> = { ...(local ?? {}) };
+  Object.entries(remote ?? {}).forEach(([id, unlockedAt]) => {
+    if (!merged[id] || timestamp(unlockedAt) < timestamp(merged[id])) merged[id] = unlockedAt;
+  });
+  return merged;
+}
+
 function pdfCandidateStatusPriority(status: PdfCandidateStatus): number {
   if (status === "accepted") return 3;
   if (status === "skipped") return 2;
@@ -1137,6 +1240,7 @@ function mergeAppStates(local: AppState, remote: AppState): AppState {
   const wordBank = mergeGermanWordRecords(local.wordBank, remote.wordBank);
   const wordBankInboxIds = normalizeWordBankInboxIds([...local.wordBankInboxIds, ...remote.wordBankInboxIds], wordBank);
   const mergedWordBankDecisions = mergeWordBankDecisions(local.wordBankDecisions, remote.wordBankDecisions, local.wordBankDecisionUpdatedAt, remote.wordBankDecisionUpdatedAt);
+  const achievementUnlockedAt = mergeAchievementUnlockedAt(local.achievementUnlockedAt, remote.achievementUnlockedAt);
 
   return {
     ...local,
@@ -1159,6 +1263,9 @@ function mergeAppStates(local: AppState, remote: AppState): AppState {
     achievements: hasDifferentReset
       ? [...progressState.achievements]
       : [...new Set([...local.achievements, ...remote.achievements])].slice(0, 24),
+    achievementUnlockedAt: hasDifferentReset
+      ? { ...progressState.achievementUnlockedAt }
+      : achievementUnlockedAt,
     weeklyReviews,
     sourceFileName: pdfImport?.fileName ?? local.sourceFileName,
     pdfImport,
@@ -1507,7 +1614,7 @@ function OverflowMenu({ label, items, className = "" }: { label: string; items: 
 
 const MODAL_FOCUSABLE_SELECTOR = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])";
 
-function useModalFocus<T extends HTMLElement>(onClose?: () => void, preferredFocus?: () => HTMLElement | null) {
+function useModalFocus<T extends HTMLElement>(onClose?: () => void, preferredFocus?: () => HTMLElement | null, autoFocus = true) {
   const panelRef = useRef<T>(null);
   const onCloseRef = useRef(onClose);
   const preferredFocusRef = useRef(preferredFocus);
@@ -1518,6 +1625,10 @@ function useModalFocus<T extends HTMLElement>(onClose?: () => void, preferredFoc
     const panel = panelRef.current;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const focusInitialControl = () => {
+      if (!autoFocus) {
+        panel?.focus();
+        return;
+      }
       const preferred = preferredFocusRef.current?.();
       const first = preferred ?? panel?.querySelector<HTMLElement>(MODAL_FOCUSABLE_SELECTOR);
       first?.focus();
@@ -1553,7 +1664,7 @@ function useModalFocus<T extends HTMLElement>(onClose?: () => void, preferredFoc
       document.removeEventListener("keydown", handleKeyDown);
       if (previousFocus && document.contains(previousFocus)) previousFocus.focus();
     };
-  }, []);
+  }, [autoFocus]);
 
   return panelRef;
 }
@@ -2355,9 +2466,10 @@ function PdfCandidatesCard({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [lessonFilter, setLessonFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<PdfCandidateStatus>("pending");
-  const [visibleCount, setVisibleCount] = useState(12);
+  const [page, setPage] = useState(1);
   const [showLowConfidence, setShowLowConfidence] = useState(false);
   const [candidateSearch, setCandidateSearch] = useState("");
+  const pageSize = useResponsivePageSize();
 
   const lessons = [...new Set(candidates.map((candidate) => candidate.lesson).filter((lesson): lesson is string => Boolean(lesson)))];
   const lowConfidenceCount = candidates.filter((candidate) => candidate.confidence === "low").length;
@@ -2375,6 +2487,8 @@ function PdfCandidatesCard({
     && (lessonFilter === "all" || candidate.lesson === lessonFilter)
     && (!normalizedCandidateSearch || [candidate.german, candidate.lesson, candidate.article].some((value) => value?.toLocaleLowerCase().includes(normalizedCandidateSearch)))
   ));
+  const totalPages = Math.max(1, Math.ceil(filteredCandidates.length / pageSize));
+  const paginatedCandidates = getPageSlice(filteredCandidates, page, pageSize);
   const statusLabels: Record<PdfCandidateStatus, string> = {
     pending: "To review",
     accepted: "Added",
@@ -2389,14 +2503,18 @@ function PdfCandidatesCard({
   useEffect(() => {
     setLessonFilter("all");
     setStatusFilter("pending");
-    setVisibleCount(12);
+    setPage(1);
     setShowLowConfidence(false);
     setCandidateSearch("");
   }, [candidates]);
 
   useEffect(() => {
-    setVisibleCount(12);
+    setPage(1);
   }, [statusFilter, lessonFilter, showLowConfidence, candidateSearch]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
 
   if (!loading && !error && candidates.length === 0 && !sourcePreview) return null;
 
@@ -2435,7 +2553,7 @@ function PdfCandidatesCard({
             </div>
           </div>
           <div className="pdf-candidate-list">
-            {filteredCandidates.slice(0, visibleCount).map((candidate) => (
+            {paginatedCandidates.map((candidate) => (
               <div className={`pdf-candidate-row pdf-candidate-row--${statusFilter}`} key={candidate.id}>
                 <ArticleBadge article={candidate.article} compact />
                 <div className="pdf-candidate-row__copy">
@@ -2445,19 +2563,19 @@ function PdfCandidatesCard({
                 </div>
                 <div className="pdf-candidate-row__actions">
                   {statusFilter === "pending" ? <>
-                    <button type="button" className="button button--outline" onClick={() => onUseCandidate(candidate)} aria-label={`Review and add ${candidate.german}`}>Review &amp; add <Plus size={14} aria-hidden="true" /></button>
-                    <button type="button" className="button button--ghost pdf-candidate-skip" onClick={() => onCandidateStatusChange(candidate.id, "skipped")} aria-label={`Skip ${candidate.german}`}>Skip</button>
-                  </> : <button type="button" className="button button--ghost" onClick={() => onCandidateStatusChange(candidate.id, "pending")}><RefreshCw size={14} aria-hidden="true" /> Move to inbox</button>}
+                    <button type="button" className="button button--icon button--outline" onClick={() => onUseCandidate(candidate)} aria-label={`Review and add ${candidate.german}`} title={`Review and add ${candidate.german}`}><Plus size={16} aria-hidden="true" /></button>
+                    <button type="button" className="button button--icon button--ghost pdf-candidate-skip" onClick={() => onCandidateStatusChange(candidate.id, "skipped")} aria-label={`Skip ${candidate.german}`} title={`Skip ${candidate.german}`}><X size={17} aria-hidden="true" /></button>
+                  </> : <button type="button" className="button button--icon button--ghost" onClick={() => onCandidateStatusChange(candidate.id, "pending")} aria-label={`Move ${candidate.german} back to the inbox`} title={`Move ${candidate.german} back to the inbox`}><RefreshCw size={16} aria-hidden="true" /></button>}
                 </div>
               </div>
             ))}
           </div>
           {filteredCandidates.length === 0 && <div className="pdf-import-card__empty"><Info size={17} aria-hidden="true" /><span>{normalizedCandidateSearch ? "No suggestions match that search." : !showLowConfidence && lowConfidenceCount > 0 && qualityCandidates.length === 0 ? "Only low-confidence OCR fragments are hidden. Turn on the option above to review them." : lessonFilter === "all" ? emptyMessages[statusFilter] : "No suggestions were found for this lesson and status."}</span></div>}
-          {filteredCandidates.length > visibleCount && <button type="button" className="button button--ghost pdf-candidate-more" onClick={() => setVisibleCount((count) => count + 12)}>Show 12 more</button>}
+          <PaginationControls page={page} pageSize={pageSize} totalItems={filteredCandidates.length} onPageChange={setPage} label="PDF suggestions pagination" />
         </>
       )}
 
-      {!loading && candidates.length > 0 && filteredCandidates.length > 0 && <span className="pdf-import-card__more">Showing {Math.min(visibleCount, filteredCandidates.length)} of {filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions. Review &amp; add opens the card editor so you can check the details before saving.{showLowConfidence ? " Only low-confidence fragments are shown." : lowConfidenceCount > 0 ? ` ${lowConfidenceCount} low-confidence ${lowConfidenceCount === 1 ? "fragment is" : "fragments are"} hidden until you include them.` : ""}</span>}
+      {!loading && candidates.length > 0 && filteredCandidates.length > 0 && <span className="pdf-import-card__more">Showing page {page} of {totalPages} for {filteredCandidates.length} {statusLabels[statusFilter].toLocaleLowerCase()} suggestions. Review &amp; add opens the card editor so you can check the details before saving.{showLowConfidence ? " Only low-confidence fragments are shown." : lowConfidenceCount > 0 ? ` ${lowConfidenceCount} low-confidence ${lowConfidenceCount === 1 ? "fragment is" : "fragments are"} hidden until you include them.` : ""}</span>}
       {!loading && candidates.length === 0 && !error && <div className="pdf-import-card__empty"><Sparkles size={17} aria-hidden="true" /><span>No article + noun patterns were detected. You can still add cards manually.</span></div>}
 
       {sourcePreview && (
@@ -2646,10 +2764,13 @@ function LibraryPage({
   const [wordBankGenerating, setWordBankGenerating] = useState(false);
   const [wordBankError, setWordBankError] = useState<string | null>(null);
   const [wordBankInboxFilter, setWordBankInboxFilter] = useState<WordBankDecision>("pending");
+  const [wordBankInboxPage, setWordBankInboxPage] = useState(1);
+  const [savedCardsPage, setSavedCardsPage] = useState(1);
   const [aiUsageRefreshKey, setAiUsageRefreshKey] = useState(0);
   const [needsCheckOnly, setNeedsCheckOnly] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [bulkTag, setBulkTag] = useState("");
+  const pageSize = useResponsivePageSize();
   const lessons = [...new Set(cards.map((card) => card.lesson).filter(Boolean))].sort();
   const tags = [...new Set(cards.flatMap((card) => card.tags ?? []))].sort();
   const wordBankSuggestions = useMemo(() => searchGermanWords(wordBankQuery, 6, wordBank), [wordBank, wordBankQuery]);
@@ -2658,6 +2779,8 @@ function LibraryPage({
     return counts;
   }, { pending: 0, added: 0, dismissed: 0 }), [wordBankInboxItems]);
   const visibleWordBankItems = useMemo(() => wordBankInboxItems.filter((item) => item.decision === wordBankInboxFilter), [wordBankInboxFilter, wordBankInboxItems]);
+  const wordBankInboxTotalPages = Math.max(1, Math.ceil(visibleWordBankItems.length / pageSize));
+  const paginatedWordBankItems = getPageSlice(visibleWordBankItems, wordBankInboxPage, pageSize);
   const wordBankInboxById = useMemo(() => new Map(wordBankInboxItems.map((item) => [item.word.id, item])), [wordBankInboxItems]);
   const savedWordKeys = useMemo(() => new Set(cards.map((card) => normalizeGermanWord(card.german))), [cards]);
   const handleGenerateWordBatch = async (event: FormEvent<HTMLFormElement>) => {
@@ -2686,6 +2809,20 @@ function LibraryPage({
     const matchesWeak = !weakCardsOnly || isWeakCard(card);
     return matchesSearch && matchesLesson && matchesArticle && matchesStatus && matchesCheck && matchesWeak;
   });
+  const savedCardsTotalPages = Math.max(1, Math.ceil(filteredCards.length / pageSize));
+  const paginatedCards = getPageSlice(filteredCards, savedCardsPage, pageSize);
+  useEffect(() => {
+    setWordBankInboxPage(1);
+  }, [pageSize, wordBankInboxFilter, wordBankInboxItems.length]);
+  useEffect(() => {
+    setSavedCardsPage(1);
+  }, [articleFilter, lessonFilter, pageSize, searchQuery, statusFilter, needsCheckOnly, weakCardsOnly]);
+  useEffect(() => {
+    setWordBankInboxPage((current) => Math.min(current, wordBankInboxTotalPages));
+  }, [wordBankInboxTotalPages]);
+  useEffect(() => {
+    setSavedCardsPage((current) => Math.min(current, savedCardsTotalPages));
+  }, [savedCardsTotalPages]);
   useEffect(() => {
     const cardIds = new Set(cards.map((card) => card.id));
     setSelectedCardIds((current) => {
@@ -2693,7 +2830,7 @@ function LibraryPage({
       return next.length === current.length ? current : next;
     });
   }, [cards]);
-  const visibleCardIds = filteredCards.map((card) => card.id);
+  const visibleCardIds = paginatedCards.map((card) => card.id);
   const selectedVisibleCount = visibleCardIds.filter((id) => selectedCardIds.includes(id)).length;
   const allVisibleSelected = visibleCardIds.length > 0 && selectedVisibleCount === visibleCardIds.length;
   const toggleVisibleSelection = () => {
@@ -2770,17 +2907,20 @@ function LibraryPage({
               return <button type="button" key={decision} className={`word-bank-inbox__filter${wordBankInboxFilter === decision ? " word-bank-inbox__filter--active" : ""}`} onClick={() => setWordBankInboxFilter(decision)} aria-pressed={wordBankInboxFilter === decision}>{label} <span>{wordBankInboxCounts[decision]}</span></button>;
             })}
           </div>
-          {visibleWordBankItems.length > 0 ? <div className="word-bank-generated__list">
-            {visibleWordBankItems.map(({ word, decision }) => <div className={`word-bank-generated__row word-bank-generated__row--${decision}`} key={word.id}>
+          {visibleWordBankItems.length > 0 ? <>
+          <div className="word-bank-generated__list">
+            {paginatedWordBankItems.map(({ word, decision }) => <div className={`word-bank-generated__row word-bank-generated__row--${decision}`} key={word.id}>
               <ArticleBadge article={word.article} partOfSpeech={word.partOfSpeech} compact />
               <div><strong>{word.german}</strong><span>{word.englishMeanings.join(" / ")}</span></div>
               <div className="word-bank-inbox__actions">
-                {decision === "pending" && <><button type="button" className="button button--outline" onClick={() => onAddDatabaseWord(word, word.id)} aria-label={`Add ${word.german} as a flashcard`}><Plus size={14} aria-hidden="true" /> Add card</button><button type="button" className="button button--ghost" onClick={() => onWordBankDecision(word.id, "dismissed")} aria-label={`Do not add ${word.german}`}><X size={14} aria-hidden="true" /> Not for me</button></>}
+                {decision === "pending" && <><button type="button" className="button button--icon button--outline" onClick={() => onAddDatabaseWord(word, word.id)} aria-label={`Add ${word.german} as a flashcard`} title={`Add ${word.german} as a flashcard`}><Plus size={16} aria-hidden="true" /></button><button type="button" className="button button--icon button--ghost" onClick={() => onWordBankDecision(word.id, "dismissed")} aria-label={`Do not add ${word.german}`} title={`Do not add ${word.german}`}><X size={17} aria-hidden="true" /></button></>}
                 {decision === "added" && <span className="word-bank-inbox__status"><CheckCircle2 size={14} aria-hidden="true" /> Added to cards</span>}
-                {decision === "dismissed" && <button type="button" className="button button--ghost" onClick={() => onWordBankDecision(word.id, "pending")} aria-label={`Move ${word.german} back to the inbox`}><RefreshCw size={14} aria-hidden="true" /> Keep in inbox</button>}
+                {decision === "dismissed" && <button type="button" className="button button--icon button--ghost" onClick={() => onWordBankDecision(word.id, "pending")} aria-label={`Move ${word.german} back to the inbox`} title={`Move ${word.german} back to the inbox`}><RefreshCw size={16} aria-hidden="true" /></button>}
               </div>
             </div>)}
-          </div> : <div className="word-bank-empty"><Info size={16} aria-hidden="true" /><span>{wordBankInboxFilter === "pending" ? "No words waiting for review." : wordBankInboxFilter === "added" ? "No words have been added from this inbox yet." : "No words are marked Not for me."}</span></div>}
+          </div>
+          <PaginationControls page={wordBankInboxPage} pageSize={pageSize} totalItems={visibleWordBankItems.length} onPageChange={setWordBankInboxPage} label="AI word inbox pagination" />
+          </> : <div className="word-bank-empty"><Info size={16} aria-hidden="true" /><span>{wordBankInboxFilter === "pending" ? "No words waiting for review." : wordBankInboxFilter === "added" ? "No words have been added from this inbox yet." : "No words are marked Not for me."}</span></div>}
         </div>}
         <label className="word-bank-search" htmlFor="word-bank-search">
           <Search size={17} aria-hidden="true" />
@@ -2850,7 +2990,7 @@ function LibraryPage({
         <div className="library-list-card__heading"><div><span className="section-eyebrow">ALL CARDS</span><h2>{filteredCards.length} cards</h2></div><span className="muted-label">Article colors are always labeled</span></div>
         <div className="library-table" role="table" aria-label="Flashcard library">
           <div className="library-table__header" role="row"><span aria-hidden="true" /><span>Word</span><span>Meaning</span><span>Lesson</span><span>State</span><span aria-hidden="true" /></div>
-          {filteredCards.map((card) => (
+          {paginatedCards.map((card) => (
             <div className="library-row" role="row" key={card.id}>
               <label className="library-row__select"><span className="sr-only">Select {card.german}</span><input type="checkbox" checked={selectedCardIds.includes(card.id)} onChange={() => toggleCardSelection(card.id)} /></label>
               <div className="library-row__word"><ArticleBadge article={card.article} partOfSpeech={card.partOfSpeech} compact /><strong>{card.german}</strong>{card.plural && <small>plural: {card.plural}</small>}{card.tags && card.tags.length > 0 && <small className="library-row__tags">{card.tags.join(" · ")}</small>}{card.verification === "unverified" && <small className="verification-note">needs reference check</small>}</div>
@@ -2862,6 +3002,7 @@ function LibraryPage({
           ))}
           {filteredCards.length === 0 && <div className="empty-library"><Search size={20} aria-hidden="true" /><strong>No cards found</strong><span>Try a different word or lesson.</span></div>}
         </div>
+        <PaginationControls page={savedCardsPage} pageSize={pageSize} totalItems={filteredCards.length} onPageChange={setSavedCardsPage} label="Saved cards pagination" />
       </section>
     </div>
   );
@@ -2993,7 +3134,97 @@ function ProgressBreakdownSection({ eyebrow, title, icon: Icon, id, children }: 
   );
 }
 
-function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgress, onStartReview }: { state: AppState; onViewWeakCards: () => void; onAdjustReminder: () => void; onResetProgress: () => void; onStartReview: () => void }) {
+function ProgressDisclosureSection({ eyebrow, title, id, open, onToggle, className = "", children }: { eyebrow: string; title: string; id: string; open: boolean; onToggle: () => void; className?: string; children: ReactNode }) {
+  return (
+    <article className={`progress-disclosure-card${className ? ` ${className}` : ""}${open ? " progress-disclosure-card--open" : ""}`}>
+      <button type="button" className="progress-disclosure-card__heading" aria-expanded={open} aria-controls={id} onClick={onToggle}>
+        <span><span className="section-eyebrow">{eyebrow}</span><span className="progress-disclosure-card__title" role="heading" aria-level={2}>{title}</span></span>
+        <span className="progress-disclosure-card__toggle" aria-hidden="true"><ChevronDown size={18} /></span>
+      </button>
+      <div id={id} className="progress-disclosure-card__body" aria-hidden={!open} inert={!open}>
+        <div>{children}</div>
+      </div>
+    </article>
+  );
+}
+
+interface AchievementDisplayItem extends AchievementDefinition {
+  unlocked: boolean;
+  progress: number;
+  unlockedAt?: string;
+}
+
+function getAchievementProgress(id: string, state: AppState): number {
+  if (state.achievements.includes(id)) return 100;
+  if (id === "first-review") return state.totalReviews > 0 ? 100 : 0;
+  if (id === "week-streak") return Math.min(100, Math.round((state.bestStreak / 7) * 100));
+  if (id === "daily-goal") return Math.min(100, Math.round((state.reviewsToday / Math.max(1, state.dailyGoal)) * 100));
+  if (id === "xp-1500") return Math.min(100, Math.round((state.xp / 1500) * 100));
+  return 0;
+}
+
+function formatAchievementDate(value?: string): string {
+  if (!value) return "Not unlocked yet";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Unlocked";
+  return `Unlocked ${date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
+function applyAchievementUnlocks(state: AppState, candidateIds: string[], unlockedAt: string): AppState {
+  const achievements = [...state.achievements];
+  const achievementUnlockedAt = { ...state.achievementUnlockedAt };
+  let xp = state.xp;
+
+  candidateIds.forEach((id) => {
+    if (achievements.includes(id)) return;
+    const definition = getAchievementDefinition(id);
+    if (!definition) return;
+    achievements.push(id);
+    achievementUnlockedAt[id] = unlockedAt;
+    xp += definition.rewardXp;
+  });
+
+  return {
+    ...state,
+    xp,
+    achievements: achievements.slice(0, 24),
+    achievementUnlockedAt,
+  };
+}
+
+function getNewAchievementDefinitions(existingIds: string[], candidateIds: string[]): AchievementDefinition[] {
+  return candidateIds
+    .filter((id, index, ids) => ids.indexOf(id) === index && !existingIds.includes(id))
+    .map((id) => getAchievementDefinition(id))
+    .filter((definition): definition is AchievementDefinition => Boolean(definition));
+}
+
+function formatAchievementUnlocks(achievements: AchievementDefinition[]): string {
+  if (achievements.length === 0) return "";
+  const rewardXp = achievements.reduce((sum, achievement) => sum + achievement.rewardXp, 0);
+  return `Achievement unlocked: ${achievements.map((achievement) => achievement.title).join(", ")} · +${rewardXp} XP`;
+}
+
+function AchievementDetailsModal({ achievement, onClose }: { achievement: AchievementDisplayItem; onClose: () => void }) {
+  const panelRef = useModalFocus<HTMLElement>(onClose);
+  const imageURL = `${import.meta.env.BASE_URL}${achievement.image}`;
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={panelRef} className="modal-panel achievement-details-modal" role="dialog" aria-modal="true" aria-labelledby="achievement-details-title">
+        <div className="modal-panel__heading"><div><span className="section-eyebrow">ACHIEVEMENT</span><h2 id="achievement-details-title">{achievement.title}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close achievement details" title="Close"><X size={19} aria-hidden="true" /></button></div>
+        <div className={`achievement-details${achievement.unlocked ? " achievement-details--unlocked" : " achievement-details--locked"}`}>
+          <div className="achievement-details__badge"><img src={imageURL} alt="" /></div>
+          <div className="achievement-details__copy"><span className="achievement-item__status">{achievement.unlocked ? "Unlocked" : "Locked"}</span><p>{achievement.detail}</p><strong>{achievement.requirement}</strong><small>{achievement.unlocked ? formatAchievementDate(achievement.unlockedAt) : `${achievement.progress}% complete`}</small></div>
+        </div>
+        <div className="achievement-details__reward"><Sparkles size={16} aria-hidden="true" /><span><strong>+{achievement.rewardXp} XP reward</strong><small>{achievement.unlocked ? "This reward is already part of your progress." : "Keep reviewing to unlock this reward."}</small></span></div>
+        <div className="modal-panel__footer"><span><Info size={15} aria-hidden="true" /> Small milestones keep the habit visible.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Close</button></div></div>
+      </section>
+    </div>
+  );
+}
+
+function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onStartReview }: { state: AppState; onViewWeakCards: () => void; onAdjustReminder: () => void; onStartReview: () => void }) {
   const todayKey = getDayKey();
   const maxValue = Math.max(...state.weeklyReviews, 1);
   const average = Math.round(state.weeklyReviews.reduce((sum, value) => sum + value, 0) / state.weeklyReviews.length);
@@ -3019,28 +3250,47 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgres
   const articleStats = progressArticleOrder
     .map((article) => ({ article, stats: getProgressBreakdownStats(state.cards.filter((card) => card.article === article), todayKey) }))
     .filter(({ stats }) => stats.total > 0);
-  const achievementLabels: Record<string, { title: string; detail: string }> = {
-    "first-review": { title: "First recall", detail: "Started your memory loop" },
-    "week-streak": { title: "One gentle week", detail: "Kept a 7-day study streak" },
-    "daily-goal": { title: "Daily goal", detail: "Completed a full review goal" },
-    "xp-1500": { title: "Momentum maker", detail: "Reached 1,500 XP" },
-  };
+  const [achievementsOpen, setAchievementsOpen] = useState(true);
+  const [activityOpen, setActivityOpen] = useState(true);
+  const [selectedAchievementId, setSelectedAchievementId] = useState<string | null>(null);
+  const achievementItems: AchievementDisplayItem[] = [
+    ...achievementCatalog.map((achievement) => ({ ...achievement, unlocked: state.achievements.includes(achievement.id), progress: getAchievementProgress(achievement.id, state), unlockedAt: state.achievementUnlockedAt[achievement.id] })),
+    ...state.achievements
+      .filter((achievement) => !achievementCatalog.some((item) => item.id === achievement))
+      .map((achievement) => ({ id: achievement as AchievementId, title: "New milestone", detail: achievement, requirement: "Completed legacy milestone", rewardXp: 0, image: "achievements/momentum-maker.webp", unlocked: true, progress: 100, unlockedAt: state.achievementUnlockedAt[achievement] })),
+  ];
+  const unlockedAchievements = achievementItems.filter((achievement) => achievement.unlocked).length;
+  const achievementPercent = achievementItems.length > 0 ? Math.round((unlockedAchievements / achievementItems.length) * 100) : 0;
+  const selectedAchievement = achievementItems.find((achievement) => achievement.id === selectedAchievementId);
+  const nextAchievement = achievementItems.find((achievement) => !achievement.unlocked);
   return (
     <div className="page-stack progress-page">
-      <section className="page-intro"><div><span className="page-kicker">KEEP THE MOMENTUM</span><h1>Your progress<span className="title-dot">.</span></h1><p>Consistency beats cramming. Here is the shape of your week.</p></div><div className="progress-page__actions"><div className="progress-summary"><span>Weekly average</span><strong>{average} reviews</strong></div><button type="button" className="button button--ghost progress-reset-button" onClick={onResetProgress}><RefreshCw size={15} aria-hidden="true" /> Start from zero</button></div></section>
+      <section className="page-intro"><div><span className="page-kicker">KEEP THE MOMENTUM</span><h1>Your progress<span className="title-dot">.</span></h1><p>Consistency beats cramming. Here is the shape of your week.</p></div><div className="progress-page__actions"><div className="progress-summary"><span>Weekly average</span><strong>{average} reviews</strong></div></div></section>
       <section className="progress-level-grid">
-        <article className="level-card"><div className="level-card__topline"><div className="level-card__icon"><Medal size={18} aria-hidden="true" /></div><span>LEARNER LEVEL</span><strong>Level {level.level}</strong></div><div className="level-card__score"><b>{state.xp}</b><span>XP earned</span></div><div className="level-progress" aria-label={`${level.percent}% to level ${level.level + 1}`}><span style={{ width: `${level.percent}%` }} /></div><div className="level-card__footer"><span>{level.current} / {level.needed} XP to next level</span><span>{level.percent}%</span></div><div className="level-card__reward"><Sparkles size={15} aria-hidden="true" /><span><strong>Up to {currentPracticeLength} cards per session</strong><small>Next level unlocks sessions of up to {nextPracticeLength} shuffled cards.</small></span></div></article>
-        <article className="achievement-card"><div className="achievement-card__heading"><div><span className="section-eyebrow">SMALL WINS</span><h2>Achievements</h2></div><Trophy size={19} aria-hidden="true" /></div><div className="achievement-list">{state.achievements.map((achievement) => { const item = achievementLabels[achievement] ?? { title: "New milestone", detail: achievement }; return <div className="achievement-item" key={achievement}><span className="achievement-item__icon"><CheckCheck size={14} aria-hidden="true" /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span></div>; })}</div></article>
+        <article className="level-card"><div className="level-card__topline"><div className="level-card__icon"><Medal size={18} aria-hidden="true" /></div><span>LEARNER LEVEL</span><strong>Level {level.level}</strong></div><div className="level-card__score"><b>{state.xp}</b><span>XP earned</span></div><div className="level-progress" aria-label={`${level.percent}% to level ${level.level + 1}`}><span style={{ width: `${level.percent}%` }} /></div><div className="level-card__footer"><span>{level.current} / {level.needed} XP to next level</span><span>{level.percent}%</span></div><div className="level-card__reward"><Sparkles size={15} aria-hidden="true" /><span><strong>Up to {currentPracticeLength} cards per session</strong><small>{nextAchievement ? `${nextAchievement.title} is the next milestone. Level ${level.level + 1} unlocks up to ${nextPracticeLength} shuffled cards.` : `Level ${level.level + 1} unlocks sessions of up to ${nextPracticeLength} shuffled cards.`}</small></span></div></article>
+        <ProgressDisclosureSection eyebrow="SMALL WINS" title="Achievements" id="progress-achievements" open={achievementsOpen} onToggle={() => setAchievementsOpen((current) => !current)} className="achievement-card">
+          <div className="achievement-summary"><div><strong>{unlockedAchievements} of {achievementItems.length} unlocked</strong><span>Every review can unlock a small milestone.</span></div><strong>{achievementPercent}%</strong></div>
+          <div className="achievement-progress" role="progressbar" aria-label="Achievements unlocked" aria-valuemin={0} aria-valuemax={achievementItems.length} aria-valuenow={unlockedAchievements}><span style={{ width: `${achievementPercent}%` }} /></div>
+          <div className="achievement-list">
+            {achievementItems.map((achievement) => (
+              <button type="button" className={`achievement-item${achievement.unlocked ? " achievement-item--unlocked" : " achievement-item--locked"}`} key={achievement.id} onClick={() => setSelectedAchievementId(achievement.id)} aria-haspopup="dialog" aria-label={`${achievement.title}: ${achievement.unlocked ? "unlocked" : "locked"}`}>
+                <span className="achievement-item__badge" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}${achievement.image}`} alt="" /></span>
+                <span className="achievement-item__copy"><strong>{achievement.title}</strong><small>{achievement.detail}</small></span>
+                <span className="achievement-item__status">{achievement.unlocked ? "Unlocked" : `${achievement.progress}%`}</span>
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </ProgressDisclosureSection>
       </section>
       <section className="progress-overview-grid">
-        <article className="progress-chart-card">
-          <div className="side-card__heading"><div><span className="section-eyebrow">LAST 7 DAYS</span><h2>Review activity</h2></div><BarChart3 size={19} aria-hidden="true" /></div>
+        <ProgressDisclosureSection eyebrow="LAST 7 DAYS" title="Review activity" id="progress-review-activity" open={activityOpen} onToggle={() => setActivityOpen((current) => !current)} className="progress-chart-card">
           <div className="large-chart" aria-label="Review activity for the last seven days">
             {state.weeklyReviews.map((value, index) => (
               <div className={`large-chart__column${index === state.weeklyReviews.length - 1 ? " large-chart__column--today" : ""}`} key={`${value}-${index}`}><div className="large-chart__value">{value}</div><div className="large-chart__track"><span style={{ height: `${Math.max(8, Math.round((value / maxValue) * 100))}%` }} /></div><span>{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index]}</span></div>
             ))}
           </div>
-        </article>
+        </ProgressDisclosureSection>
         <article className="mastery-card">
           <div className="mastery-card__ring" style={{ "--mastery": `${mastery}%` } as CSSProperties} role="img" aria-label={`${mastery}% course mastery`}><div><strong>{mastery}%</strong><span>mastery</span></div></div>
           <div><span className="section-eyebrow">COURSE MASTERY</span><h2>{masteryTitle}</h2><p>{masteryMessage}</p>{weakCards > 0 ? <button type="button" className="text-button" onClick={onViewWeakCards}>See weak cards <ChevronRight size={16} aria-hidden="true" /></button> : isFreshStart ? <button type="button" className="text-button" onClick={onStartReview}>Start your first review <ChevronRight size={16} aria-hidden="true" /></button> : <span className="mastery-card__status">Nothing needs extra attention right now.</span>}</div>
@@ -3078,6 +3328,7 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgres
         <StatCard icon={Target} label="Goal completion" value={`${Math.min(100, Math.round((state.reviewsToday / state.dailyGoal) * 100))}%`} detail={`${state.reviewsToday} of ${state.dailyGoal} today`} tone="indigo" />
       </section>
       <article className="insight-card"><div className="insight-card__icon" aria-hidden="true"><Sparkles size={19} /></div><div><span className="section-eyebrow">A SMALL INSIGHT</span><h2>Your best study window is early evening.</h2><p>You remember 22% more cards when you review within two hours of your reminder.</p></div><button type="button" className="button button--outline" onClick={onAdjustReminder}>Adjust reminder <ArrowRight size={16} aria-hidden="true" /></button></article>
+      {selectedAchievement && <AchievementDetailsModal achievement={selectedAchievement} onClose={() => setSelectedAchievementId(null)} />}
     </div>
   );
 }
@@ -3391,7 +3642,6 @@ function ProfileModal({
   const [draftName, setDraftName] = useState(name);
   const backupInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useModalFocus<HTMLElement>(onClose);
-  const previewAvatar = getDailyAvatar(draftName.trim() || PROFILE_DISPLAY_FALLBACK, getDayKey());
   const notificationCopy = notificationPermission === "granted"
     ? "Browser alerts are on for review reminders."
     : notificationPermission === "default"
@@ -3410,7 +3660,7 @@ function ProfileModal({
           : "Use the install icon or browser menu when it becomes available.";
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="modal-backdrop modal-backdrop--settings" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section ref={panelRef} className="modal-panel profile-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <div className="modal-panel__heading"><div><span className="section-eyebrow">YOUR LEARNING SPACE</span><h2 id="settings-title">Settings</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close settings" title="Close"><X size={19} aria-hidden="true" /></button></div>
         <p className="modal-panel__intro">Keep your profile, study rhythm, appearance, and local data in one calm place.</p>
@@ -3418,7 +3668,7 @@ function ProfileModal({
         <div className="settings-sections">
           <section className="settings-section" aria-labelledby="settings-profile-title">
             <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Settings size={16} /></span><div><h3 id="settings-profile-title">Profile</h3><p>Personal details used across your learning space.</p></div></div>
-            <div className="profile-preview"><div className="profile-preview__avatar"><Avatar name={previewAvatar.seed} variant={previewAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={58} title={false} aria-hidden="true" /></div><div><span className="section-eyebrow">LEARNER</span><strong>{draftName.trim() || "Your name"}</strong><small>Private on this device</small></div></div>
+            <div className="profile-preview"><ProfileAvatar className="profile-preview__avatar" name={draftName} dayKey={getDayKey()} photoURL={firebaseUser?.photoURL} size={58} /><div><span className="section-eyebrow">LEARNER</span><strong>{draftName.trim() || "Your name"}</strong><small>Private on this device</small></div></div>
             <label className="form-field" htmlFor="profile-name"><span>Display name</span><input id="profile-name" value={draftName} onChange={(event) => setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH))} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="name" spellCheck={false} /></label>
           </section>
 
@@ -3553,7 +3803,8 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiChecking, setAiChecking] = useState(false);
   const germanInputRef = useRef<HTMLInputElement>(null);
-  const panelRef = useModalFocus<HTMLElement>(onClose, () => germanInputRef.current);
+  const hasPrefilledContent = Boolean(initialDraft?.german?.trim() || initialDraft?.translation?.trim());
+  const panelRef = useModalFocus<HTMLElement>(onClose, hasPrefilledContent ? undefined : () => germanInputRef.current, !hasPrefilledContent);
   const wordSuggestions = useMemo(() => {
     if (editing || draft.kind !== "word" || normalizeGermanTerm(draft.german).length < 2) return [];
     return searchGermanWords(draft.german, 5);
@@ -3659,7 +3910,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section ref={panelRef} className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="add-card-title">
+      <section ref={panelRef} className="modal-panel" tabIndex={hasPrefilledContent ? -1 : undefined} role="dialog" aria-modal="true" aria-labelledby="add-card-title">
         <div className="modal-panel__heading"><div><span className="section-eyebrow">PERSONAL LIBRARY</span><h2 id="add-card-title">{editing ? "Edit a flashcard" : "Add a flashcard"}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close add card dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
         <p className="modal-panel__intro">Add a word, phrase, or grammar item. Deutschly checks your entry for duplicates and common issues before it joins the review queue.</p>
         {liveMatch && <div className={`card-live-match card-live-match--${liveMatch.type}`} role="status"><Info size={15} aria-hidden="true" /><span><strong>{liveMatch.type === "exact" ? "This card is already saved." : "A card with this headword already exists."}</strong><small>{liveMatch.card.german} · {liveMatch.card.translation}. Press Check card to compare the meaning.</small></span></div>}
@@ -3689,11 +3940,11 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
           <div className="modal-panel__footer">
             <span><Info size={15} aria-hidden="true" /> {checkResult ? "Confirm the details after checking the references." : "A quick check helps keep your library clean."}</span>
             <div>
-              {editing && !checkResult && onDelete && <button type="button" className="button button--ghost delete-card-button" onClick={onDelete}><Trash2 size={15} aria-hidden="true" /> Delete card</button>}
-              {checkResult && <button type="button" className="button button--ghost" onClick={() => setCheckResult(null)}>Edit card</button>}
-              <button type="button" className="button button--ghost" onClick={onClose}>Cancel</button>
-              {!checkResult && <button type="submit" className="button button--primary"><CheckCircle2 size={16} aria-hidden="true" /> Check card</button>}
-              {checkResult && <button type="button" className="button button--primary" onClick={handleConfirm} disabled={checkResult.match?.type === "exact" || !referenceChecked}>{checkResult.match?.type === "exact" ? "Already added" : !referenceChecked ? "Check references first" : checkResult.match?.type === "possible" ? "Add as separate meaning" : "Add checked card"}</button>}
+              {editing && !checkResult && onDelete && <button type="button" className="button button--icon button--ghost delete-card-button" onClick={onDelete} aria-label="Delete card" title="Delete card"><Trash2 size={16} aria-hidden="true" /></button>}
+              {checkResult && <button type="button" className="button button--icon button--ghost" onClick={() => setCheckResult(null)} aria-label="Edit card" title="Edit card"><Pencil size={16} aria-hidden="true" /></button>}
+              <button type="button" className="button button--icon button--ghost" onClick={onClose} aria-label="Cancel" title="Cancel"><X size={17} aria-hidden="true" /></button>
+              {!checkResult && <button type="submit" className="button button--icon button--primary" aria-label="Check card" title="Check card"><CheckCircle2 size={17} aria-hidden="true" /></button>}
+              {checkResult && <button type="button" className="button button--icon button--primary" onClick={handleConfirm} disabled={checkResult.match?.type === "exact" || !referenceChecked} aria-label={checkResult.match?.type === "exact" ? "Already added" : !referenceChecked ? "Check references first" : checkResult.match?.type === "possible" ? "Add as separate meaning" : "Add checked card"} title={checkResult.match?.type === "exact" ? "Already added" : !referenceChecked ? "Check references first" : checkResult.match?.type === "possible" ? "Add as separate meaning" : "Add checked card"}><CheckCircle2 size={17} aria-hidden="true" /></button>}
             </div>
           </div>
         </form>
@@ -3766,7 +4017,6 @@ export default function App() {
   profileNameRef.current = profileName;
   const cardPendingDeletion = deleteCardId ? state.cards.find((card) => card.id === deleteCardId) : undefined;
   const profileDisplayName = profileName || PROFILE_DISPLAY_FALLBACK;
-  const profileAvatar = getDailyAvatar(profileDisplayName, todayKey);
   const wordBank = useMemo(() => mergeGermanWordRecords(databaseWords, state.wordBank), [databaseWords, state.wordBank]);
   const wordBankInboxItems = useMemo(() => {
     const wordsById = new Map(wordBank.map((word) => [word.id, word]));
@@ -4225,17 +4475,18 @@ export default function App() {
     const previousXp = stateRef.current.xp;
     const previousLevel = getLevelProgress(previousXp).level;
     const nextXp = previousXp + safeAmount;
-    const nextLevel = getLevelProgress(nextXp).level;
     const updatedAt = new Date().toISOString();
-    setState((current) => {
-      const achievements = new Set(current.achievements);
-      if (nextXp >= 1500) achievements.add("xp-1500");
-      return { ...current, xp: current.xp + safeAmount, achievements: [...achievements], lastSyncedAt: updatedAt };
-    });
+    const candidateAchievements = nextXp >= 1500 ? ["xp-1500"] : [];
+    const newlyUnlocked = getNewAchievementDefinitions(stateRef.current.achievements, candidateAchievements);
+    const achievementRewardXp = newlyUnlocked.reduce((sum, achievement) => sum + achievement.rewardXp, 0);
+    const nextLevel = getLevelProgress(nextXp + achievementRewardXp).level;
+    setState((current) => applyAchievementUnlocks({ ...current, xp: current.xp + safeAmount, lastSyncedAt: updatedAt }, candidateAchievements, updatedAt));
+    const messages = newlyUnlocked.length > 0 ? [formatAchievementUnlocks(newlyUnlocked)] : [];
     if (nextLevel > previousLevel) {
       const sessionLength = getPracticeSessionLength(nextLevel, 999);
-      showToast(`Level ${nextLevel} reached. You can now practice up to ${sessionLength} shuffled cards per session.`);
+      messages.push(`Level ${nextLevel} reached. You can now practice up to ${sessionLength} shuffled cards per session.`);
     }
+    if (messages.length > 0) showToast(messages.join(" "));
   };
 
   const handlePracticeComplete = (cardCount: number) => {
@@ -4244,31 +4495,41 @@ export default function App() {
     const previousReviewsToday = previousState.lastReviewDay === todayKey ? previousState.reviewsToday : 0;
     const completesDailyGoal = previousReviewsToday < previousState.dailyGoal
       && previousReviewsToday + safeCardCount >= previousState.dailyGoal;
+    const nextStreak = previousState.lastStudyDay === todayKey
+      ? previousState.streak
+      : previousState.lastStudyDay === addDays(todayKey, -1) ? previousState.streak + 1 : 1;
     const updatedAt = new Date().toISOString();
+    const candidateAchievements = [
+      ...(completesDailyGoal ? ["daily-goal"] : []),
+      ...(nextStreak >= 7 ? ["week-streak"] : []),
+    ];
+    const newlyUnlocked = getNewAchievementDefinitions(previousState.achievements, candidateAchievements);
     setState((current) => {
       const reviewsToday = current.lastReviewDay === todayKey ? current.reviewsToday : 0;
       const nextReviewsToday = reviewsToday + safeCardCount;
       const weeklyReviews = [...current.weeklyReviews];
       const lastIndex = weeklyReviews.length - 1;
       if (lastIndex >= 0) weeklyReviews[lastIndex] = (weeklyReviews[lastIndex] ?? 0) + safeCardCount;
-      const nextStreak = current.lastStudyDay === todayKey
+      const currentNextStreak = current.lastStudyDay === todayKey
         ? current.streak
         : current.lastStudyDay === addDays(todayKey, -1) ? current.streak + 1 : 1;
-      const achievements = new Set(current.achievements);
-      if (nextReviewsToday >= current.dailyGoal) achievements.add("daily-goal");
-      return {
+      const nextState = {
         ...current,
         reviewsToday: nextReviewsToday,
         lastReviewDay: todayKey,
         lastStudyDay: todayKey,
-        streak: nextStreak,
-        bestStreak: Math.max(current.bestStreak, nextStreak),
+        streak: currentNextStreak,
+        bestStreak: Math.max(current.bestStreak, currentNextStreak),
         weeklyReviews,
-        achievements: [...achievements],
         lastSyncedAt: updatedAt,
       };
+      return applyAchievementUnlocks(nextState, [
+        ...(nextReviewsToday >= current.dailyGoal ? ["daily-goal"] : []),
+        ...(currentNextStreak >= 7 ? ["week-streak"] : []),
+      ], updatedAt);
     });
-    showToast(completesDailyGoal ? "Daily goal complete. Your streak is secured." : `${safeCardCount} practice cards added to today's path.`);
+    const completionMessage = completesDailyGoal ? "Daily goal complete. Your streak is secured." : `${safeCardCount} practice cards added to today's path.`;
+    showToast([completionMessage, newlyUnlocked.length > 0 ? formatAchievementUnlocks(newlyUnlocked) : ""].filter(Boolean).join(" "));
   };
 
   function handleRate(rating: ReviewRating) {
@@ -4282,6 +4543,22 @@ export default function App() {
     const reviewedAt = new Date().toISOString();
     const xpAward = getXpForRating(rating);
     const wasCorrect = rating !== "again";
+    const nextTotalReviews = previousState.totalReviews + 1;
+    const nextXp = previousState.xp + xpAward;
+    const previousLevel = getLevelProgress(previousState.xp).level;
+    const previousReviewsToday = previousState.lastReviewDay === todayKey ? previousState.reviewsToday : 0;
+    const nextStreak = previousState.lastStudyDay === todayKey
+      ? previousState.streak
+      : previousState.lastStudyDay === addDays(todayKey, -1) ? previousState.streak + 1 : 1;
+    const candidateAchievements = [
+      ...(nextTotalReviews >= 1 ? ["first-review"] : []),
+      ...(nextStreak >= 7 ? ["week-streak"] : []),
+      ...(previousReviewsToday + 1 >= previousState.dailyGoal ? ["daily-goal"] : []),
+      ...(nextXp >= 1500 ? ["xp-1500"] : []),
+    ];
+    const newlyUnlocked = getNewAchievementDefinitions(previousState.achievements, candidateAchievements);
+    const achievementRewardXp = newlyUnlocked.reduce((sum, achievement) => sum + achievement.rewardXp, 0);
+    const nextLevel = getLevelProgress(nextXp + achievementRewardXp).level;
     setState((current) => {
       const nextCards = current.cards.map((item) => item.id === card.id ? { ...item, ...schedule, lastReviewedAt: reviewedAt, updatedAt: reviewedAt } : item);
       const weeklyReviews = [...current.weeklyReviews];
@@ -4289,17 +4566,7 @@ export default function App() {
       if (lastIndex >= 0) weeklyReviews[lastIndex] = (weeklyReviews[lastIndex] ?? 0) + 1;
       const reviewsToday = current.lastReviewDay === todayKey ? current.reviewsToday : 0;
       const becameMastered = rating === "easy" && card.status !== "review";
-      const nextTotalReviews = current.totalReviews + 1;
-      const nextXp = current.xp + xpAward;
-      const nextStreak = current.lastStudyDay === todayKey
-        ? current.streak
-        : current.lastStudyDay === addDays(todayKey, -1) ? current.streak + 1 : 1;
-      const achievements = new Set(current.achievements);
-      if (nextTotalReviews >= 1) achievements.add("first-review");
-      if (nextStreak >= 7) achievements.add("week-streak");
-      if (reviewsToday + 1 >= current.dailyGoal) achievements.add("daily-goal");
-      if (nextXp >= 1500) achievements.add("xp-1500");
-      return {
+       const nextState = {
         ...current,
         cards: nextCards,
         reviewsToday: reviewsToday + 1,
@@ -4312,17 +4579,19 @@ export default function App() {
         correctReviews: current.correctReviews + (wasCorrect ? 1 : 0),
         streak: nextStreak,
         bestStreak: Math.max(current.bestStreak, nextStreak),
-        achievements: [...achievements],
-        weeklyReviews,
-        lastSyncedAt: reviewedAt,
-      };
+         weeklyReviews,
+         lastSyncedAt: reviewedAt,
+       };
+       return applyAchievementUnlocks(nextState, candidateAchievements, reviewedAt);
     });
     setStudySession((current) => ({ ...current, reviewed: Math.min(current.reviewed + 1, Math.max(current.total, 1)) }));
     if (wasQueueSession) {
       setStudyQueueIds((current) => current ? current.filter((id) => id !== card.id) : current);
     }
     setShowAnswer(false);
-    showToast(`${rating === "again" ? "We’ll bring it back tomorrow" : `Next review in ${schedule.interval} days`} · +${xpAward} XP`, {
+    const ratingMessage = `${rating === "again" ? "We’ll bring it back tomorrow" : `Next review in ${schedule.interval} days`} · +${xpAward} XP`;
+    const levelMessage = nextLevel > previousLevel ? `Level ${nextLevel} reached. Your practice capacity is now ${getPracticeSessionLength(nextLevel, 999)} cards.` : "";
+    showToast([ratingMessage, newlyUnlocked.length > 0 ? formatAchievementUnlocks(newlyUnlocked) : "", levelMessage].filter(Boolean).join(" "), {
       label: "Undo",
       onClick: () => {
         const restoredAt = new Date().toISOString();
@@ -4340,6 +4609,7 @@ export default function App() {
           streak: previousState.streak,
           bestStreak: previousState.bestStreak,
           achievements: [...previousState.achievements],
+          achievementUnlockedAt: { ...previousState.achievementUnlockedAt },
           weeklyReviews: [...previousState.weeklyReviews],
           lastSyncedAt: restoredAt,
         }));
@@ -5065,7 +5335,7 @@ export default function App() {
         </div>
         <div className="sidebar__bottom">
           <div className="sidebar-tip"><Sparkles size={16} aria-hidden="true" /><div><strong>Small steps, big recall.</strong><span>Your next review is ready.</span></div></div>
-          <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileDisplayName} profile avatar`}><Avatar name={profileAvatar.seed} variant={profileAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={32} title={false} aria-hidden="true" /></div><div><strong>{profileDisplayName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
+          <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileDisplayName} profile avatar`}><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} size={32} /></div><div><strong>{profileDisplayName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
         </div>
       </aside>
 
@@ -5076,7 +5346,7 @@ export default function App() {
             <button type="button" className="icon-button" onClick={toggleTheme} aria-label={state.theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={state.theme === "light" ? "Dark mode" : "Light mode"}>{state.theme === "light" ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}</button>
             <button type="button" className="icon-button notification-button" onClick={handleReminderBell} aria-label="View reminders" title="Reminders"><Bell size={18} aria-hidden="true" />{state.reminderEnabled && dueCards.length > 0 && <span aria-hidden="true" />}</button>
             <button type="button" className={`sync-button${syncing ? " sync-button--syncing" : ""}`} onClick={() => void handleSync()} disabled={syncing}><Cloud size={16} aria-hidden="true" />{syncing ? "Syncing..." : syncConfigured ? "Sync now" : "Set up sync"}</button>
-            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileDisplayName}`} title="Profile settings"><Avatar name={profileAvatar.seed} variant={profileAvatar.variant} colors={PROFILE_AVATAR_COLORS} size={34} title={false} aria-hidden="true" /></button>
+            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileDisplayName}`} title="Profile settings"><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} size={34} /></button>
           </div>
         </header>
 
@@ -5085,7 +5355,7 @@ export default function App() {
           {activeTab === "study" && <StudyPage dueCards={studyCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} onCompleteSession={handlePracticeComplete} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} wordBankInboxItems={wordBankInboxItems} onWordBankDecision={handleWordBankDecision} onGenerateWordBatch={handleGenerateWordBatch} aiEndpoint={syncEndpoint} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
-          {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} onStartReview={handleStartReview} />}
+          {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onStartReview={handleStartReview} />}
         </main>
       </div>
 

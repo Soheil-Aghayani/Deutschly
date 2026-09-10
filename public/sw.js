@@ -1,4 +1,4 @@
-const CACHE_NAME = "deutschly-shell-v7";
+const CACHE_NAME = "deutschly-shell-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -7,6 +7,10 @@ const APP_SHELL = [
   "./icon-192.svg",
   "./icon-512.svg",
   "./og-preview.svg",
+  "./achievements/first-recall.webp",
+  "./achievements/week-streak.webp",
+  "./achievements/daily-goal.webp",
+  "./achievements/momentum-maker.webp",
 ];
 
 self.addEventListener("install", (event) => {
