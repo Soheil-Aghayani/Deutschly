@@ -601,6 +601,12 @@ svg {
   animation: spin 700ms linear infinite;
 }
 
+.spin {
+  flex: 0 0 auto;
+  transform-origin: center;
+  animation: spin 800ms linear infinite;
+}
+
 .topbar__avatar {
   width: 34px;
   height: 34px;
@@ -6188,7 +6194,11 @@ kbd {
   .study-card--answered,
   .study-answer--visible,
   .practice-result,
-  .practice-next {
+  .practice-next,
+  .spin,
+  .sync-button--syncing svg,
+  .pdf-import-card__count > svg,
+  .sync-status--syncing > svg {
     animation: none;
   }
 }
