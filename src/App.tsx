@@ -268,8 +268,23 @@ function GoogleLogo({ size = 18 }: { size?: number }) {
   );
 }
 
-function firebaseErrorMessage(error: unknown): string {
+type FirebaseErrorContext = "auth" | "sync" | "account";
+
+function isFirebaseNetworkError(error: unknown): boolean {
   const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "";
+  const message = error instanceof Error ? error.message : "";
+  return typeof navigator !== "undefined" && !navigator.onLine
+    || ["auth/network-request-failed", "unavailable", "network-request-failed"].includes(code)
+    || /failed to fetch|network|offline|timed out|timeout|err_connection|connection refused/i.test(message);
+}
+
+function firebaseErrorMessage(error: unknown, context: FirebaseErrorContext = "account"): string {
+  const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "";
+  if (isFirebaseNetworkError(error)) {
+    if (context === "auth") return "Google sign-in could not reach the network. Turn on your VPN and try again, or continue as a guest and connect Google later from Settings.";
+    if (context === "sync") return "Deutschly could not reach the cloud. Turn on your VPN and try syncing again.";
+    return "Deutschly could not reach the account service. Turn on your VPN and try again.";
+  }
   if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return "The sign-in window was closed.";
   if (code === "auth/operation-not-allowed") return "This sign-in provider is not enabled in Firebase yet.";
   if (code === "auth/unauthorized-domain") return "Add this website to Firebase Authentication authorized domains.";
@@ -3593,7 +3608,7 @@ export default function App() {
         if (mounted && user) setFirebaseUser(user);
       })
       .catch((error: unknown) => {
-        if (mounted) setFirebaseError(firebaseErrorMessage(error));
+        if (mounted) setFirebaseError(firebaseErrorMessage(error, "auth"));
       });
     return () => {
       mounted = false;
@@ -4273,7 +4288,7 @@ export default function App() {
         showToast(message);
       }
     } catch (error: unknown) {
-      setFirebaseError(firebaseErrorMessage(error));
+      setFirebaseError(firebaseErrorMessage(error, "sync"));
       if (!silent) showToast("Cloud sync failed. Check the Firebase setup and try again.");
     } finally {
       firebaseSyncInFlightRef.current = false;
@@ -4303,7 +4318,7 @@ export default function App() {
         showToast(`Signed in with ${provider === "google" ? "Google" : "GitHub"}.`);
       }
     } catch (error: unknown) {
-      setFirebaseError(firebaseErrorMessage(error));
+      setFirebaseError(firebaseErrorMessage(error, "auth"));
     } finally {
       setFirebaseBusy(false);
     }
