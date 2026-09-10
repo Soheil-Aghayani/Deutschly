@@ -1547,7 +1547,6 @@ svg {
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  opacity: 0.78;
 }
 
 .article-badge--compact {
@@ -1571,13 +1570,13 @@ svg {
 }
 
 .article-badge--das {
-  color: #087f6b;
+  color: #087d68;
   background: #e6f7f1;
   border-color: #c5ebdf;
 }
 
 .article-badge--plural {
-  color: #ae5b08;
+  color: #a95708;
   background: #fff1df;
   border-color: #ffddbb;
 }
