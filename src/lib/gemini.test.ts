@@ -68,7 +68,7 @@ describe("Gemini card review bridge", () => {
       note: "",
       kind: "word",
       existingMatches: [],
-    })).rejects.toThrow("Gemini bridge is not available at this address");
+    })).rejects.toThrow("published app cannot reach a private Gemini bridge");
   });
 
   it("rejects a response with an unsupported article", () => {

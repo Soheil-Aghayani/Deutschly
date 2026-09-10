@@ -69,6 +69,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function bridgeUnavailableMessage(): string {
+  const hostname = typeof window !== "undefined" ? window.location.hostname : "";
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return "The local Gemini bridge is not running. Start npm run sync-server on this PC, then try again.";
+  }
+  return "This published app cannot reach a private Gemini bridge. Run the bridge on your PC and set a reachable HTTPS bridge URL in Set up sync.";
+}
+
 function readText(value: unknown, field: string, maxLength: number): string {
   if (typeof value !== "string") throw new GeminiRequestError(`Gemini returned an invalid ${field}.`);
   return value.trim().slice(0, maxLength);
@@ -134,10 +142,10 @@ async function readResponse(response: Response): Promise<Record<string, unknown>
   }
 
   if (!response.ok) {
-    const message = isRecord(payload) && typeof payload.error === "string"
-      ? payload.error
-      : response.status === 404 || response.status === 405
-        ? "Gemini bridge is not available at this address. Run the private server on the PC and set its URL in Set up sync."
+    const message = response.status === 404 || response.status === 405
+      ? bridgeUnavailableMessage()
+      : isRecord(payload) && typeof payload.error === "string"
+        ? payload.error
         : `Gemini request failed (${response.status}).`;
     throw new GeminiRequestError(message, response.status);
   }
@@ -146,11 +154,16 @@ async function readResponse(response: Response): Promise<Record<string, unknown>
 }
 
 export async function reviewCardWithGemini(endpoint: string, input: GeminiCardReviewInput): Promise<GeminiCardReview> {
-  const response = await fetch(geminiReviewUrl(endpoint), {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ card: input }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(geminiReviewUrl(endpoint), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ card: input }),
+    });
+  } catch {
+    throw new GeminiRequestError(bridgeUnavailableMessage());
+  }
 
   return parseGeminiCardReview(await readResponse(response));
 }
@@ -227,11 +240,16 @@ export function parseGermanWordBatch(payload: unknown): GermanWordBatchResponse 
 }
 
 export async function generateGermanWordBatch(endpoint: string, input: GermanWordBatchRequest): Promise<GermanWordBatchResponse> {
-  const response = await fetch(geminiWordBatchUrl(endpoint), {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(input),
-  });
+  let response: Response;
+  try {
+    response = await fetch(geminiWordBatchUrl(endpoint), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new GeminiRequestError(bridgeUnavailableMessage());
+  }
 
   return parseGermanWordBatch(await readResponse(response));
 }

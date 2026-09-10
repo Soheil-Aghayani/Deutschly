@@ -2337,12 +2337,12 @@ function LibraryPage({
           <div className="word-bank-card__heading">
             <span className="word-bank-card__icon" aria-hidden="true"><Languages size={19} /></span>
             <div>
-              <span className="section-eyebrow">GEMINI WORD BANK</span>
+              <span className="section-eyebrow">CHECKED WORD BANK</span>
               <h2 id="word-bank-title">Find a word to add</h2>
-              <p>Search the checked A1 and A2 records, then review the details before saving a card.</p>
+              <p>Browse checked A1 and A2 vocabulary, then review a word before saving it as a flashcard.</p>
             </div>
           </div>
-          <span className="word-bank-card__count">{wordBank.length} records</span>
+          <span className="word-bank-card__count" role="status" aria-label={`${wordBank.length} words in the checked word bank`}>{wordBank.length} word-bank words</span>
         </div>
         <div className="word-bank-generator">
           <div className="word-bank-generator__copy">
@@ -2382,8 +2382,8 @@ function LibraryPage({
         )}
       </section>
 
-      <section className="library-filters" aria-label="Filter cards">
-        <div className="library-filters__label"><Filter size={16} aria-hidden="true" /><strong>Filter cards</strong><span>{filteredCards.length} of {cards.length}</span></div>
+      <section className="library-filters" aria-label="Filter saved flashcards">
+        <div className="library-filters__label"><Filter size={16} aria-hidden="true" /><strong>Saved cards</strong><span aria-label={`${filteredCards.length} of ${cards.length} saved cards shown`}>{filteredCards.length} of {cards.length}</span></div>
         <label className="library-filter"><span>Lesson</span><select value={lessonFilter} onChange={(event) => setLessonFilter(event.target.value)}><option value="all">All lessons</option>{lessons.map((lesson) => <option key={lesson} value={lesson}>{lesson}</option>)}</select></label>
         <label className="library-filter"><span>Article</span><select value={articleFilter} onChange={(event) => setArticleFilter(event.target.value as "all" | Article)}><option value="all">All articles</option><option value="der">der</option><option value="die">die</option><option value="das">das</option><option value="plural">die · plural</option><option value="none">Phrase</option></select></label>
         <label className="library-filter"><span>State</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | CardStatus)}><option value="all">All states</option><option value="new">New</option><option value="learning">Learning</option><option value="review">Review</option></select></label>
