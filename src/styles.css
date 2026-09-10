@@ -2914,6 +2914,15 @@ kbd {
   border-color: rgba(22, 138, 104, 0.25);
 }
 
+.word-bank-suggestion--added,
+.word-bank-suggestion--added:hover,
+.word-bank-suggestion--added:focus-visible {
+  color: var(--success);
+  background: var(--success-soft);
+  border-color: rgba(22, 138, 104, 0.18);
+  cursor: default;
+}
+
 .word-bank-empty {
   display: flex;
   align-items: center;
@@ -3180,6 +3189,78 @@ kbd {
   min-height: 42px;
   padding: 0 8px;
   font-size: 10px;
+}
+
+.word-bank-inbox__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.word-bank-inbox__filter {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.word-bank-inbox__filter:hover,
+.word-bank-inbox__filter--active {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: rgba(79, 70, 229, 0.24);
+}
+
+.word-bank-inbox__filter span {
+  min-width: 18px;
+  padding: 2px 4px;
+  color: inherit;
+  font-size: 9px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+}
+
+.word-bank-inbox__actions {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.word-bank-inbox__actions .button {
+  min-height: 42px;
+  padding: 0 8px;
+  font-size: 10px;
+}
+
+.word-bank-inbox__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.word-bank-generated__row--added {
+  padding: 7px 8px;
+  background: var(--success-soft);
+  border-radius: 8px;
+}
+
+.word-bank-generated__row--dismissed {
+  opacity: 0.72;
 }
 
 .lesson-strip {
@@ -7625,6 +7706,12 @@ kbd {
   .word-bank-generated__row .button {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .word-bank-inbox__actions {
+    grid-column: 2;
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .library-source-card {

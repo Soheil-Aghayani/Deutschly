@@ -110,6 +110,7 @@ type ProfileMode = "guest" | "google";
 type ProfileOnboardingStep = "choice" | "guest" | "google-confirm";
 type FirebaseSyncStrategy = "merge" | "local" | "remote";
 type SyncResolution = "merge" | "local" | "remote";
+type WordBankDecision = "pending" | "added" | "dismissed";
 type ToastAction = { label: string; onClick: () => void };
 type ToastState = { message: string; action?: ToastAction };
 
@@ -153,6 +154,9 @@ interface PdfImportSummary {
 interface AppState {
   cards: Flashcard[];
   wordBank: GermanWordRecord[];
+  wordBankInboxIds: string[];
+  wordBankDecisions: Record<string, WordBankDecision>;
+  wordBankDecisionUpdatedAt: Record<string, string>;
   deletedCardIds: Record<string, string>;
   reviewsToday: number;
   dailyGoal: number;
@@ -217,6 +221,11 @@ interface SyncConflict {
   remoteUpdatedAt: string;
   localCardCount: number;
   remoteCardCount: number;
+}
+
+interface WordBankInboxItem {
+  word: GermanWordRecord;
+  decision: WordBankDecision;
 }
 
 const STORAGE_KEY = "deutschly:state:v1";
@@ -690,6 +699,9 @@ function createInitialState(): AppState {
   return {
     cards: createInitialCards(),
     wordBank: [],
+    wordBankInboxIds: [],
+    wordBankDecisions: {},
+    wordBankDecisionUpdatedAt: {},
     deletedCardIds: {},
     reviewsToday: 0,
     dailyGoal: 24,
@@ -832,6 +844,63 @@ function normalizeDeletedCardIds(value: unknown): Record<string, string> {
   return Object.fromEntries(entries.slice(-500));
 }
 
+function normalizeWordBankInboxIds(value: unknown, wordBank: GermanWordRecord[]): string[] {
+  const availableIds = new Set(wordBank.map((word) => word.id));
+  const requestedIds = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && availableIds.has(item))
+    : [];
+  const legacyGeneratedIds = wordBank.filter((word) => /^ai-/i.test(word.id)).map((word) => word.id);
+  return [...new Set([...requestedIds, ...legacyGeneratedIds])].slice(-500);
+}
+
+function normalizeWordBankDecisions(value: unknown, inboxIds: string[]): Record<string, WordBankDecision> {
+  const source = isRecord(value) ? value : {};
+  return Object.fromEntries(inboxIds.map((id) => {
+    const decision = source[id];
+    return [id, decision === "added" || decision === "dismissed" ? decision : "pending"];
+  }));
+}
+
+function normalizeWordBankDecisionUpdatedAt(value: unknown, inboxIds: string[]): Record<string, string> {
+  const source = isRecord(value) ? value : {};
+  const normalized: Record<string, string> = {};
+  inboxIds.forEach((id) => {
+    const updatedAt = source[id];
+    if (typeof updatedAt === "string" && Number.isFinite(Date.parse(updatedAt))) normalized[id] = updatedAt;
+  });
+  return normalized;
+}
+
+function wordBankDecisionPriority(decision: WordBankDecision): number {
+  if (decision === "added") return 3;
+  if (decision === "dismissed") return 2;
+  return 1;
+}
+
+function mergeWordBankDecisions(
+  localDecisions: Record<string, WordBankDecision>,
+  remoteDecisions: Record<string, WordBankDecision>,
+  localUpdatedAt: Record<string, string>,
+  remoteUpdatedAt: Record<string, string>,
+): { decisions: Record<string, WordBankDecision>; updatedAt: Record<string, string> } {
+  const decisions: Record<string, WordBankDecision> = {};
+  const updatedAt: Record<string, string> = {};
+  const ids = new Set([...Object.keys(localDecisions), ...Object.keys(remoteDecisions)]);
+  ids.forEach((id) => {
+    const localDecision = localDecisions[id];
+    const remoteDecision = remoteDecisions[id];
+    const localTime = timestamp(localUpdatedAt[id]);
+    const remoteTime = timestamp(remoteUpdatedAt[id]);
+    const chooseLocal = localTime > remoteTime
+      || (localTime === remoteTime && wordBankDecisionPriority(localDecision ?? "pending") >= wordBankDecisionPriority(remoteDecision ?? "pending"));
+    const selectedDecision = chooseLocal ? localDecision ?? remoteDecision : remoteDecision ?? localDecision;
+    if (selectedDecision) decisions[id] = selectedDecision;
+    const selectedUpdatedAt = chooseLocal ? localUpdatedAt[id] : remoteUpdatedAt[id];
+    if (selectedUpdatedAt) updatedAt[id] = selectedUpdatedAt;
+  });
+  return { decisions, updatedAt };
+}
+
 function normalizeAppState(value: unknown): AppState {
   const fallback = createInitialState();
   if (!isRecord(value)) return fallback;
@@ -840,6 +909,9 @@ function normalizeAppState(value: unknown): AppState {
   const wordBank = Array.isArray(value.wordBank)
     ? mergeGermanWordRecords(value.wordBank.filter(isGermanWordRecord))
     : fallback.wordBank;
+  const wordBankInboxIds = normalizeWordBankInboxIds(value.wordBankInboxIds, wordBank);
+  const wordBankDecisions = normalizeWordBankDecisions(value.wordBankDecisions, wordBankInboxIds);
+  const wordBankDecisionUpdatedAt = normalizeWordBankDecisionUpdatedAt(value.wordBankDecisionUpdatedAt, wordBankInboxIds);
   const deletedCardIds = normalizeDeletedCardIds(value.deletedCardIds);
   const cards = normalizedCards.filter((card) => {
     const deletedAt = deletedCardIds[card.id];
@@ -881,6 +953,9 @@ function normalizeAppState(value: unknown): AppState {
     ...fallback,
     cards,
     wordBank,
+    wordBankInboxIds,
+    wordBankDecisions,
+    wordBankDecisionUpdatedAt,
     deletedCardIds,
     reviewsToday: typeof value.reviewsToday === "number" ? Math.max(0, Math.round(value.reviewsToday)) : fallback.reviewsToday,
     dailyGoal: typeof value.dailyGoal === "number" ? Math.max(1, Math.round(value.dailyGoal)) : fallback.dailyGoal,
@@ -914,9 +989,15 @@ function loadState(): AppState {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     const normalizedState = raw ? normalizeAppState(JSON.parse(raw)) : fallback;
+    const legacyWordBank = loadGeneratedWordBank();
+    const wordBank = mergeGermanWordRecords(normalizedState.wordBank, legacyWordBank);
+    const wordBankInboxIds = normalizeWordBankInboxIds([...normalizedState.wordBankInboxIds, ...legacyWordBank.map((word) => word.id)], wordBank);
     return {
       ...normalizedState,
-      wordBank: mergeGermanWordRecords(normalizedState.wordBank, loadGeneratedWordBank()),
+      wordBank,
+      wordBankInboxIds,
+      wordBankDecisions: normalizeWordBankDecisions(normalizedState.wordBankDecisions, wordBankInboxIds),
+      wordBankDecisionUpdatedAt: normalizeWordBankDecisionUpdatedAt(normalizedState.wordBankDecisionUpdatedAt, wordBankInboxIds),
     };
   } catch {
     return fallback;
@@ -1051,11 +1132,17 @@ function mergeAppStates(local: AppState, remote: AppState): AppState {
     const deletedAt = deletedCardIds[card.id];
     return !deletedAt || cardTimestamp(card) > timestamp(deletedAt);
   });
+  const wordBank = mergeGermanWordRecords(local.wordBank, remote.wordBank);
+  const wordBankInboxIds = normalizeWordBankInboxIds([...local.wordBankInboxIds, ...remote.wordBankInboxIds], wordBank);
+  const mergedWordBankDecisions = mergeWordBankDecisions(local.wordBankDecisions, remote.wordBankDecisions, local.wordBankDecisionUpdatedAt, remote.wordBankDecisionUpdatedAt);
 
   return {
     ...local,
     cards: mergedCards,
-    wordBank: mergeGermanWordRecords(local.wordBank, remote.wordBank),
+    wordBank,
+    wordBankInboxIds,
+    wordBankDecisions: mergedWordBankDecisions.decisions,
+    wordBankDecisionUpdatedAt: mergedWordBankDecisions.updatedAt,
     deletedCardIds,
     reviewsToday: hasDifferentReset
       ? progressState.reviewsToday
@@ -2495,6 +2582,8 @@ function LibraryPage({
   onAddDatabaseWord,
   onOpenSync,
   wordBank,
+  wordBankInboxItems,
+  onWordBankDecision,
   onGenerateWordBatch,
   aiEndpoint,
   onEditCard,
@@ -2522,9 +2611,11 @@ function LibraryPage({
   pdfError: string | null;
   onSearch: (value: string) => void;
   onAddCard: () => void;
-  onAddDatabaseWord: (word: GermanWordRecord) => void;
+  onAddDatabaseWord: (word: GermanWordRecord, wordBankId?: string) => void;
   onOpenSync: () => void;
   wordBank: GermanWordRecord[];
+  wordBankInboxItems: WordBankInboxItem[];
+  onWordBankDecision: (wordId: string, decision: WordBankDecision) => void;
   onGenerateWordBatch: (level: GermanWordBatchLevel, count: number) => Promise<GermanWordRecord[]>;
   aiEndpoint: string;
   onEditCard: (card: Flashcard) => void;
@@ -2550,7 +2641,7 @@ function LibraryPage({
   const [wordBankCount, setWordBankCount] = useState("10");
   const [wordBankGenerating, setWordBankGenerating] = useState(false);
   const [wordBankError, setWordBankError] = useState<string | null>(null);
-  const [lastGeneratedWords, setLastGeneratedWords] = useState<GermanWordRecord[]>([]);
+  const [wordBankInboxFilter, setWordBankInboxFilter] = useState<WordBankDecision>("pending");
   const [aiUsageRefreshKey, setAiUsageRefreshKey] = useState(0);
   const [needsCheckOnly, setNeedsCheckOnly] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
@@ -2558,6 +2649,13 @@ function LibraryPage({
   const lessons = [...new Set(cards.map((card) => card.lesson).filter(Boolean))].sort();
   const tags = [...new Set(cards.flatMap((card) => card.tags ?? []))].sort();
   const wordBankSuggestions = useMemo(() => searchGermanWords(wordBankQuery, 6, wordBank), [wordBank, wordBankQuery]);
+  const wordBankInboxCounts = useMemo(() => wordBankInboxItems.reduce<Record<WordBankDecision, number>>((counts, item) => {
+    counts[item.decision] += 1;
+    return counts;
+  }, { pending: 0, added: 0, dismissed: 0 }), [wordBankInboxItems]);
+  const visibleWordBankItems = useMemo(() => wordBankInboxItems.filter((item) => item.decision === wordBankInboxFilter), [wordBankInboxFilter, wordBankInboxItems]);
+  const wordBankInboxById = useMemo(() => new Map(wordBankInboxItems.map((item) => [item.word.id, item])), [wordBankInboxItems]);
+  const savedWordKeys = useMemo(() => new Set(cards.map((card) => normalizeGermanWord(card.german))), [cards]);
   const handleGenerateWordBatch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (wordBankGenerating) return;
@@ -2566,10 +2664,8 @@ function LibraryPage({
     setWordBankError(null);
     try {
       const words = await onGenerateWordBatch(wordBankLevel, Number(wordBankCount));
-      setLastGeneratedWords(words);
       if (words.length === 0) setWordBankError("The AI returned no new words. Try another level or run it again later.");
     } catch (error) {
-      setLastGeneratedWords([]);
       setWordBankError(error instanceof Error ? error.message : "The AI could not generate new words. Check the sync server and try again.");
     } finally {
       setWordBankGenerating(false);
@@ -2662,11 +2758,25 @@ function LibraryPage({
         </div>
         {wordBankError && <div className="word-bank-generator__error" role="alert"><Info size={15} aria-hidden="true" /><span>{wordBankError}</span><button type="button" className="text-button" onClick={onOpenSync}><Cloud size={14} aria-hidden="true" /> Set up AI bridge</button></div>}
         <AiQuotaStatus endpoint={aiEndpoint} refreshKey={aiUsageRefreshKey} />
-        {lastGeneratedWords.length > 0 && <div className="word-bank-generated" aria-live="polite">
-          <div className="word-bank-generated__heading"><div><strong>{lastGeneratedWords.length} {lastGeneratedWords.length === 1 ? "word" : "words"} saved to word bank</strong><span>Choose Add card to review the details and save a flashcard.</span></div><span>{wordBankLevel}</span></div>
-          <div className="word-bank-generated__list">
-            {lastGeneratedWords.map((word) => <div className="word-bank-generated__row" key={word.id}><ArticleBadge article={word.article} compact /><div><strong>{word.german}</strong><span>{word.englishMeanings.join(" / ")}</span></div><button type="button" className="button button--outline" onClick={() => onAddDatabaseWord(word)} aria-label={`Add ${word.german} as a flashcard`}><Plus size={14} aria-hidden="true" /> Add card</button></div>)}
+        {wordBankInboxItems.length > 0 && <div className="word-bank-generated word-bank-inbox" aria-live="polite">
+          <div className="word-bank-generated__heading"><div><strong>AI word inbox</strong><span>{wordBankInboxCounts.pending} waiting · {wordBankInboxCounts.added} added · {wordBankInboxCounts.dismissed} not for me</span></div><span>{wordBankInboxCounts.pending} waiting</span></div>
+          <div className="word-bank-inbox__filters" role="group" aria-label="AI word inbox filters">
+            {(["pending", "added", "dismissed"] as WordBankDecision[]).map((decision) => {
+              const label = decision === "pending" ? "To review" : decision === "added" ? "Added" : "Not for me";
+              return <button type="button" key={decision} className={`word-bank-inbox__filter${wordBankInboxFilter === decision ? " word-bank-inbox__filter--active" : ""}`} onClick={() => setWordBankInboxFilter(decision)} aria-pressed={wordBankInboxFilter === decision}>{label} <span>{wordBankInboxCounts[decision]}</span></button>;
+            })}
           </div>
+          {visibleWordBankItems.length > 0 ? <div className="word-bank-generated__list">
+            {visibleWordBankItems.map(({ word, decision }) => <div className={`word-bank-generated__row word-bank-generated__row--${decision}`} key={word.id}>
+              <ArticleBadge article={word.article} compact />
+              <div><strong>{word.german}</strong><span>{word.englishMeanings.join(" / ")}</span></div>
+              <div className="word-bank-inbox__actions">
+                {decision === "pending" && <><button type="button" className="button button--outline" onClick={() => onAddDatabaseWord(word, word.id)} aria-label={`Add ${word.german} as a flashcard`}><Plus size={14} aria-hidden="true" /> Add card</button><button type="button" className="button button--ghost" onClick={() => onWordBankDecision(word.id, "dismissed")} aria-label={`Do not add ${word.german}`}><X size={14} aria-hidden="true" /> Not for me</button></>}
+                {decision === "added" && <span className="word-bank-inbox__status"><CheckCircle2 size={14} aria-hidden="true" /> Added to cards</span>}
+                {decision === "dismissed" && <button type="button" className="button button--ghost" onClick={() => onWordBankDecision(word.id, "pending")} aria-label={`Move ${word.german} back to the inbox`}><RefreshCw size={14} aria-hidden="true" /> Keep in inbox</button>}
+              </div>
+            </div>)}
+          </div> : <div className="word-bank-empty"><Info size={16} aria-hidden="true" /><span>{wordBankInboxFilter === "pending" ? "No words waiting for review." : wordBankInboxFilter === "added" ? "No words have been added from this inbox yet." : "No words are marked Not for me."}</span></div>}
         </div>}
         <label className="word-bank-search" htmlFor="word-bank-search">
           <Search size={17} aria-hidden="true" />
@@ -2676,13 +2786,15 @@ function LibraryPage({
         {wordBankQuery.trim() && (
           wordBankSuggestions.length > 0 ? (
             <div className="word-bank-suggestions" role="listbox" aria-label="German word bank suggestions">
-              {wordBankSuggestions.map((word) => (
-                <button type="button" className="word-bank-suggestion" role="option" aria-label={`Add ${word.german}`} key={word.id} onClick={() => { onAddDatabaseWord(word); setWordBankQuery(""); }}>
+              {wordBankSuggestions.map((word) => {
+                const inboxItem = wordBankInboxById.get(word.id);
+                const alreadyInLibrary = inboxItem?.decision === "added" || savedWordKeys.has(normalizeGermanWord(word.german));
+                return <button type="button" className={`word-bank-suggestion${alreadyInLibrary ? " word-bank-suggestion--added" : ""}`} role="option" aria-label={alreadyInLibrary ? `${word.german} is already in your library` : `Add ${word.german}`} key={word.id} disabled={alreadyInLibrary} onClick={() => { onAddDatabaseWord(word, inboxItem ? word.id : undefined); setWordBankQuery(""); }}>
                   <ArticleBadge article={word.article} compact />
                   <span className="word-bank-suggestion__copy"><strong>{word.german}</strong><small>{word.englishMeanings.join(" / ")}</small>{word.plural && <small>Plural: {word.plural}</small>}{word.source && <small className="word-bank-suggestion__source">{word.source.lesson} · p. {word.source.page}</small>}</span>
-                  <span className="word-bank-suggestion__meta"><span>{word.level}</span><Plus size={15} aria-hidden="true" /></span>
-                </button>
-              ))}
+                  <span className="word-bank-suggestion__meta">{alreadyInLibrary ? <><Check size={15} aria-hidden="true" /><span>Added</span></> : <><span>{word.level}</span><Plus size={15} aria-hidden="true" /></>}</span>
+                </button>;
+              })}
             </div>
           ) : <div className="word-bank-empty"><Search size={16} aria-hidden="true" /><span>No matching word yet. Add it manually and use Check card.</span></div>
         )}
@@ -3619,6 +3731,7 @@ export default function App() {
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [addCardSeed, setAddCardSeed] = useState<Partial<CardDraft> | undefined>(undefined);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [wordBankReviewId, setWordBankReviewId] = useState<string | null>(null);
   const [deleteCardId, setDeleteCardId] = useState<string | null>(null);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
@@ -3651,6 +3764,16 @@ export default function App() {
   const profileDisplayName = profileName || PROFILE_DISPLAY_FALLBACK;
   const profileAvatar = getDailyAvatar(profileDisplayName, todayKey);
   const wordBank = useMemo(() => mergeGermanWordRecords(databaseWords, state.wordBank), [databaseWords, state.wordBank]);
+  const wordBankInboxItems = useMemo(() => {
+    const wordsById = new Map(wordBank.map((word) => [word.id, word]));
+    return state.wordBankInboxIds
+      .map((id) => {
+        const word = wordsById.get(id);
+        return word ? { word, decision: (state.wordBankDecisions[id] ?? "pending") as WordBankDecision } : null;
+      })
+      .filter((item): item is WordBankInboxItem => Boolean(item))
+      .reverse();
+  }, [state.wordBankDecisions, state.wordBankInboxIds, wordBank]);
   const dueCards = useMemo(() => state.cards
     .filter((card) => card.due <= todayKey)
     .sort((first, second) => {
@@ -3857,14 +3980,26 @@ export default function App() {
     return () => window.clearInterval(reminderTimer);
   }, [state.reminderEnabled, state.reminderTime, dueCards.length, reminderSnoozedUntil]);
 
-  const handleOpenAddCard = (seed?: Partial<CardDraft>) => {
+  const handleOpenAddCard = (seed?: Partial<CardDraft>, wordBankId: string | null = null) => {
     setEditingCardId(null);
+    setWordBankReviewId(wordBankId);
     setAddCardSeed(seed);
     setAddCardOpen(true);
   };
 
-  const handleAddDatabaseWord = (word: GermanWordRecord) => {
-    handleOpenAddCard(germanWordToCardDraft(word));
+  const handleAddDatabaseWord = (word: GermanWordRecord, wordBankId?: string) => {
+    handleOpenAddCard(germanWordToCardDraft(word), wordBankId ?? null);
+  };
+
+  const handleWordBankDecision = (wordId: string, decision: WordBankDecision) => {
+    const updatedAt = new Date().toISOString();
+    setState((current) => ({
+      ...current,
+      wordBankDecisions: { ...current.wordBankDecisions, [wordId]: decision },
+      wordBankDecisionUpdatedAt: { ...current.wordBankDecisionUpdatedAt, [wordId]: updatedAt },
+      lastSyncedAt: updatedAt,
+    }));
+    showToast(decision === "dismissed" ? "Word moved to Not for me." : "Word moved back to the AI inbox.");
   };
 
   const handleGenerateWordBatch = async (level: GermanWordBatchLevel, count: number): Promise<GermanWordRecord[]> => {
@@ -3882,17 +4017,36 @@ export default function App() {
     });
     if (additions.length > 0) {
       const updatedAt = new Date().toISOString();
-      setState((current) => ({
-        ...current,
-        wordBank: mergeGermanWordRecords(current.wordBank, additions),
-        lastSyncedAt: updatedAt,
-      }));
+      setState((current) => {
+        const nextWordBank = mergeGermanWordRecords(current.wordBank, additions);
+        const nextInboxIds = normalizeWordBankInboxIds(
+          [...current.wordBankInboxIds, ...additions.map((word) => word.id)],
+          nextWordBank,
+        );
+        const nextDecisions = { ...current.wordBankDecisions };
+        const nextDecisionUpdatedAt = { ...current.wordBankDecisionUpdatedAt };
+        additions.forEach((word) => {
+          if (!nextDecisions[word.id]) {
+            nextDecisions[word.id] = "pending";
+            nextDecisionUpdatedAt[word.id] = updatedAt;
+          }
+        });
+        return {
+          ...current,
+          wordBank: nextWordBank,
+          wordBankInboxIds: nextInboxIds,
+          wordBankDecisions: nextDecisions,
+          wordBankDecisionUpdatedAt: nextDecisionUpdatedAt,
+          lastSyncedAt: updatedAt,
+        };
+      });
     }
     return additions;
   };
 
   const handleOpenEditCard = (card: Flashcard) => {
     setEditingCardId(card.id);
+    setWordBankReviewId(null);
     setAddCardSeed({
       german: card.german,
       translation: card.translation,
@@ -3913,12 +4067,14 @@ export default function App() {
     setAddCardOpen(false);
     setAddCardSeed(undefined);
     setEditingCardId(null);
+    setWordBankReviewId(null);
   };
 
   const handleRequestDeleteCard = () => {
     if (!editingCardId) return;
     setAddCardOpen(false);
     setAddCardSeed(undefined);
+    setWordBankReviewId(null);
     setDeleteCardId(editingCardId);
     setEditingCardId(null);
   };
@@ -4192,9 +4348,22 @@ export default function App() {
 
   const handleSaveCard = (draft: CardDraft) => {
     const preparedDraft = prepareCardDraft(draft);
+    const wordBankId = wordBankReviewId;
     const duplicate = findCardMatch(state.cards.filter((card) => card.id !== editingCardId), preparedDraft);
     if (duplicate?.type === "exact") {
-      showToast(`${duplicate.card.german} is already in your library`);
+      if (wordBankId) {
+        const updatedAt = new Date().toISOString();
+        setState((current) => ({
+          ...current,
+          wordBankDecisions: { ...current.wordBankDecisions, [wordBankId]: "added" },
+          wordBankDecisionUpdatedAt: { ...current.wordBankDecisionUpdatedAt, [wordBankId]: updatedAt },
+          lastSyncedAt: updatedAt,
+        }));
+        handleCloseAddCard();
+        showToast(`${duplicate.card.german} is already in your library. Marked as added.`);
+      } else {
+        showToast(`${duplicate.card.german} is already in your library`);
+      }
       return;
     }
 
@@ -4257,7 +4426,18 @@ export default function App() {
           candidateStatusUpdatedAt: { ...current.pdfImport.candidateStatusUpdatedAt, [preparedDraft.sourceCandidateId]: createdAt },
         }
         : current.pdfImport;
-      return { ...current, cards: [newCard, ...current.cards], pdfImport, lastSyncedAt: createdAt };
+      return {
+        ...current,
+        cards: [newCard, ...current.cards],
+        pdfImport,
+        wordBankDecisions: wordBankId
+          ? { ...current.wordBankDecisions, [wordBankId]: "added" }
+          : current.wordBankDecisions,
+        wordBankDecisionUpdatedAt: wordBankId
+          ? { ...current.wordBankDecisionUpdatedAt, [wordBankId]: createdAt }
+          : current.wordBankDecisionUpdatedAt,
+        lastSyncedAt: createdAt,
+      };
     });
     handleCloseAddCard();
     showToast(`${newCard.german} was added to your review queue`);
@@ -4897,7 +5077,7 @@ export default function App() {
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={studyCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} onCompleteSession={handlePracticeComplete} />}
-          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} onGenerateWordBatch={handleGenerateWordBatch} aiEndpoint={syncEndpoint} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
+          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} wordBankInboxItems={wordBankInboxItems} onWordBankDecision={handleWordBankDecision} onGenerateWordBatch={handleGenerateWordBatch} aiEndpoint={syncEndpoint} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} onStartReview={handleStartReview} />}
         </main>
       </div>
