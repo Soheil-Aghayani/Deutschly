@@ -6151,6 +6151,12 @@ kbd {
   justify-content: flex-end;
 }
 
+.modal-panel__footer > div .button {
+  flex: 0 1 auto;
+  min-width: max-content;
+  white-space: nowrap;
+}
+
 .toast {
   position: fixed;
   right: 25px;
@@ -7953,7 +7959,7 @@ kbd {
   }
 
   .modal-panel__footer > div .button {
-    flex: 1;
+    flex: 0 1 auto;
   }
 
   .firebase-merge-summary {
