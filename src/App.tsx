@@ -88,6 +88,8 @@ import {
   answerMatches,
   getCardMastery,
   getLevelProgress,
+  getPracticeSessionLength,
+  getPracticeXp,
   getXpForRating,
   makeClozeSentence,
   scheduleAdaptiveReview,
@@ -101,7 +103,7 @@ type ReviewRating = "again" | "hard" | "good" | "easy";
 type CardStatus = "new" | "learning" | "review";
 type Theme = "light" | "dark";
 type VerificationStatus = "unverified" | "reference-checked";
-type PracticeMode = "article" | "plural" | "translation" | "cloze";
+type PracticeMode = "article" | "plural" | "translation" | "cloze" | "mixed";
 type SyncStatus = "idle" | "syncing" | "synced" | "offline" | "error" | "conflict";
 type NotificationPermissionState = NotificationPermission | "unsupported";
 type ProfileMode = "guest" | "google";
@@ -1979,70 +1981,153 @@ function VoiceRecorder({ text }: { text: string }) {
   );
 }
 
-function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () => void }) {
-  const [mode, setMode] = useState<PracticeMode>("article");
+interface PracticeAttempt {
+  cardId: string;
+  german: string;
+  answer: string;
+  correct: boolean;
+  xp: number;
+}
+
+function shuffleCards(cards: Flashcard[]): Flashcard[] {
+  const shuffled = [...cards];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function PracticePage({ cards, level, onAddCard, onAwardXp }: { cards: Flashcard[]; level: number; onAddCard: () => void; onAwardXp: (amount: number) => void }) {
+  const [mode, setMode] = useState<PracticeMode>("mixed");
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [score, setScore] = useState(0);
   const [attempts, setAttempts] = useState(0);
+  const [sessionXp, setSessionXp] = useState(0);
+  const [lastXp, setLastXp] = useState(0);
+  const [sessionSeed, setSessionSeed] = useState(0);
+  const [sessionCards, setSessionCards] = useState<Flashcard[]>([]);
+  const [sessionModes, setSessionModes] = useState<PracticeMode[]>([]);
+  const [sessionAttempts, setSessionAttempts] = useState<PracticeAttempt[]>([]);
+  const [sessionComplete, setSessionComplete] = useState(false);
   const nextButtonRef = useRef<HTMLButtonElement>(null);
+  const sessionStartRef = useRef<HTMLButtonElement>(null);
 
   const eligibleCards = useMemo(() => cards.filter((card) => mode !== "plural" || Boolean(card.plural)), [cards, mode]);
-  const card = eligibleCards.length > 0 ? eligibleCards[index % eligibleCards.length] : undefined;
+  const card = sessionCards[index] ?? eligibleCards[0];
+  const sessionLength = sessionCards.length || getPracticeSessionLength(level, eligibleCards.length);
 
   useEffect(() => {
+    const shuffled = shuffleCards(eligibleCards);
+    const nextCards = shuffled.slice(0, getPracticeSessionLength(level, shuffled.length));
+    const nextModes = nextCards.map((sessionCard) => {
+      if (mode !== "mixed") return mode;
+      const options: PracticeMode[] = ["article", "translation", "cloze"];
+      if (sessionCard.plural) options.push("plural");
+      return options[Math.floor(Math.random() * options.length)] ?? "article";
+    });
+    setSessionCards(nextCards);
+    setSessionModes(nextModes);
+    setSessionSeed(Math.floor(Math.random() * 1000));
     setIndex(0);
     setAnswer("");
     setSubmitted(false);
+    setIsCorrect(false);
     setScore(0);
     setAttempts(0);
-  }, [mode]);
+    setSessionXp(0);
+    setLastXp(0);
+    setSessionAttempts([]);
+    setSessionComplete(false);
+  }, [mode, eligibleCards]);
 
   useEffect(() => {
-    if (submitted) nextButtonRef.current?.focus();
-  }, [index, submitted]);
+    if (!submitted) return;
+    if (sessionComplete) sessionStartRef.current?.focus();
+    else nextButtonRef.current?.focus();
+  }, [index, submitted, sessionComplete]);
 
-  if (!card) {
+  if (eligibleCards.length === 0) {
     return (
       <div className="page-stack practice-page">
         <section className="page-intro"><div><span className="page-kicker">PRACTICE LAB</span><h1>Practice<span className="title-dot">.</span></h1><p>Add a card with a plural first, then come back for focused practice.</p></div></section>
-        <section className="empty-practice"><div className="empty-practice__icon"><ListChecks size={24} aria-hidden="true" /></div><h2>No plural cards yet</h2><p>Plural practice needs at least one card with a saved plural form.</p><button type="button" className="button button--primary" onClick={onAddCard}><Plus size={16} aria-hidden="true" /> Add a card</button></section>
+        <section className="empty-practice"><div className="empty-practice__icon"><ListChecks size={24} aria-hidden="true" /></div><h2>{mode === "plural" ? "No plural cards yet" : "No cards yet"}</h2><p>{mode === "plural" ? "Plural practice needs at least one card with a saved plural form." : "Add a card to start a practice session."}</p><button type="button" className="button button--primary" onClick={onAddCard}><Plus size={16} aria-hidden="true" /> Add a card</button></section>
       </div>
     );
   }
 
+  if (!card) return null;
+
+  const questionMode = sessionModes[index] ?? (mode === "mixed" ? "article" : mode);
   const displayWord = `${card.article !== "none" ? `${card.article} ` : ""}${card.german}`;
-  const prompt = mode === "article"
+  const prompt = questionMode === "article"
     ? `Which article belongs to “${card.german}”?`
-    : mode === "plural"
+    : questionMode === "plural"
       ? `What is the plural of “${displayWord}”?`
-      : mode === "translation"
+      : questionMode === "translation"
         ? `What does “${displayWord}” mean?`
         : "Complete the sentence from your memory.";
-  const questionValue = mode === "article" ? card.german : mode === "cloze" ? makeClozeSentence(card.example, card.german) : displayWord;
-  const expected = mode === "article" ? (card.article === "plural" ? "die" : card.article) : mode === "plural" ? card.plural ?? "" : mode === "translation" ? card.translation : card.german;
-  const expectedLabel = mode === "article" ? (card.article === "plural" ? "die · plural" : `${card.article} · ${articleMeta[card.article].detail}`) : mode === "plural" ? card.plural ?? "No plural saved" : mode === "translation" ? card.translation : card.german;
-  const expectedAudio = mode === "article" ? expected : expectedLabel;
+  const clozeVariant = (sessionSeed + index) % 11;
+  const questionValue = questionMode === "article" ? card.german : questionMode === "cloze" ? makeClozeSentence(card.example, card.german, clozeVariant, card.article) : displayWord;
+  const expected = questionMode === "article" ? (card.article === "plural" ? "die" : card.article) : questionMode === "plural" ? card.plural ?? "" : questionMode === "translation" ? card.translation : card.german;
+  const expectedLabel = questionMode === "article" ? (card.article === "plural" ? "die · plural" : `${card.article} · ${articleMeta[card.article].detail}`) : questionMode === "plural" ? card.plural ?? "No plural saved" : questionMode === "translation" ? card.translation : card.german;
+  const expectedAudio = questionMode === "article" ? expected : expectedLabel;
+  const practiceAudio = questionMode === "cloze" ? questionValue.replace("____", card.german) : displayWord;
+  const isFinalQuestion = sessionCards.length > 0 && index === sessionCards.length - 1;
+  const missedCards = sessionAttempts.filter((attempt) => !attempt.correct).map((attempt) => attempt.german).filter((word, wordIndex, words) => words.indexOf(word) === wordIndex);
+
+  const startSession = () => {
+    const shuffled = shuffleCards(eligibleCards);
+    const nextCards = shuffled.slice(0, getPracticeSessionLength(level, shuffled.length));
+    const nextModes = nextCards.map((sessionCard) => {
+      if (mode !== "mixed") return mode;
+      const options: PracticeMode[] = ["article", "translation", "cloze"];
+      if (sessionCard.plural) options.push("plural");
+      return options[Math.floor(Math.random() * options.length)] ?? "article";
+    });
+    setSessionCards(nextCards);
+    setSessionModes(nextModes);
+    setSessionSeed(Math.floor(Math.random() * 1000));
+    setIndex(0);
+    setAnswer("");
+    setSubmitted(false);
+    setIsCorrect(false);
+    setScore(0);
+    setAttempts(0);
+    setSessionXp(0);
+    setLastXp(0);
+    setSessionAttempts([]);
+    setSessionComplete(false);
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitted || !answer.trim()) return;
     const correct = answerMatches(answer, expected);
-    const isFinalQuestion = index % eligibleCards.length === eligibleCards.length - 1;
-    playPracticeFeedbackSound(isFinalQuestion ? "complete" : correct ? "correct" : "incorrect");
+    const xpAward = getPracticeXp(correct, isFinalQuestion);
+    playPracticeFeedbackSound(correct ? "correct" : "incorrect");
+    if (isFinalQuestion) window.setTimeout(() => playPracticeFeedbackSound("complete"), 340);
+    onAwardXp(xpAward);
     setIsCorrect(correct);
     setSubmitted(true);
+    setLastXp(xpAward);
     setAttempts((current) => current + 1);
+    setSessionXp((current) => current + xpAward);
+    setSessionAttempts((current) => [...current, { cardId: card.id, german: card.german, answer: answer.trim(), correct, xp: xpAward }]);
     if (correct) setScore((current) => current + 1);
+    if (isFinalQuestion) setSessionComplete(true);
   };
 
   const nextCard = () => {
+    if (sessionComplete || isFinalQuestion) return;
     setIndex((current) => current + 1);
     setAnswer("");
     setSubmitted(false);
     setIsCorrect(false);
+    setLastXp(0);
   };
 
   const handleNextKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -2054,29 +2139,35 @@ function PracticePage({ cards, onAddCard }: { cards: Flashcard[]; onAddCard: () 
   return (
     <div className="page-stack practice-page">
       <section className="page-intro practice-page__intro">
-        <div><span className="page-kicker">PRACTICE LAB</span><h1>Practice<span className="title-dot">.</span></h1><p>Short active-recall drills for the details that make German stick.</p></div>
-        <div className="practice-score"><Trophy size={16} aria-hidden="true" /><strong>{score}/{attempts}</strong><span>correct</span></div>
+        <div><span className="page-kicker">PRACTICE LAB</span><h1>Practice<span className="title-dot">.</span></h1><p>{sessionComplete ? "Session report ready. Start another shuffled set when you are ready." : `${sessionLength}-card randomized session. Try first, then use audio when it helps.`}</p></div>
+        <div className="practice-score"><Trophy size={16} aria-hidden="true" /><strong>{score}/{attempts}</strong><span>correct</span><em>{sessionXp} XP</em></div>
       </section>
 
       <section className="practice-toolbar" aria-label="Practice settings">
-        <div className="practice-toolbar__summary"><SlidersHorizontal size={17} aria-hidden="true" /><div className="practice-toolbar__copy"><strong>Choose a drill</strong><span>Change the question without losing your library.</span></div></div>
-        <label className="practice-select"><span>Practice mode</span><select value={mode} onChange={(event) => setMode(event.target.value as PracticeMode)}><option value="article">Article</option><option value="plural">Plural</option><option value="translation">Translation</option><option value="cloze">Sentence gap</option></select><ChevronDown size={15} aria-hidden="true" /></label>
+        <div className="practice-toolbar__summary"><SlidersHorizontal size={17} aria-hidden="true" /><div className="practice-toolbar__copy"><strong>Choose a drill</strong><span>Questions are shuffled each session. Level {level} currently gives you up to {getPracticeSessionLength(level, 999)} cards.</span></div></div>
+        <label className="practice-select"><span>Practice mode</span><select value={mode} onChange={(event) => setMode(event.target.value as PracticeMode)}><option value="mixed">Mixed recall</option><option value="article">Article</option><option value="plural">Plural</option><option value="translation">Translation</option><option value="cloze">Sentence gap</option></select><ChevronDown size={15} aria-hidden="true" /></label>
       </section>
 
       <section className="practice-layout">
         <article className={`practice-card${submitted ? isCorrect ? " practice-card--correct" : " practice-card--wrong" : ""}`}>
-          <div className="practice-card__topline"><span>{mode === "article" ? "ARTICLE DRILL" : mode === "plural" ? "PLURAL DRILL" : mode === "translation" ? "MEANING DRILL" : "CLOZE DRILL"}</span><span>{(index % eligibleCards.length) + 1} / {eligibleCards.length}</span></div>
+          <div className="practice-card__topline"><span>{questionMode === "article" ? "ARTICLE DRILL" : questionMode === "plural" ? "PLURAL DRILL" : questionMode === "translation" ? "MEANING DRILL" : "CLOZE DRILL"}</span><span>{index + 1} / {sessionCards.length || sessionLength}</span></div>
           <p className="practice-card__prompt">{prompt}</p>
-          <div className={`practice-card__question${mode === "cloze" ? " practice-card__question--cloze" : ""}`}>{questionValue}</div>
-          {mode !== "article" && <div className="practice-card__audio"><PronunciationButton text={displayWord} /><button type="button" className="button button--ghost" onClick={() => speakGerman(displayWord, 0.62)}><Volume2 size={14} aria-hidden="true" /> Slow pronunciation</button></div>}
+          <div className={`practice-card__question${questionMode === "cloze" ? " practice-card__question--cloze" : ""}`}>{questionValue}</div>
+          {questionMode !== "article" && <div className="practice-card__audio"><PronunciationButton text={practiceAudio} /><button type="button" className="button button--ghost" onClick={() => speakGerman(practiceAudio, 0.62)}><Volume2 size={14} aria-hidden="true" /> {questionMode === "cloze" ? "Hear sentence" : "Slow pronunciation"}</button>{questionMode === "cloze" && <span>Try first, then listen.</span>}</div>}
 
           <form className="practice-answer" onSubmit={handleSubmit}>
             <label htmlFor="practice-answer">Your answer</label>
-            <div className="practice-answer__row"><input id="practice-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder={mode === "article" ? "der / die / das" : mode === "plural" ? "Type the plural" : "Type your answer"} autoComplete="off" disabled={submitted} /><button type="submit" className="button button--primary" disabled={submitted || !answer.trim()}>{submitted ? "Checked" : "Check"} <Check size={16} aria-hidden="true" /></button></div>
+            <div className="practice-answer__row"><input id="practice-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder={questionMode === "article" ? "der / die / das" : questionMode === "plural" ? "Type the plural" : "Type your answer"} autoComplete="off" disabled={submitted} /><button type="submit" className="button button--primary" disabled={submitted || !answer.trim()}>{submitted ? "Checked" : "Check"} <Check size={16} aria-hidden="true" /></button></div>
           </form>
 
-          {submitted && <div className="practice-result" role="status"><div className="practice-result__icon" aria-hidden="true">{isCorrect ? <CheckCircle2 size={21} /> : <Info size={21} />}</div><div><strong>{isCorrect ? "Sehr gut!" : "Almost, keep this one visible."}</strong><span>{isCorrect ? "That answer matches the card." : `Expected: ${expectedLabel}`}</span></div>{!isCorrect && <PronunciationButton text={expectedAudio} />}</div>}
-          {submitted && <button ref={nextButtonRef} type="button" className="button button--outline practice-next" onClick={nextCard} onKeyDown={handleNextKeyDown} aria-keyshortcuts="Enter"><ArrowRight size={15} aria-hidden="true" /> Next drill</button>}
+          {submitted && <div className="practice-result" role="status"><div className="practice-result__icon" aria-hidden="true">{isCorrect ? <CheckCircle2 size={21} /> : <Info size={21} />}</div><div><strong>{isCorrect ? "Sehr gut!" : "Keep this one visible."}</strong><span>{isCorrect ? "That answer matches the card." : `Expected: ${expectedLabel}`}</span><em className="practice-result__xp">+{lastXp} XP</em></div>{!isCorrect && <PronunciationButton text={expectedAudio} />}</div>}
+          {submitted && !sessionComplete && <button ref={nextButtonRef} type="button" className="button button--outline practice-next" onClick={nextCard} onKeyDown={handleNextKeyDown} aria-keyshortcuts="Enter"><ArrowRight size={15} aria-hidden="true" /> Next drill</button>}
+          {sessionComplete && <section className="practice-summary" role="status">
+            <div className="practice-summary__heading"><span className="page-kicker">SESSION COMPLETE</span><h2>{score} of {attempts} correct</h2><p>You earned <strong>{sessionXp} XP</strong> in this shuffled session.</p></div>
+            <div className="practice-summary__stats"><div><strong>{score}</strong><span>correct</span></div><div><strong>{attempts - score}</strong><span>another pass</span></div><div><strong>{sessionXp}</strong><span>XP earned</span></div></div>
+            {missedCards.length > 0 && <p className="practice-summary__missed"><strong>Keep an eye on:</strong> {missedCards.join(", ")}</p>}
+            <button ref={sessionStartRef} type="button" className="button button--primary" onClick={startSession}><RefreshCw size={15} aria-hidden="true" /> Start another shuffled session</button>
+          </section>}
         </article>
 
         <aside className="practice-aside"><div className="practice-aside__heading"><div className="practice-aside__icon"><Languages size={19} aria-hidden="true" /></div><span className="section-eyebrow">ACTIVE RECALL</span></div><h2>Small answer, strong memory.</h2><p>Typing the article, plural, or meaning makes the detail easier to retrieve later in a real conversation.</p><div className="practice-aside__tips"><div><strong>1</strong><span>Try before looking.</span></div><div><strong>2</strong><span>Say it out loud.</span></div><div><strong>3</strong><span>Move on gently.</span></div></div></aside>
@@ -2644,6 +2735,8 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgres
   const maxValue = Math.max(...state.weeklyReviews, 1);
   const average = Math.round(state.weeklyReviews.reduce((sum, value) => sum + value, 0) / state.weeklyReviews.length);
   const level = getLevelProgress(state.xp);
+  const currentPracticeLength = getPracticeSessionLength(level.level, 999);
+  const nextPracticeLength = getPracticeSessionLength(level.level + 1, 999);
   const accuracy = state.totalReviews > 0 ? Math.round((state.correctReviews / state.totalReviews) * 100) : 0;
   const mastery = Math.round(state.cards.reduce((sum, card) => sum + getCardMastery(card), 0) / Math.max(state.cards.length, 1));
   const weakCards = state.cards.filter(isWeakCard).length;
@@ -2673,7 +2766,7 @@ function ProgressPage({ state, onViewWeakCards, onAdjustReminder, onResetProgres
     <div className="page-stack progress-page">
       <section className="page-intro"><div><span className="page-kicker">KEEP THE MOMENTUM</span><h1>Your progress<span className="title-dot">.</span></h1><p>Consistency beats cramming. Here is the shape of your week.</p></div><div className="progress-page__actions"><div className="progress-summary"><span>Weekly average</span><strong>{average} reviews</strong></div><button type="button" className="button button--ghost progress-reset-button" onClick={onResetProgress}><RefreshCw size={15} aria-hidden="true" /> Start from zero</button></div></section>
       <section className="progress-level-grid">
-        <article className="level-card"><div className="level-card__topline"><div className="level-card__icon"><Medal size={18} aria-hidden="true" /></div><span>LEARNER LEVEL</span><strong>Level {level.level}</strong></div><div className="level-card__score"><b>{state.xp}</b><span>XP earned</span></div><div className="level-progress" aria-label={`${level.percent}% to level ${level.level + 1}`}><span style={{ width: `${level.percent}%` }} /></div><div className="level-card__footer"><span>{level.current} / {level.needed} XP to next level</span><span>{level.percent}%</span></div></article>
+        <article className="level-card"><div className="level-card__topline"><div className="level-card__icon"><Medal size={18} aria-hidden="true" /></div><span>LEARNER LEVEL</span><strong>Level {level.level}</strong></div><div className="level-card__score"><b>{state.xp}</b><span>XP earned</span></div><div className="level-progress" aria-label={`${level.percent}% to level ${level.level + 1}`}><span style={{ width: `${level.percent}%` }} /></div><div className="level-card__footer"><span>{level.current} / {level.needed} XP to next level</span><span>{level.percent}%</span></div><div className="level-card__reward"><Sparkles size={15} aria-hidden="true" /><span><strong>Up to {currentPracticeLength} cards per session</strong><small>Next level unlocks sessions of up to {nextPracticeLength} shuffled cards.</small></span></div></article>
         <article className="achievement-card"><div className="achievement-card__heading"><div><span className="section-eyebrow">SMALL WINS</span><h2>Achievements</h2></div><Trophy size={19} aria-hidden="true" /></div><div className="achievement-list">{state.achievements.map((achievement) => { const item = achievementLabels[achievement] ?? { title: "New milestone", detail: achievement }; return <div className="achievement-item" key={achievement}><span className="achievement-item__icon"><CheckCheck size={14} aria-hidden="true" /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span></div>; })}</div></article>
       </section>
       <section className="progress-overview-grid">
@@ -3790,6 +3883,25 @@ export default function App() {
     setShowAnswer(false);
   };
 
+  const handlePracticeXp = (amount: number) => {
+    const safeAmount = Math.max(0, Math.round(amount));
+    if (safeAmount === 0) return;
+    const previousXp = stateRef.current.xp;
+    const previousLevel = getLevelProgress(previousXp).level;
+    const nextXp = previousXp + safeAmount;
+    const nextLevel = getLevelProgress(nextXp).level;
+    const updatedAt = new Date().toISOString();
+    setState((current) => {
+      const achievements = new Set(current.achievements);
+      if (nextXp >= 1500) achievements.add("xp-1500");
+      return { ...current, xp: current.xp + safeAmount, achievements: [...achievements], lastSyncedAt: updatedAt };
+    });
+    if (nextLevel > previousLevel) {
+      const sessionLength = getPracticeSessionLength(nextLevel, 999);
+      showToast(`Level ${nextLevel} reached. You can now practice up to ${sessionLength} shuffled cards per session.`);
+    }
+  };
+
   function handleRate(rating: ReviewRating) {
     const card = dueCards[0];
     if (!card) return;
@@ -4571,7 +4683,7 @@ export default function App() {
         <main id="main-content" className="main-content">
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={dueCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
-          {activeTab === "practice" && <PracticePage cards={state.cards} onAddCard={() => handleOpenAddCard()} />}
+          {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} wordBank={wordBank} onGenerateWordBatch={handleGenerateWordBatch} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onResetProgress={() => setResetProgressOpen(true)} onStartReview={handleStartReview} />}
         </main>

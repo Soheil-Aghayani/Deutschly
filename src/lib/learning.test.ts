@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   answerMatches,
+  getPracticeSessionLength,
+  getPracticeXp,
   getLevelProgress,
   makeClozeSentence,
   scheduleAdaptiveReview,
@@ -33,6 +35,17 @@ describe("adaptive learning helpers", () => {
     expect(answerMatches("flat", "apartment / flat")).toBe(true);
     expect(answerMatches("goat", "kid")).toBe(false);
     expect(makeClozeSentence("Das Buch liegt auf dem Tisch.", "Buch")).toBe("Das ____ liegt auf dem Tisch.");
+    expect(makeClozeSentence(undefined, "Bahnhof", 0, "der")).toBe("Hier ist der ____.");
+  });
+
+  it("makes practice progress visible and expands sessions by level", () => {
+    expect(getPracticeXp(true)).toBe(10);
+    expect(getPracticeXp(false)).toBe(2);
+    expect(getPracticeXp(true, true)).toBe(15);
+    expect(getPracticeSessionLength(1, 13)).toBe(5);
+    expect(getPracticeSessionLength(2, 13)).toBe(10);
+    expect(getPracticeSessionLength(5, 13)).toBe(13);
+    expect(new Set(Array.from({ length: 8 }, (_, index) => makeClozeSentence(undefined, "Bahnhof", index, "der"))).size).toBe(8);
   });
 
   it("calculates a stable level progress bar", () => {

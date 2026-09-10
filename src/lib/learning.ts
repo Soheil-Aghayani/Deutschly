@@ -143,15 +143,48 @@ export function answerMatches(input: string, expected: string | string[]): boole
   });
 }
 
+export function getPracticeXp(correct: boolean, completed = false): number {
+  return (correct ? 10 : 2) + (completed ? 5 : 0);
+}
+
+export function getPracticeSessionLength(level: number, availableCards: number): number {
+  const safeLevel = Math.max(1, Math.floor(level));
+  const safeCardCount = Math.max(0, Math.floor(availableCards));
+  const capacity = Math.min(20, 5 + (safeLevel - 1) * 5);
+  return Math.min(safeCardCount, capacity);
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function makeClozeSentence(example: string | undefined, german: string): string {
-  const fallback = `Ich lerne das Wort „${german}“.`;
-  const source = example?.trim() || fallback;
+export function makeClozeSentences(example: string | undefined, german: string, article?: string): string[] {
+  const safeArticle = article === "der" || article === "die" || article === "das" ? article : article === "plural" ? "die" : "";
+  const nounPhrase = safeArticle ? `${safeArticle} ${german}` : german;
+  const accusativeArticle = safeArticle === "der" ? "den" : safeArticle;
+  const accusativePhrase = accusativeArticle ? `${accusativeArticle} ${german}` : german;
+  const candidates = [
+    example?.trim(),
+    `Hier ist ${nounPhrase}.`,
+    `Das ist ${nounPhrase}.`,
+    `Wo ist ${nounPhrase}?`,
+    `Ich sehe ${accusativePhrase}.`,
+    `Ich brauche ${accusativePhrase}.`,
+    `Heute übe ich ${accusativePhrase}.`,
+    `Wir wiederholen ${accusativePhrase} im Kurs.`,
+    `Kannst du ${accusativePhrase} wiederholen?`,
+    `Ich schreibe ${accusativePhrase} auf.`,
+    `Im Gespräch geht es um ${accusativePhrase}.`,
+    `Ich lerne das Wort „${german}“.`,
+  ].filter((sentence): sentence is string => Boolean(sentence));
   const pattern = new RegExp(escapeRegExp(german), "i");
-  return pattern.test(source) ? source.replace(pattern, "____") : `${source} (____)`;
+  return [...new Set(candidates)].map((sentence) => pattern.test(sentence) ? sentence.replace(pattern, "____") : `${sentence} (____)`);
+}
+
+export function makeClozeSentence(example: string | undefined, german: string, variant = 0, article?: string): string {
+  const sentences = makeClozeSentences(example, german, article);
+  const safeVariant = Number.isFinite(variant) ? Math.abs(Math.floor(variant)) : 0;
+  return sentences[safeVariant % sentences.length] ?? `____ (${german})`;
 }
 
 export function getXpForRating(rating: LearningRating): number {
