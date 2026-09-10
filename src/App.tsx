@@ -142,6 +142,7 @@ interface PdfImportSummary {
 
 interface AppState {
   cards: Flashcard[];
+  wordBank: GermanWordRecord[];
   deletedCardIds: Record<string, string>;
   reviewsToday: number;
   dailyGoal: number;
@@ -601,6 +602,7 @@ function createInitialCards(): Flashcard[] {
 function createInitialState(): AppState {
   return {
     cards: createInitialCards(),
+    wordBank: [],
     deletedCardIds: {},
     reviewsToday: 0,
     dailyGoal: 24,
@@ -748,6 +750,9 @@ function normalizeAppState(value: unknown): AppState {
   if (!isRecord(value)) return fallback;
 
   const normalizedCards = (Array.isArray(value.cards) ? value.cards.filter(isFlashcard) : fallback.cards).map(normalizeCard);
+  const wordBank = Array.isArray(value.wordBank)
+    ? mergeGermanWordRecords(value.wordBank.filter(isGermanWordRecord))
+    : fallback.wordBank;
   const deletedCardIds = normalizeDeletedCardIds(value.deletedCardIds);
   const cards = normalizedCards.filter((card) => {
     const deletedAt = deletedCardIds[card.id];
@@ -788,6 +793,7 @@ function normalizeAppState(value: unknown): AppState {
   return {
     ...fallback,
     cards,
+    wordBank,
     deletedCardIds,
     reviewsToday: typeof value.reviewsToday === "number" ? Math.max(0, Math.round(value.reviewsToday)) : fallback.reviewsToday,
     dailyGoal: typeof value.dailyGoal === "number" ? Math.max(1, Math.round(value.dailyGoal)) : fallback.dailyGoal,
@@ -820,8 +826,11 @@ function loadState(): AppState {
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return fallback;
-    return normalizeAppState(JSON.parse(raw));
+    const normalizedState = raw ? normalizeAppState(JSON.parse(raw)) : fallback;
+    return {
+      ...normalizedState,
+      wordBank: mergeGermanWordRecords(normalizedState.wordBank, loadGeneratedWordBank()),
+    };
   } catch {
     return fallback;
   }
@@ -959,6 +968,7 @@ function mergeAppStates(local: AppState, remote: AppState): AppState {
   return {
     ...local,
     cards: mergedCards,
+    wordBank: mergeGermanWordRecords(local.wordBank, remote.wordBank),
     deletedCardIds,
     reviewsToday: hasDifferentReset
       ? progressState.reviewsToday
@@ -2280,7 +2290,7 @@ function LibraryPage({
         </div>
         {wordBankError && <div className="word-bank-generator__error" role="alert"><Info size={15} aria-hidden="true" /><span>{wordBankError}</span></div>}
         {lastGeneratedWords.length > 0 && <div className="word-bank-generated" aria-live="polite">
-          <div className="word-bank-generated__heading"><div><strong>{lastGeneratedWords.length} new {lastGeneratedWords.length === 1 ? "word" : "words"} added</strong><span>Saved to this device's word bank. Review before adding cards.</span></div><span>{wordBankLevel}</span></div>
+          <div className="word-bank-generated__heading"><div><strong>{lastGeneratedWords.length} new {lastGeneratedWords.length === 1 ? "word" : "words"} added</strong><span>Saved to your word bank. Backup or sync it when you are ready.</span></div><span>{wordBankLevel}</span></div>
           <div className="word-bank-generated__list">
             {lastGeneratedWords.map((word) => <div className="word-bank-generated__row" key={word.id}><ArticleBadge article={word.article} compact /><div><strong>{word.german}</strong><span>{word.englishMeanings.join(" / ")}</span></div><button type="button" className="button button--ghost" onClick={() => onAddDatabaseWord(word)}>Review card <ArrowRight size={14} aria-hidden="true" /></button></div>)}
           </div>
@@ -3154,7 +3164,6 @@ export default function App() {
   const [pdfCandidates, setPdfCandidates] = useState<PdfCandidate[]>(() => state.pdfImport?.candidates ?? []);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
-  const [generatedWordBank, setGeneratedWordBank] = useState<GermanWordRecord[]>(() => loadGeneratedWordBank());
   const [addCardSeed, setAddCardSeed] = useState<Partial<CardDraft> | undefined>(undefined);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [deleteCardId, setDeleteCardId] = useState<string | null>(null);
@@ -3183,7 +3192,7 @@ export default function App() {
   const cardPendingDeletion = deleteCardId ? state.cards.find((card) => card.id === deleteCardId) : undefined;
   const profileDisplayName = profileName || PROFILE_DISPLAY_FALLBACK;
   const profileAvatar = getDailyAvatar(profileDisplayName, todayKey);
-  const wordBank = useMemo(() => mergeGermanWordRecords(GERMAN_WORD_DATABASE, generatedWordBank), [generatedWordBank]);
+  const wordBank = useMemo(() => mergeGermanWordRecords(GERMAN_WORD_DATABASE, state.wordBank), [state.wordBank]);
   const dueCards = useMemo(() => state.cards
     .filter((card) => card.due <= todayKey)
     .sort((first, second) => {
@@ -3200,10 +3209,6 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
-
-  useEffect(() => {
-    window.localStorage.setItem(WORD_BANK_KEY, JSON.stringify(generatedWordBank));
-  }, [generatedWordBank]);
 
   useEffect(() => {
     setPdfCandidates(state.pdfImport?.candidates ?? []);
@@ -3393,7 +3398,14 @@ export default function App() {
       knownWords.add(key);
       return true;
     });
-    if (additions.length > 0) setGeneratedWordBank((current) => mergeGermanWordRecords(current, additions));
+    if (additions.length > 0) {
+      const updatedAt = new Date().toISOString();
+      setState((current) => ({
+        ...current,
+        wordBank: mergeGermanWordRecords(current.wordBank, additions),
+        lastSyncedAt: updatedAt,
+      }));
+    }
     return additions;
   };
 
@@ -3848,7 +3860,7 @@ export default function App() {
   };
 
   const handleExportBackup = () => {
-    const payload = JSON.stringify({ app: "deutschly", version: 1, profile: profileDisplayName, exportedAt: new Date().toISOString(), wordBank: generatedWordBank, state }, null, 2);
+    const payload = JSON.stringify({ app: "deutschly", version: 1, profile: profileDisplayName, exportedAt: new Date().toISOString(), wordBank: state.wordBank, state }, null, 2);
     const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -3869,10 +3881,15 @@ export default function App() {
       const parsed: unknown = JSON.parse(await file.text());
       const importedValue = isRecord(parsed) && "state" in parsed ? parsed.state : parsed;
       if (!isRecord(importedValue) || !Array.isArray(importedValue.cards)) throw new Error("This file is not a Deutschly backup.");
-      const importedState = normalizeAppState(importedValue);
       const importedWordBank = isRecord(parsed) && Array.isArray(parsed.wordBank) ? parsed.wordBank.filter(isGermanWordRecord) : [];
+      const importedState = normalizeAppState({
+        ...importedValue,
+        wordBank: mergeGermanWordRecords(
+          Array.isArray(importedValue.wordBank) ? importedValue.wordBank.filter(isGermanWordRecord) : [],
+          importedWordBank,
+        ),
+      });
       setState({ ...importedState, lastSyncedAt: new Date().toISOString() });
-      setGeneratedWordBank((current) => mergeGermanWordRecords(current, importedWordBank));
       setPdfCandidates(importedState.pdfImport?.candidates ?? []);
       setPdfError(null);
       setActiveTab("library");

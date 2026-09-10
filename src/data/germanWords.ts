@@ -68,7 +68,7 @@ export function mergeGermanWordRecords(...sources: GermanWordRecord[][]): German
     const key = normalizeGermanWord(word.german);
     if (key && !merged.has(key)) merged.set(key, word);
   });
-  return [...merged.values()];
+  return [...merged.values()].slice(0, 2000);
 }
 
 export function normalizeGermanWord(value: string): string {

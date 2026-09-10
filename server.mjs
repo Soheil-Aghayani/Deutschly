@@ -505,6 +505,16 @@ function mergeCards(existingCards, incomingCards) {
   return [...byMeaning.values()];
 }
 
+function mergeWordBank(existingWords, incomingWords) {
+  const byHeadword = new Map();
+  [...(Array.isArray(existingWords) ? existingWords : []), ...(Array.isArray(incomingWords) ? incomingWords : [])].forEach((word) => {
+    if (!isRecord(word) || typeof word.german !== "string") return;
+    const key = normalizeGermanTerm(word.german);
+    if (key && !byHeadword.has(key)) byHeadword.set(key, word);
+  });
+  return [...byHeadword.values()].slice(0, 2000);
+}
+
 function mergeStates(existing, incoming) {
   if (!existing) return incoming;
   const existingCards = Array.isArray(existing.cards) ? existing.cards : [];
@@ -535,6 +545,7 @@ function mergeStates(existing, incoming) {
     ...existing,
     ...incoming,
     cards,
+    wordBank: mergeWordBank(existing.wordBank, incoming.wordBank),
     deletedCardIds,
     reviewsToday: hasDifferentReset
       ? progressState.reviewsToday || 0
@@ -674,6 +685,10 @@ async function handleRequest(request, response) {
   }
   if (payload.state.cards.length > 5000) {
     sendJson(request, response, 400, { error: "A sync room can contain at most 5,000 cards." });
+    return;
+  }
+  if (payload.state.wordBank !== undefined && (!Array.isArray(payload.state.wordBank) || payload.state.wordBank.length > 2000)) {
+    sendJson(request, response, 400, { error: "A sync room can contain at most 2,000 word-bank records." });
     return;
   }
 
