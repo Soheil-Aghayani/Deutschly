@@ -10,7 +10,6 @@ import {
   BookOpen,
   BookText,
   Brain,
-  CalendarDays,
   CalendarPlus,
   Check,
   CheckCheck,
@@ -1964,7 +1963,6 @@ function DeckCard({ icon: Icon, title, subtitle, progress, count, tone, onClick,
 
 function StudyPage({
   dueCards,
-  reminderTime,
   sessionReviewed,
   sessionTotal,
   queueSession,
@@ -1978,7 +1976,6 @@ function StudyPage({
   remainingDueCards,
 }: {
   dueCards: Flashcard[];
-  reminderTime: string;
   sessionReviewed: number;
   sessionTotal: number;
   queueSession: boolean;
@@ -1997,6 +1994,8 @@ function StudyPage({
 
   useEffect(() => {
     if (!showAnswer || !card || typeof window === "undefined") return;
+    const isMobile = window.matchMedia?.("(max-width: 760px)").matches ?? false;
+    if (!isMobile) return;
 
     let firstFrame = 0;
     let secondFrame = 0;
@@ -2103,6 +2102,10 @@ function StudyPage({
               </button>
             )}
           </article>
+          <p className="study-hint"><KeyboardHint>Space</KeyboardHint> to reveal <span>·</span> <KeyboardHint>1–4</KeyboardHint> to rate</p>
+        </div>
+
+        <aside className="study-aside">
           {showAnswer && (
             <div ref={ratingPanelRef} className="rating-panel">
               <span className="rating-panel__label">How well did you remember it?</span>
@@ -2120,22 +2123,6 @@ function StudyPage({
               </div>
             </div>
           )}
-          <p className="study-hint"><KeyboardHint>Space</KeyboardHint> to reveal <span>·</span> <KeyboardHint>1–4</KeyboardHint> to rate</p>
-        </div>
-
-        <aside className="study-aside">
-          <article className="how-card">
-            <div className="side-card__heading"><div><span className="section-eyebrow">DYNAMIC REMEMBERING</span><h2>Why this works</h2></div><Brain size={19} aria-hidden="true" /></div>
-            <div className="memory-steps">
-              <MemoryStep number="01" title="Recall" detail="Try before revealing the answer." active />
-              <MemoryStep number="02" title="Rate" detail="Tell us how it felt." />
-              <MemoryStep number="03" title="Return" detail="We schedule the right interval." />
-            </div>
-          </article>
-          <article className="next-window-card">
-            <div className="next-window-card__icon" aria-hidden="true"><CalendarDays size={18} /></div>
-            <div><span>Reminder window</span><strong>Daily at {formatTimeLabel(reminderTime)}</strong></div>
-          </article>
         </aside>
       </div>
     </div>
@@ -2493,15 +2480,6 @@ function PracticePage({ cards, level, onAddCard, onAwardXp, onCompleteSession }:
 
 function KeyboardHint({ children }: { children: string }) {
   return <kbd>{children}</kbd>;
-}
-
-function MemoryStep({ number, title, detail, active = false }: { number: string; title: string; detail: string; active?: boolean }) {
-  return (
-    <div className={`memory-step${active ? " memory-step--active" : ""}`}>
-      <span className="memory-step__number">{number}</span>
-      <div><strong>{title}</strong><span>{detail}</span></div>
-    </div>
-  );
 }
 
 function PdfCandidatesCard({
@@ -5535,7 +5513,7 @@ export default function App() {
 
         <main id="main-content" className="main-content">
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
-          {activeTab === "study" && <StudyPage dueCards={studyCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} onContinueReview={handleStartReview} hasMoreDueCards={studyQueueIds === null && studySession.total > 0 && studySession.reviewed >= studySession.total && dueCards.length > 0} remainingDueCards={dueCards.length} />}
+          {activeTab === "study" && <StudyPage dueCards={studyCards} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} onContinueReview={handleStartReview} hasMoreDueCards={studyQueueIds === null && studySession.total > 0 && studySession.reviewed >= studySession.total && dueCards.length > 0} remainingDueCards={dueCards.length} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} onCompleteSession={handlePracticeComplete} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onAddWordBankBatch={handleAddWordBankBatch} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} wordBankInboxItems={wordBankInboxItems} onWordBankDecision={handleWordBankDecision} onGenerateWordBatch={handleGenerateWordBatch} aiEndpoint={syncEndpoint} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onStartReview={handleStartReview} />}

@@ -8924,40 +8924,49 @@ html {
 }
 
 .study-main--answered {
-  padding-bottom: var(--desktop-action-clearance);
+  padding-bottom: 0;
 }
 
 .study-answer {
   scroll-margin-top: 96px;
-  scroll-margin-bottom: calc(var(--desktop-action-clearance) + 18px);
+  scroll-margin-bottom: 0;
 }
 
 .study-page .rating-panel {
-  position: fixed;
+  position: sticky;
+  top: 86px;
   right: auto;
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  z-index: 18;
-  width: min(900px, calc(100vw - 48px));
-  max-width: 900px;
+  bottom: auto;
+  left: auto;
+  z-index: 8;
+  width: auto;
+  max-width: none;
   margin: 0;
-  padding: 13px 16px 15px;
+  padding: 16px;
   text-align: left;
   background: color-mix(in srgb, var(--surface) 96%, transparent);
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 15px 38px rgba(37, 43, 91, 0.16);
   backdrop-filter: blur(18px);
-  transform: translateX(-50%);
-  animation: action-dock-in 220ms ease both;
+  transform: none;
+  animation: rating-rail-in 220ms ease both;
 }
 
 .study-page .rating-panel__label {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.study-page .rating-grid {
+  grid-template-columns: 1fr;
+  gap: 8px;
 }
 
 .study-page .rating-button {
-  min-height: 70px;
+  min-height: 76px;
+  padding: 11px;
 }
 
 .practice-next,
@@ -8980,9 +8989,9 @@ html {
   box-shadow: 0 -10px 18px color-mix(in srgb, var(--surface) 84%, transparent);
 }
 
-@keyframes action-dock-in {
-  from { opacity: 0; transform: translate(-50%, 12px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+@keyframes rating-rail-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes action-dock-in-mobile {
@@ -9021,14 +9030,24 @@ html {
   }
 
   .study-page .rating-panel {
+    position: fixed;
     right: 8px;
     bottom: calc(var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
     left: 8px;
+    top: auto;
     width: auto;
     max-width: none;
     padding: 10px 10px 11px;
     transform: none;
     animation-name: action-dock-in-mobile;
+  }
+
+  .study-page .rating-panel__label {
+    text-align: center;
+  }
+
+  .study-page .rating-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .study-page .rating-button {
