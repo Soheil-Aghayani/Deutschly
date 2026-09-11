@@ -110,6 +110,70 @@ jobs:
       - name: Initialize Android project
         run: npm run tauri -- android init
 
+      - name: Configure Android release signing
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          test -n "$ANDROID_KEY_BASE64"
+          cd src-tauri/gen/android
+          printf '%s' "$ANDROID_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/deutschly-upload-keystore.jks"
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          project = Path.cwd()
+          (project / "keystore.properties").write_text(
+              "password={password}\nkeyAlias={alias}\nstoreFile={store}\n".format(
+                  password=os.environ["ANDROID_KEY_PASSWORD"],
+                  alias=os.environ["ANDROID_KEY_ALIAS"],
+                  store=os.environ["RUNNER_TEMP"] + "/deutschly-upload-keystore.jks",
+              ),
+              encoding="utf-8",
+          )
+
+          gradle = project / "app" / "build.gradle.kts"
+          text = gradle.read_text(encoding="utf-8")
+          imports = "import java.io.FileInputStream\nimport java.util.Properties\n"
+          if "import java.io.FileInputStream" not in text:
+              text = imports + text
+
+          signing_config = '''signingConfigs {
+              create("release") {
+                  val keystorePropertiesFile = rootProject.file("keystore.properties")
+                  val keystoreProperties = Properties()
+                  if (keystorePropertiesFile.exists()) {
+                      keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+                  }
+                  keyAlias = keystoreProperties["keyAlias"] as String
+                  keyPassword = keystoreProperties["password"] as String
+                  storeFile = file(keystoreProperties["storeFile"] as String)
+                  storePassword = keystoreProperties["password"] as String
+              }
+          }'''
+          if 'create("release")' not in text:
+              text = text.replace("buildTypes {", signing_config + "\n\n    buildTypes {", 1)
+
+          assignment = 'signingConfig = signingConfigs.getByName("release")'
+          if assignment not in text:
+              release_block = re.compile(r'(getByName\("release"\)\s*\{\s*)')
+              if release_block.search(text):
+                  text = release_block.sub(r'\1        ' + assignment + "\n", text, count=1)
+              else:
+                  text = text.replace(
+                      "buildTypes {",
+                      'buildTypes {\n        getByName("release") {\n            ' + assignment + "\n        }",
+                      1,
+                  )
+          gradle.write_text(text, encoding="utf-8")
+          PY
+
       - name: Build APK
         run: npm run tauri -- android build --apk
 
@@ -120,10 +184,12 @@ jobs:
         id: artifacts
         shell: bash
         run: |
-          apk=$(find src-tauri/gen/android -type f -name '*.apk' | head -n 1)
-          aab=$(find src-tauri/gen/android -type f -name '*.aab' | head -n 1)
+          apk=$(find src-tauri/gen/android -path '*outputs/apk*release*' -type f -name '*.apk' | head -n 1)
+          aab=$(find src-tauri/gen/android -path '*outputs/bundle*release*' -type f -name '*.aab' | head -n 1)
           test -n "$apk"
           test -n "$aab"
+          apksigner verify --verbose "$apk"
+          jarsigner -verify "$aab" >/dev/null
           cp "$apk" "Deutschly-Android.apk"
           cp "$aab" "Deutschly-Android.aab"
 
