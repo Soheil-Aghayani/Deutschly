@@ -4078,6 +4078,7 @@ export default function App() {
   const [databaseWords, setDatabaseWords] = useState<GermanWordRecord[]>([]);
   const toastTimerRef = useRef<number | undefined>(undefined);
   const xpCelebrationTimerRef = useRef<number | undefined>(undefined);
+  const studyActionLockRef = useRef<string | null>(null);
   const stateRef = useRef(state);
   const profileNameRef = useRef(profileName);
   const syncInFlightRef = useRef(false);
@@ -4122,6 +4123,7 @@ export default function App() {
     }
     return studyQueueIds.map((id) => state.cards.find((card) => card.id === id)).filter((card): card is Flashcard => Boolean(card));
   }, [dueCards, state.cards, studyQueueIds, studySession.reviewed, studySession.total, studySessionCapacity]);
+  const activeStudyCardId = studyCards[0]?.id ?? null;
   const syncConfigured = Boolean(syncEndpoint.trim() && syncRoom.length >= 6);
   const syncFingerprint = useMemo(() => getSyncFingerprint(state), [state]);
   const showInstallPrompt = !installDismissed && !installPrompt.isInstalled && (installPrompt.canInstall || installPrompt.isIos || installPrompt.isMobile);
@@ -4172,6 +4174,12 @@ export default function App() {
     const validIds = studyQueueIds.filter((id) => existingIds.has(id));
     if (validIds.length !== studyQueueIds.length) setStudyQueueIds(validIds);
   }, [state.cards, studyQueueIds]);
+
+  useEffect(() => {
+    if (activeTab !== "study" || (!showAnswer && activeStudyCardId !== studyActionLockRef.current)) {
+      studyActionLockRef.current = null;
+    }
+  }, [activeTab, activeStudyCardId, showAnswer]);
 
   useEffect(() => {
     const refreshNotificationPermission = () => setNotificationPermission(getNotificationPermission());
@@ -4230,6 +4238,10 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (addCardOpen || activeTab !== "study") return;
+      if (studyActionLockRef.current) {
+        if (event.code === "Space") event.preventDefault();
+        return;
+      }
       if (event.target instanceof HTMLElement && ["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(event.target.tagName)) return;
       if (event.code === "Space") {
         event.preventDefault();
@@ -4602,6 +4614,7 @@ export default function App() {
   };
 
   const handleTabChange = (tab: Tab) => {
+    if (tab !== "study" || activeTab !== "study") studyActionLockRef.current = null;
     if (tab === "study" && activeTab !== "study" && (studyQueueIds === null || studyQueueIds.length === 0)) {
       setStudyQueueIds(null);
       setStudySession({ reviewed: 0, total: studySessionCapacity });
@@ -4611,6 +4624,7 @@ export default function App() {
   };
 
   const handleStartReview = () => {
+    studyActionLockRef.current = null;
     if (dueCards.length === 0) {
       setStudyQueueIds(null);
       setActiveTab("practice");
@@ -4627,6 +4641,7 @@ export default function App() {
     const existingIds = new Set(stateRef.current.cards.map((card) => card.id));
     const queueIds = ids.filter((id, index) => existingIds.has(id) && ids.indexOf(id) === index);
     if (queueIds.length === 0) return;
+    studyActionLockRef.current = null;
     setStudyQueueIds(queueIds);
     setStudySession({ reviewed: 0, total: queueIds.length });
     setActiveTab("study");
@@ -4700,11 +4715,12 @@ export default function App() {
 
   function handleRate(rating: ReviewRating) {
     const card = studyCards[0];
-    if (!card) return;
+    if (!card || !showAnswer || studyActionLockRef.current) return;
     const wasQueueSession = studyQueueIds !== null;
     const previousState = stateRef.current;
     const previousCard = previousState.cards.find((item) => item.id === card.id);
     if (!previousCard) return;
+    studyActionLockRef.current = card.id;
     const schedule = scheduleReview(card, rating, todayKey);
     const reviewedAt = new Date().toISOString();
     const xpAward = getXpForRating(rating);
@@ -4783,6 +4799,7 @@ export default function App() {
         }));
         setStudySession((current) => ({ ...current, reviewed: Math.max(0, current.reviewed - 1) }));
         if (wasQueueSession) setStudyQueueIds((current) => current && !current.includes(previousCard.id) ? [previousCard.id, ...current] : current);
+        studyActionLockRef.current = null;
         setShowAnswer(false);
         showToast(`${previousCard.german} review undone.`);
       },
@@ -5520,7 +5537,7 @@ export default function App() {
 
         <main id="main-content" className="main-content">
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
-          {activeTab === "study" && <StudyPage dueCards={studyCards} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} onContinueReview={handleStartReview} hasMoreDueCards={studyQueueIds === null && studySession.total > 0 && studySession.reviewed >= studySession.total && dueCards.length > 0} remainingDueCards={dueCards.length} />}
+          {activeTab === "study" && <StudyPage dueCards={studyCards} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => { if (!studyActionLockRef.current && studyCards[0]) setShowAnswer(true); }} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} onContinueReview={handleStartReview} hasMoreDueCards={studyQueueIds === null && studySession.total > 0 && studySession.reviewed >= studySession.total && dueCards.length > 0} remainingDueCards={dueCards.length} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} onCompleteSession={handlePracticeComplete} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onAddWordBankBatch={handleAddWordBankBatch} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} wordBankInboxItems={wordBankInboxItems} onWordBankDecision={handleWordBankDecision} onGenerateWordBatch={handleGenerateWordBatch} aiEndpoint={syncEndpoint} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onStartReview={handleStartReview} />}
