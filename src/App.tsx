@@ -115,6 +115,7 @@ type SyncResolution = "merge" | "local" | "remote";
 type WordBankDecision = "pending" | "added" | "dismissed";
 type ToastAction = { label: string; onClick: () => void };
 type ToastState = { message: string; action?: ToastAction };
+type XpCelebration = { amount: number; level?: number; id: number };
 
 interface Flashcard {
   id: string;
@@ -2124,7 +2125,6 @@ function StudyPage({
           )}
         </aside>
       </div>
-      <p className="study-hint"><KeyboardHint>Space</KeyboardHint> to reveal <span>·</span> <KeyboardHint>1–4</KeyboardHint> to rate</p>
     </div>
   );
 }
@@ -2476,10 +2476,6 @@ function PracticePage({ cards, level, onAddCard, onAwardXp, onCompleteSession }:
       </section>
     </div>
   );
-}
-
-function KeyboardHint({ children }: { children: string }) {
-  return <kbd>{children}</kbd>;
 }
 
 function PdfCandidatesCard({
@@ -4059,6 +4055,7 @@ export default function App() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncConflict, setSyncConflict] = useState<SyncConflict | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [xpCelebration, setXpCelebration] = useState<XpCelebration | null>(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [pdfCandidates, setPdfCandidates] = useState<PdfCandidate[]>(() => state.pdfImport?.candidates ?? []);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -4080,6 +4077,7 @@ export default function App() {
   const [weakCardsOnly, setWeakCardsOnly] = useState(false);
   const [databaseWords, setDatabaseWords] = useState<GermanWordRecord[]>([]);
   const toastTimerRef = useRef<number | undefined>(undefined);
+  const xpCelebrationTimerRef = useRef<number | undefined>(undefined);
   const stateRef = useRef(state);
   const profileNameRef = useRef(profileName);
   const syncInFlightRef = useRef(false);
@@ -4216,6 +4214,7 @@ export default function App() {
 
   useEffect(() => () => {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    if (xpCelebrationTimerRef.current) window.clearTimeout(xpCelebrationTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -4249,6 +4248,12 @@ export default function App() {
     setToast({ message, action });
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setToast(null), 3000);
+  };
+
+  const showXpCelebration = (amount: number, level?: number) => {
+    setXpCelebration({ amount, level, id: Date.now() });
+    if (xpCelebrationTimerRef.current) window.clearTimeout(xpCelebrationTimerRef.current);
+    xpCelebrationTimerRef.current = window.setTimeout(() => setXpCelebration(null), 1900);
   };
 
   useEffect(() => {
@@ -4640,6 +4645,7 @@ export default function App() {
     const newlyUnlocked = getNewAchievementDefinitions(stateRef.current.achievements, candidateAchievements);
     const achievementRewardXp = newlyUnlocked.reduce((sum, achievement) => sum + achievement.rewardXp, 0);
     const nextLevel = getLevelProgress(nextXp + achievementRewardXp).level;
+    showXpCelebration(safeAmount + achievementRewardXp, nextLevel > previousLevel ? nextLevel : undefined);
     setState((current) => applyAchievementUnlocks({ ...current, xp: current.xp + safeAmount, lastSyncedAt: updatedAt }, candidateAchievements, updatedAt));
     const messages = newlyUnlocked.length > 0 ? [formatAchievementUnlocks(newlyUnlocked)] : [];
     if (nextLevel > previousLevel) {
@@ -4719,6 +4725,7 @@ export default function App() {
     const newlyUnlocked = getNewAchievementDefinitions(previousState.achievements, candidateAchievements);
     const achievementRewardXp = newlyUnlocked.reduce((sum, achievement) => sum + achievement.rewardXp, 0);
     const nextLevel = getLevelProgress(nextXp + achievementRewardXp).level;
+    showXpCelebration(xpAward + achievementRewardXp, nextLevel > previousLevel ? nextLevel : undefined);
     setState((current) => {
       const nextCards = current.cards.map((item) => item.id === card.id ? { ...item, ...schedule, lastReviewedAt: reviewedAt, updatedAt: reviewedAt } : item);
       const weeklyReviews = [...current.weeklyReviews];
@@ -5575,6 +5582,7 @@ export default function App() {
       {deleteAccountOpen && firebaseUser && <DeleteAccountModal email={firebaseUser.email ?? ""} busy={firebaseBusy} error={firebaseError} onClose={() => { if (!firebaseBusy) { setDeleteAccountOpen(false); setFirebaseError(null); } }} onConfirm={() => { void handleDeleteFirebaseAccount(); }} />}
       {firebaseMergePrompt && firebaseUser && <FirebaseMergeModal localCardCount={state.cards.length} remoteCardCount={firebaseMergePrompt.remoteState.cards.length} remoteProfileName={firebaseMergePrompt.remoteProfileName} busy={firebaseBusy} onClose={handleDeferFirebaseMerge} onResolve={handleFirebaseMergeChoice} />}
       {showInstallPrompt && <InstallPrompt canInstall={installPrompt.canInstall} isIos={installPrompt.isIos} isMobile={installPrompt.isMobile} onInstall={() => { void handleInstallApp(); }} onDismiss={handleDismissInstallPrompt} />}
+      {xpCelebration && <div key={xpCelebration.id} className="xp-celebration" role="status" aria-live="polite" aria-atomic="true"><span className="xp-celebration__icon" aria-hidden="true"><Sparkles size={17} /></span><span><strong>+{xpCelebration.amount} XP</strong><small>{xpCelebration.level ? `Level ${xpCelebration.level} unlocked` : "Memory momentum earned"}</small></span></div>}
       {toast && <div className="toast" role="status" aria-live="polite"><Check size={16} aria-hidden="true" /><span>{toast.message}</span>{toast.action && <button type="button" className="toast__action" onClick={() => { const action = toast.action; setToast(null); action?.onClick(); }}>{toast.action.label}</button>}</div>}
     </div>
   );

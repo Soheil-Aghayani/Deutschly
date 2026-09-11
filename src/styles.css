@@ -2489,37 +2489,6 @@ svg {
 .rating-button--good:hover { border-color: #9dd7c2; }
 .rating-button--easy:hover { border-color: #bfc1ff; }
 
-.study-hint {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  margin: 13px 0 0;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.study-hint span {
-  opacity: 0.5;
-}
-
-@media (min-width: 761px) and (hover: hover) and (pointer: fine) {
-  .study-hint {
-    display: flex;
-  }
-}
-
-kbd {
-  padding: 3px 6px;
-  color: var(--text);
-  font-size: 9px;
-  font-weight: 700;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: 5px;
-}
-
 .study-aside {
   display: flex;
   flex-direction: column;
@@ -8931,10 +8900,6 @@ html {
   padding-bottom: 0;
 }
 
-.study-page > .study-hint {
-  margin-top: -10px;
-}
-
 .study-answer {
   scroll-margin-top: 96px;
   scroll-margin-bottom: 0;
@@ -9343,5 +9308,83 @@ html {
   .study-page .rating-grid {
     flex: 1;
     grid-auto-rows: minmax(0, 1fr);
+  }
+
+  .study-main > .study-card {
+    height: 100%;
+    box-sizing: border-box;
+  }
+}
+
+.xp-celebration {
+  position: fixed;
+  top: calc(82px + env(safe-area-inset-top, 0px));
+  right: 24px;
+  z-index: 58;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 154px;
+  max-width: min(220px, calc(100vw - 32px));
+  padding: 10px 13px 10px 10px;
+  color: var(--primary);
+  background: linear-gradient(135deg, var(--surface), var(--primary-soft));
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  border-radius: 14px;
+  box-shadow: 0 14px 30px rgba(49, 55, 121, 0.18);
+  pointer-events: none;
+  animation: xp-celebration-in 460ms cubic-bezier(0.22, 0.75, 0.25, 1) both;
+}
+
+.xp-celebration__icon {
+  display: inline-flex;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--primary);
+  background: var(--surface);
+  border: 1px solid rgba(79, 70, 229, 0.16);
+  border-radius: 10px;
+}
+
+.xp-celebration > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.xp-celebration strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.xp-celebration small {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+@keyframes xp-celebration-in {
+  0% { opacity: 0; transform: translateY(-9px) scale(0.92); }
+  62% { opacity: 1; transform: translateY(1px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 760px) {
+  .xp-celebration {
+    top: calc(72px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    max-width: calc(100vw - 24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xp-celebration {
+    animation: none;
   }
 }
