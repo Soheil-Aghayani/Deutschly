@@ -8923,6 +8923,15 @@ html {
   padding-bottom: 28px;
 }
 
+.study-main--answered {
+  padding-bottom: var(--desktop-action-clearance);
+}
+
+.study-answer {
+  scroll-margin-top: 96px;
+  scroll-margin-bottom: calc(var(--desktop-action-clearance) + 18px);
+}
+
 .study-page .rating-panel {
   position: fixed;
   right: auto;
@@ -9000,6 +9009,15 @@ html {
 
   .study-card--answered {
     padding-bottom: 18px;
+  }
+
+  .study-main--answered {
+    padding-bottom: var(--mobile-action-clearance);
+  }
+
+  .study-answer {
+    scroll-margin-top: 84px;
+    scroll-margin-bottom: calc(var(--mobile-action-clearance) + var(--mobile-nav-clearance) + 18px);
   }
 
   .study-page .rating-panel {

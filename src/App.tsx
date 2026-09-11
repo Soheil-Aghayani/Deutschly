@@ -1992,6 +1992,51 @@ function StudyPage({
   remainingDueCards: number;
 }) {
   const card = dueCards[0];
+  const answerRef = useRef<HTMLDivElement>(null);
+  const ratingPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showAnswer || !card || typeof window === "undefined") return;
+
+    let firstFrame = 0;
+    let secondFrame = 0;
+
+    const keepAnswerReadable = () => {
+      const answer = answerRef.current;
+      const ratingPanel = ratingPanelRef.current;
+      if (!answer || !ratingPanel) return;
+
+      const answerRect = answer.getBoundingClientRect();
+      const ratingRect = ratingPanel.getBoundingClientRect();
+      const topInset = 96;
+      const bottomInset = ratingRect.top - 18;
+      const availableHeight = bottomInset - topInset;
+      const answerFits = answerRect.height <= availableHeight;
+      let scrollDelta = 0;
+
+      if (!answerFits) {
+        scrollDelta = answerRect.top - topInset;
+      } else if (answerRect.bottom > bottomInset) {
+        scrollDelta = answerRect.bottom - bottomInset;
+      } else if (answerRect.top < topInset) {
+        scrollDelta = answerRect.top - topInset;
+      }
+
+      if (Math.abs(scrollDelta) < 2) return;
+
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      window.scrollBy({ top: scrollDelta, left: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    };
+
+    firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(keepAnswerReadable);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, [card?.id, showAnswer]);
 
   if (!card) {
     return (
@@ -2026,7 +2071,7 @@ function StudyPage({
       <div className="study-progress-bar" aria-label={`${progress}% of review session`}><span style={{ width: `${progress}%` }} /></div>
 
       <div className="study-layout">
-        <div className="study-main">
+        <div className={`study-main${showAnswer ? " study-main--answered" : ""}`}>
           <article className={`study-card${showAnswer ? " study-card--answered" : ""}`}>
             <div className="study-card__meta">
               <div className="study-card__source"><BookOpen size={15} aria-hidden="true" /> {card.deck} <span>·</span> {card.lesson}{card.sourcePage && <span> · p. {card.sourcePage}</span>}</div>
@@ -2039,7 +2084,7 @@ function StudyPage({
             </div>
             {card.plural && <div className="study-card__plural"><span>Plural</span> <strong>{card.plural}</strong></div>}
             <div className="study-card__audio"><PronunciationButton text={displayWord} /><button type="button" className="button button--ghost" onClick={() => speakGerman(displayWord, 0.62)}><Volume2 size={14} aria-hidden="true" /> Slow pronunciation</button></div>
-            <div className={`study-answer${showAnswer ? " study-answer--visible" : ""}`}>
+            <div ref={answerRef} className={`study-answer${showAnswer ? " study-answer--visible" : ""}`}>
               {showAnswer ? (
                 <>
                   <div className="study-answer__translation">{card.translation}</div>
@@ -2059,7 +2104,7 @@ function StudyPage({
             )}
           </article>
           {showAnswer && (
-            <div className="rating-panel">
+            <div ref={ratingPanelRef} className="rating-panel">
               <span className="rating-panel__label">How well did you remember it?</span>
               <div className="rating-grid">
                 {ratingMeta.map(({ id, label, detail, icon: Icon }) => {
