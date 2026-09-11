@@ -1851,7 +1851,7 @@ function OverviewPage({
             <div className="continue-card__content">
               <div className="continue-card__topline">
                 <span className="deck-pill"><BookOpen size={14} aria-hidden="true" /> Menschen A1.1</span>
-                <span className="muted-label">{dueCards.length} due now</span>
+                <span className="muted-label">{dueCards.length} due · {getPracticeSessionLength(getLevelProgress(state.xp).level, dueCards.length)} this session</span>
               </div>
               <h3>Vocabulary essentials</h3>
               <p>Lessons 1–6 · nouns, everyday phrases, and your first conversations.</p>
@@ -1973,6 +1973,9 @@ function StudyPage({
   onRate,
   onBack,
   onAddCard,
+  onContinueReview,
+  hasMoreDueCards,
+  remainingDueCards,
 }: {
   dueCards: Flashcard[];
   reminderTime: string;
@@ -1984,6 +1987,9 @@ function StudyPage({
   onRate: (rating: ReviewRating) => void;
   onBack: () => void;
   onAddCard: () => void;
+  onContinueReview: () => void;
+  hasMoreDueCards: boolean;
+  remainingDueCards: number;
 }) {
   const card = dueCards[0];
 
@@ -1994,10 +2000,11 @@ function StudyPage({
         <div className="complete-card">
           <div className="complete-card__icon" aria-hidden="true"><Sparkles size={28} /></div>
           <span className="page-kicker">{queueSession ? "Selected review complete" : "Review session complete"}</span>
-          <h1>{queueSession ? "Queue cleared." : "Alles klar."}</h1>
-          <p>{queueSession ? `You reviewed ${sessionReviewed} selected card${sessionReviewed === 1 ? "" : "s"}.` : "You are all caught up for now. Come back when the next review window opens."}</p>
+          <h1>{queueSession ? "Queue cleared." : hasMoreDueCards ? "Nice work." : "Alles klar."}</h1>
+          <p>{queueSession ? `You reviewed ${sessionReviewed} selected card${sessionReviewed === 1 ? "" : "s"}.` : hasMoreDueCards ? `You reviewed ${sessionReviewed} cards. ${remainingDueCards} more are ready, but they can wait for another short session.` : "You are all caught up for now. Come back when the next review window opens."}</p>
           <div className="complete-card__actions">
-            <button type="button" className="button button--primary" onClick={onBack}>Back to overview <ArrowRight size={16} aria-hidden="true" /></button>
+            {hasMoreDueCards && !queueSession && <button type="button" className="button button--primary" onClick={onContinueReview}>Continue with next session <ArrowRight size={16} aria-hidden="true" /></button>}
+            <button type="button" className={`button ${hasMoreDueCards && !queueSession ? "button--outline" : "button--primary"}`} onClick={onBack}>Back to overview <ArrowRight size={16} aria-hidden="true" /></button>
             <button type="button" className="button button--outline" onClick={onAddCard}><Plus size={16} aria-hidden="true" /> Add a card</button>
           </div>
         </div>
@@ -4080,9 +4087,14 @@ export default function App() {
       if (difficultyOrder !== 0) return difficultyOrder;
       return timestamp(first.lastReviewedAt) - timestamp(second.lastReviewedAt);
     }), [state.cards, todayKey]);
-  const studyCards = useMemo(() => studyQueueIds === null
-    ? dueCards
-    : studyQueueIds.map((id) => state.cards.find((card) => card.id === id)).filter((card): card is Flashcard => Boolean(card)), [dueCards, state.cards, studyQueueIds]);
+  const studySessionCapacity = getPracticeSessionLength(getLevelProgress(state.xp).level, dueCards.length);
+  const studyCards = useMemo(() => {
+    if (studyQueueIds === null) {
+      const sessionComplete = studySession.total > 0 && studySession.reviewed >= studySession.total;
+      return sessionComplete ? [] : dueCards.slice(0, studySessionCapacity);
+    }
+    return studyQueueIds.map((id) => state.cards.find((card) => card.id === id)).filter((card): card is Flashcard => Boolean(card));
+  }, [dueCards, state.cards, studyQueueIds, studySession.reviewed, studySession.total, studySessionCapacity]);
   const syncConfigured = Boolean(syncEndpoint.trim() && syncRoom.length >= 6);
   const syncFingerprint = useMemo(() => getSyncFingerprint(state), [state]);
   const showInstallPrompt = !installDismissed && !installPrompt.isInstalled && (installPrompt.canInstall || installPrompt.isIos || installPrompt.isMobile);
@@ -4558,7 +4570,7 @@ export default function App() {
   const handleTabChange = (tab: Tab) => {
     if (tab === "study" && activeTab !== "study" && (studyQueueIds === null || studyQueueIds.length === 0)) {
       setStudyQueueIds(null);
-      setStudySession({ reviewed: 0, total: dueCards.length });
+      setStudySession({ reviewed: 0, total: studySessionCapacity });
     }
     setActiveTab(tab);
     if (tab !== "study") setShowAnswer(false);
@@ -4572,7 +4584,7 @@ export default function App() {
       return;
     }
     setStudyQueueIds(null);
-    setStudySession({ reviewed: 0, total: dueCards.length });
+    setStudySession({ reviewed: 0, total: studySessionCapacity });
     setActiveTab("study");
     setShowAnswer(false);
   };
@@ -5471,7 +5483,7 @@ export default function App() {
 
         <main id="main-content" className="main-content">
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
-          {activeTab === "study" && <StudyPage dueCards={studyCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} />}
+          {activeTab === "study" && <StudyPage dueCards={studyCards} reminderTime={state.reminderTime} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => setShowAnswer(true)} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} onContinueReview={handleStartReview} hasMoreDueCards={studyQueueIds === null && studySession.total > 0 && studySession.reviewed >= studySession.total && dueCards.length > 0} remainingDueCards={dueCards.length} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} onCompleteSession={handlePracticeComplete} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onAddWordBankBatch={handleAddWordBankBatch} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} wordBankInboxItems={wordBankInboxItems} onWordBankDecision={handleWordBankDecision} onGenerateWordBatch={handleGenerateWordBatch} aiEndpoint={syncEndpoint} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onStartReview={handleStartReview} />}
