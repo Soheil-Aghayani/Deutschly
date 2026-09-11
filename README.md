@@ -1,162 +1,165 @@
-# Deutschly
+<div align="center">
+  <img src="public/readme-hero.svg" alt="Deutschly — German flashcards for Menschen A1.1" width="100%">
+  <h1>DEUTSCHLY</h1>
+  <p><strong>German that sticks — one focused review at a time.</strong></p>
+  <p>
+    <a href="https://soheil-aghayani.github.io/Deutschly/"><strong>Open the live app →</strong></a>
+  </p>
+  <p>
+    <img src="https://img.shields.io/badge/React%20%7C%20TypeScript-Vite-5659C8?style=for-the-badge&logo=react&logoColor=white" alt="React TypeScript and Vite">
+    <img src="https://img.shields.io/badge/PWA-installable-14977E?style=for-the-badge&logo=pwa&logoColor=white" alt="Installable PWA">
+    <img src="https://img.shields.io/badge/Hosting-GitHub%20Pages-171C38?style=for-the-badge&logo=github&logoColor=white" alt="Hosted on GitHub Pages">
+  </p>
+</div>
 
-Deutschly is a focused German flashcard PWA for a Menschen A1.1 learning journey. It works in a desktop browser, on a phone, or as an installed app.
+Deutschly is a calm, adaptive German flashcard workspace built around a **Menschen A1.1** learning journey. It runs in a desktop browser, on a phone, or as an installed app, while keeping the learner's cards local by default.
 
-Live site: <https://soheil-aghayani.github.io/Deutschly/>
+## The learning loop
 
-## What is included
+| Step | What happens | Why it matters |
+| :--- | :--- | :--- |
+| **01 · Recall** | See the German word before the answer. | Retrieval builds stronger memory than rereading. |
+| **02 · Reveal** | Check the meaning, example, pronunciation, and grammar details. | Each card gives the word a useful context. |
+| **03 · Rate** | Choose **Again**, **Hard**, **Good**, or **Easy**. | Adaptive scheduling brings the right card back at the right time. |
 
-- Adaptive review scheduling: recall first, reveal the answer, then rate it as Again, Hard, Good, or Easy.
-- Menschen A1.1 starter cards plus personal cards for vocabulary, phrases, and grammar.
-- German article colors: `der` blue, `die` feminine red, `das` green, and plural orange.
-- Add-card verification that normalizes entries such as `Das Eis`, blocks exact duplicates, flags possible duplicates, and keeps reference links beside the check. The AI word bank is searchable in Library and can prefill a checked card with its meaning, article, plural, example, and tags.
-- Practice Lab drills for articles, plurals, translations, and sentence gaps, with German text-to-speech and optional self-recording.
-- Lesson map, tags, weak-card filtering, editable cards, XP, levels, achievements, recall accuracy, and a seven-day activity view.
-- Local Menschen PDF extraction. Selectable text is read in the browser and suggestions keep their source page and context. The PDF itself is never committed to this repository.
-- Daily reminder time with browser notifications when permission is granted, a snooze that moves the next alert to the following clock hour, and a downloadable recurring calendar event for reminders when the browser is closed.
-- Responsive layout, installable PWA shell, light/dark themes, keyboard shortcuts, and local persistence.
-- A private-room sync server for moving cards between a computer and a phone on the same Wi-Fi network.
-- A generated, typed German word database for A1 and A2 word-bank curation, with English meanings, articles, plurals, examples, and learner tags.
+## What makes Deutschly useful
 
-## Use it
+| Workspace | Experience |
+| :--- | :--- |
+| **Study now** | Adaptive reviews with keyboard controls, pronunciation, examples, and XP feedback. |
+| **Practice Lab** | Short drills for articles, plurals, translations, sentence gaps, and mixed recall. |
+| **My library** | Personal vocabulary, phrases, grammar cards, tags, weak-card filters, search, and bulk actions. |
+| **Word bank** | Checked A1/A2 vocabulary with meanings, articles, plurals, examples, source context, and learner tags. |
+| **PDF import** | Read selectable text from a local Menschen PDF and keep suggestions linked to their page and context. |
+| **Progress** | Streaks, review activity, XP levels, achievements, recall accuracy, and daily goals. |
+| **Phone + desktop** | Installable PWA, local persistence, reminders, light/dark themes, and private-room sync on trusted Wi-Fi. |
 
-Open the live site above. To install it as an app:
+## A few thoughtful details
 
-- On Chrome or Edge desktop: use the install icon in the address bar or the browser menu.
-- On Android: use the browser menu and choose **Install app** or **Add to Home screen**.
-- On iPhone/iPad: use Safari’s **Share → Add to Home Screen**.
-
-For reminders, open **Overview**, turn on **Smart reminder**, choose a review time, and allow notifications. Use **Calendar** in the reminder card to download a recurring `.ics` event; this is the reliable option when the browser is closed. Browser notifications still require the installed app or tab to be open.
+- German articles stay visually consistent: `der` blue, `die` red, `das` green, and plural orange.
+- The card checker normalizes entries such as `Das Eis`, blocks exact duplicates, and flags possible duplicates before saving.
+- AI suggestions are optional. The local checker and word database remain the source of truth; suggestions are never saved automatically.
+- A synchronous per-card review guard prevents a rapid click + `Space` from reviewing the same card twice.
+- Export a backup before moving to a new browser. Local data stays in the browser unless you explicitly use account sync or the private-room flow.
 
 ## Run locally
 
 ```bash
+git clone https://github.com/Soheil-Aghayani/Deutschly.git
+cd Deutschly
 npm install
 npm run dev
 ```
 
-The production checks are:
+Open the local URL printed by Vite. Before opening a pull request or publishing a change, run:
 
 ```bash
 npm run typecheck
 npm test -- --run
+npm run test:worker
 npm run build
 ```
 
-## Sync phone and computer
+## Project map
 
-On the computer, from the project folder that contains `package.json`, keep these two commands running:
+```text
+Deutschly/
+├─ src/                    # React application and UI styles
+│  ├─ data/                # Lessons, generated word bank, and content metadata
+│  └─ lib/                 # Learning, sync, PDF, AI, and persistence helpers
+├─ public/                 # PWA shell, icons, achievement art, and README hero
+├─ cloudflare/             # Optional public AI bridge and worker tests
+├─ scripts/                # Bounded word-bank and Menschen PDF agents
+├─ server.mjs              # Private LAN sync and local AI bridge
+└─ .github/workflows/      # GitHub Pages deployment
+```
+
+<details>
+<summary><strong>Sync a phone and computer over private Wi-Fi</strong></summary>
+
+From the project folder, run both commands on the computer:
 
 ```bash
 npm run sync-server -- --host 0.0.0.0
 npm run dev:network
 ```
 
-In Windows Command Prompt, if the prompt starts at `C:\Users\Soheil>`, first change to the project folder:
+Open the network URL printed by Vite on both devices. In Deutschly, open **Set up sync**, use `http://<PC-LAN-IP>:8787/api/sync` as the server URL, and enter the same room code on both devices. Keep both devices on the same trusted Wi-Fi network.
+
+The room data is stored in the ignored `.deutschly/sync.json` file on the computer. The static GitHub Pages site does not host this private server.
+
+On Windows Command Prompt, if the prompt starts at `C:\Users\Soheil>`:
 
 ```bat
 cd /d "C:\Users\Soheil\Documents\ChatGPT\Gamify"
 ```
 
-Open the network URL printed by Vite on both devices. In Deutschly, open **Set up sync**, use `http://<PC-LAN-IP>:8787/api/sync` as the server URL, and enter the same room code on both devices. Turn on **Keep sync on automatically** if you want local changes to sync after a short pause. Keep both devices on the same private Wi-Fi network.
+</details>
 
-The sync server stores its room data in the ignored `.deutschly/sync.json` file on the computer. The static GitHub Pages site is shareable, but it does not host this private sync server. A production cloud sync service would still need HTTPS, authentication, encrypted storage, conflict history, and a hosted backend.
+<details>
+<summary><strong>Optional Firebase account sync</strong></summary>
 
-## Optional account sync
-
-Deutschly can also use Firebase Authentication and Firestore for account-based sync. The app keeps each user's document under `users/{uid}` and applies the owner-only rules in `firestore.rules`. Google sign-in is configured for the current project. GitHub sign-in can be added later with a GitHub OAuth app. Without Firebase settings, the app stays fully local and the private-room sync flow remains available.
-
-To enable it:
+Deutschly can use Firebase Authentication and Firestore for account-based sync. Without Firebase settings, the app remains fully local and private-room sync is still available.
 
 1. Create a Firebase project and add a Web app.
-2. Enable Google under Authentication providers. GitHub requires an OAuth app whose callback URL is the one shown by Firebase.
+2. Enable Google under Authentication providers.
 3. Create a Firestore database and publish `firestore.rules`.
-4. Copy `.env.example` to `.env.local` and fill in the six Firebase Web App values.
-5. For GitHub Pages, add the same six values as repository or environment variables named `VITE_FIREBASE_*`, then let the Pages workflow build again.
-6. Add the deployed Pages domain and `localhost` to Firebase Authentication's authorized domains.
+4. Copy `.env.example` to `.env.local` and fill in the six `VITE_FIREBASE_*` values.
+5. Add the same values to the GitHub repository or environment variables for Pages builds.
+6. Add the deployed Pages domain and `localhost` to Firebase's authorized domains.
 
-The current Firebase Hosting build is available at <https://deutschly-app-2026.web.app/>. It is the recommended URL for account sign-in because it stays within Firebase's hosting and authentication domains. GitHub Pages remains available for the static build.
+The Firebase Hosting build is also available at <https://deutschly-app-2026.web.app/>. Keep OAuth client secrets in provider settings; never add them to this repository.
 
-The Firebase client configuration is intended for the browser. OAuth client secrets stay in Firebase's provider settings and must never be added to this repository. The cloud account section is hidden behind the optional configuration, so a missing Firebase project does not break local use.
+</details>
 
-## Optional AI card review
+<details>
+<summary><strong>Optional AI card review and word generation</strong></summary>
 
-The **Ask AI** action in the card checker is an optional assistant for uncertain articles, plurals, meanings, and duplicate clues. The local duplicate checker remains the source of truth, and AI suggestions are never saved automatically.
-
-The bridge supports two providers:
-
-- `gemini` uses the existing Google AI Studio key and keeps that key on the PC.
-- `ollama` runs a free local model on the PC, so it needs no API key or paid cloud service. The PC does the generation work, so the model must be downloaded once and the PC bridge must be running when the app requests new words.
-
-For the local provider, install Ollama, then run this from the Deutschly project folder:
-
-```powershell
-Set-Location 'C:\Users\Soheil\Documents\ChatGPT\Gamify'
-$env:AI_PROVIDER = 'ollama'
-$env:OLLAMA_MODEL = 'qwen3:4b'
-ollama pull qwen3:4b
-npm run sync-server -- --host 0.0.0.0
-```
-
-In Command Prompt, the equivalent provider setup is:
-
-```bat
-set "AI_PROVIDER=ollama"
-set "OLLAMA_MODEL=qwen3:4b"
-ollama pull qwen3:4b
-npm run sync-server -- --host 0.0.0.0
-```
-
-The app continues to use the same `/api/gemini/word-batch` and `/api/gemini/check-card` bridge routes for compatibility, but the response is generated by the selected provider. Set the sync URL to `http://<PC-LAN-IP>:8787/api/sync` on the phone. A GitHub Pages tab cannot reach `127.0.0.1` on your PC, so the phone and PC must use the local network URL, or the bridge must be exposed through a trusted HTTPS tunnel.
-
-Keep the Gemini key on the PC that runs the local server. Either set `GEMINI_API_KEY`, or point `GEMINI_API_FILE` at a local text file containing the key. Do not add the key to the repository, browser code, or a public API relay:
+The local bridge supports either Gemini or Ollama. Keep the Gemini key on the computer that runs the bridge:
 
 ```powershell
 $env:GEMINI_API_FILE = 'C:\path\to\Gemini API.txt'
 npm run sync-server -- --host 0.0.0.0
 ```
 
-If the sync URL is configured in Deutschly, the app uses the same private server for card review. On the phone, use the PC LAN address in the sync settings. Stop the server when you are finished, and keep it on a trusted Wi-Fi network; this starter bridge is intentionally not a public production service.
-
-The same private bridge exposes `POST /api/gemini/word-batch` for an A1 or A2 curation pass. It validates the level, removes duplicate headwords, and returns structured records without external sources or URLs. Generated words are written only after the agent validates their shape and deduplicates them against the local database. The route works with either configured AI provider.
-
-### Public AI for the published app
-
-The repository also includes a Cloudflare Workers AI bridge for phones and computers that cannot reach a private PC server. It uses the same AI routes over HTTPS, so users do not install Ollama or configure a Gemini key. The browser only receives the Worker URL; the model runs behind Cloudflare's AI binding. Deploy it from the project folder with:
+For a local Ollama provider:
 
 ```powershell
-npm exec --yes wrangler -- login
-npm exec --yes wrangler -- deploy --config wrangler.jsonc
+$env:AI_PROVIDER = 'ollama'
+$env:OLLAMA_MODEL = 'qwen3:4b'
+ollama pull qwen3:4b
+npm run sync-server -- --host 0.0.0.0
 ```
 
-Then set the printed Worker URL as the GitHub repository variable `VITE_AI_BRIDGE_URL` and rerun the Pages workflow. The `ALLOWED_ORIGINS` list in `wrangler.jsonc` limits browser callers to the published app and local development origins. The free plan has daily request and AI-neuron limits, so the app still keeps its local checked word bank available when the AI allowance is full. See [`cloudflare/README.md`](cloudflare/README.md) for the exact deployment and test commands.
-
-To add reviewed Gemini batches to the local database, run the bounded word agent from the project folder. It reads the key from the file, compares every batch with existing headwords, and writes only new records to `src/data/germanWords.generated.json`:
-
-```powershell
-npm run words:agent -- --key-file 'C:\path\to\Gemini API.txt' --levels A1,A2 --count 20 --batches 1
-```
-
-When the private sync server is already running with its Gemini key configured, the agent can reuse it without reading a key file directly:
+The bounded word agent can add reviewed A1/A2 records to the local database:
 
 ```powershell
 npm run words:agent -- --server-url 'http://127.0.0.1:8787' --levels A1,A2 --count 20 --batches 1
 ```
 
-The `--legacy-review-fallback` option is available for an already-running older bridge that has card review but not the word-batch endpoint. It verifies a small built-in learner list through the existing review route, then stores the validated records. Restart the bridge from the current project version before using larger generated batches.
+For the exact Cloudflare Worker deployment flow and tests, see [`cloudflare/README.md`](cloudflare/README.md). The public bridge uses an allowlist and remains subject to the provider's daily limits.
 
-Use a small, explicit batch count when adding more words. The agent never runs an unbounded loop, never stores the API key, and keeps the local database as the source of truth.
+</details>
 
-To enrich the local word bank from the attached Menschen A1.1 Kursbuch, run the source-aware importer with the PDF path. It verifies each selected word on its declared PDF page, asks the private AI bridge to check the article, plural, meaning, and example, and stores the lesson and page with the record:
+<details>
+<summary><strong>Import vocabulary from a Menschen PDF</strong></summary>
+
+The source-aware importer verifies selected words on their declared PDF pages and skips entries that cannot be found or already exist:
 
 ```powershell
 npm run menschen:agent -- --pdf 'C:\path\to\Menschen A1.1 Kursbuch OCR neu.pdf' --server-url 'http://127.0.0.1:8787' --limit 16
 ```
 
-The source-aware importer is intentionally bounded. It skips words already in the database and does not add an OCR fragment that cannot be found on the declared page.
+The source PDF is never committed to the repository.
 
-## GitHub Pages
+</details>
 
-`.github/workflows/deploy.yml` builds `dist` and deploys it to GitHub Pages whenever `main` is updated. The repository should have Pages configured with **GitHub Actions** as its build source.
+## Deployment
 
-The app keeps your cards in the browser by default. Use **Export backup** before moving data to a new browser, or use account sync or the private-room sync flow when both devices are available on the same network.
+`.github/workflows/deploy.yml` builds `dist` and publishes GitHub Pages whenever `main` changes. The repository uses **GitHub Actions** as its Pages source.
+
+Live app: <https://soheil-aghayani.github.io/Deutschly/>
+
+<div align="center">
+  <sub>Built for small steps, clear progress, and German that stays with you.</sub>
+</div>
