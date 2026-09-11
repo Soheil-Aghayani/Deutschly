@@ -140,9 +140,10 @@ jobs:
 
           gradle = project / "app" / "build.gradle.kts"
           text = gradle.read_text(encoding="utf-8")
-          imports = "import java.io.FileInputStream\nimport java.util.Properties\n"
           if "import java.io.FileInputStream" not in text:
-              text = imports + text
+              text = "import java.io.FileInputStream\n" + text
+          if "import java.util.Properties" not in text:
+              text = "import java.util.Properties\n" + text
 
           signing_config = '''signingConfigs {
               create("release") {
