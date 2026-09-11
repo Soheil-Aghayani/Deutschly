@@ -122,7 +122,7 @@ jobs:
           test -n "$ANDROID_KEY_PASSWORD"
           test -n "$ANDROID_KEY_BASE64"
           cd src-tauri/gen/android
-          printf '%s' "$ANDROID_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/deutschly-upload-keystore.jks"
+          printf '%s' "$ANDROID_KEY_BASE64" | tr -d '\r\n' | base64 --decode > "$RUNNER_TEMP/deutschly-upload-keystore.jks"
           python3 - <<'PY'
           import os
           import re
