@@ -68,7 +68,6 @@ jobs:
             The web edition remains available at https://soheil-aghayani.github.io/Deutschly/ for always-online access. Optional AI providers are configured per device in Settings.
           releaseDraft: false
           prerelease: false
-          includeDebug: false
           uploadUpdaterJson: true
           uploadUpdaterSignatures: true
 
