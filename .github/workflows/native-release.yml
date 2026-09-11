@@ -189,7 +189,7 @@ jobs:
           aab=$(find src-tauri/gen/android -path '*outputs/bundle*release*' -type f -name '*.aab' | head -n 1)
           test -n "$apk"
           test -n "$aab"
-          apksigner verify --verbose "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
           jarsigner -verify "$aab" >/dev/null
           cp "$apk" "Deutschly-Android.apk"
           cp "$aab" "Deutschly-Android.aab"
