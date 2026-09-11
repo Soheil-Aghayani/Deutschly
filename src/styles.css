@@ -8927,6 +8927,10 @@ html {
   padding-bottom: 0;
 }
 
+.study-page > .study-hint {
+  margin-top: -10px;
+}
+
 .study-answer {
   scroll-margin-top: 96px;
   scroll-margin-bottom: 0;
@@ -9313,5 +9317,27 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .study-page .rating-panel {
     animation: none;
+  }
+}
+
+@media (min-width: 761px) {
+  .study-layout {
+    align-items: stretch;
+  }
+
+  .study-aside {
+    align-self: stretch;
+  }
+
+  .study-page .rating-panel {
+    display: flex;
+    height: 100%;
+    box-sizing: border-box;
+    flex-direction: column;
+  }
+
+  .study-page .rating-grid {
+    flex: 1;
+    grid-auto-rows: minmax(0, 1fr);
   }
 }

@@ -2102,7 +2102,6 @@ function StudyPage({
               </button>
             )}
           </article>
-          <p className="study-hint"><KeyboardHint>Space</KeyboardHint> to reveal <span>·</span> <KeyboardHint>1–4</KeyboardHint> to rate</p>
         </div>
 
         <aside className="study-aside">
@@ -2125,6 +2124,7 @@ function StudyPage({
           )}
         </aside>
       </div>
+      <p className="study-hint"><KeyboardHint>Space</KeyboardHint> to reveal <span>·</span> <KeyboardHint>1–4</KeyboardHint> to rate</p>
     </div>
   );
 }
