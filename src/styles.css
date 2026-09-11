@@ -2,6 +2,14 @@
   font-family: "Segoe UI", ui-sans-serif, -apple-system, BlinkMacSystemFont, sans-serif;
   color: #27314a;
   background: #f5f6fb;
+  --android-safe-top: 0px;
+  --android-safe-right: 0px;
+  --android-safe-bottom: 0px;
+  --android-safe-left: 0px;
+  --app-safe-top: max(env(safe-area-inset-top, 0px), var(--android-safe-top));
+  --app-safe-right: max(env(safe-area-inset-right, 0px), var(--android-safe-right));
+  --app-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-safe-bottom));
+  --app-safe-left: max(env(safe-area-inset-left, 0px), var(--android-safe-left));
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -43,7 +51,7 @@ html {
   min-width: 320px;
   min-height: 100%;
   background: #f5f6fb;
-  scroll-padding-top: 96px;
+  scroll-padding-top: calc(96px + var(--app-safe-top));
   scrollbar-gutter: stable;
 }
 
@@ -540,8 +548,8 @@ svg {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 76px;
-  padding: 0 40px;
+  min-height: calc(76px + var(--app-safe-top));
+  padding: var(--app-safe-top) 40px 0;
   background: color-mix(in srgb, var(--background) 88%, transparent);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(16px);
@@ -4752,7 +4760,7 @@ svg {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: max(22px, env(safe-area-inset-top, 0px)) 22px max(22px, env(safe-area-inset-bottom, 0px));
+  padding: max(22px, var(--app-safe-top)) 22px max(22px, var(--app-safe-bottom));
   overflow: hidden;
   overscroll-behavior: contain;
   background: rgba(13, 17, 34, 0.58);
@@ -5936,7 +5944,7 @@ svg {
   bottom: 0;
   z-index: 1;
   flex: 0 0 auto;
-  padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(2px, var(--app-safe-bottom));
   background: var(--surface);
   box-shadow: 0 -10px 18px color-mix(in srgb, var(--surface) 82%, transparent);
 }
@@ -7922,7 +7930,7 @@ svg {
 @media (max-width: 760px) {
   .app-shell {
     display: block;
-    padding-bottom: 72px;
+    padding-bottom: calc(72px + var(--app-safe-bottom));
   }
 
   .sidebar {
@@ -7930,8 +7938,8 @@ svg {
   }
 
   .topbar {
-    min-height: 68px;
-    padding: 0 18px;
+    min-height: calc(68px + var(--app-safe-top));
+    padding: var(--app-safe-top) 18px 0;
   }
 
   .mobile-brand {
@@ -7987,8 +7995,8 @@ svg {
     z-index: 20;
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    min-height: 66px;
-    padding: 6px 8px max(6px, env(safe-area-inset-bottom));
+    min-height: calc(66px + var(--app-safe-bottom));
+    padding: 6px 8px max(6px, var(--app-safe-bottom));
     background: color-mix(in srgb, var(--surface) 94%, transparent);
     border-top: 1px solid var(--border);
     box-shadow: 0 -7px 25px rgba(36, 45, 77, 0.06);
@@ -8450,7 +8458,7 @@ svg {
 
   .rating-panel {
     position: sticky;
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(76px + var(--app-safe-bottom));
     z-index: 4;
     margin: 18px -13px -4px;
     padding: 12px 13px;
@@ -8730,8 +8738,8 @@ svg {
     align-items: flex-start;
     overflow-x: hidden;
     overflow-y: auto;
-    padding-top: max(12px, env(safe-area-inset-top, 0px));
-    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    padding-top: max(12px, var(--app-safe-top));
+    padding-bottom: max(12px, var(--app-safe-bottom));
   }
 
   .modal-panel {
@@ -8745,12 +8753,12 @@ svg {
 
   .modal-backdrop--settings {
     align-items: stretch;
-    padding: max(8px, env(safe-area-inset-top, 0px)) 8px max(8px, env(safe-area-inset-bottom, 0px));
+    padding: max(8px, var(--app-safe-top)) 8px max(8px, var(--app-safe-bottom));
   }
 
   .settings-modal {
     width: 100%;
-    height: calc(100dvh - max(8px, env(safe-area-inset-top, 0px)) - max(8px, env(safe-area-inset-bottom, 0px)));
+    height: calc(100dvh - max(8px, var(--app-safe-top)) - max(8px, var(--app-safe-bottom)));
     max-height: none;
     padding: 16px 12px 0;
   }
@@ -8762,7 +8770,7 @@ svg {
   }
 
   .settings-modal > .modal-panel__footer {
-    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(10px, var(--app-safe-bottom));
   }
 
   .onboarding-modal {
@@ -8945,7 +8953,7 @@ svg {
 
   .native-update-banner {
     right: 12px;
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(76px + var(--app-safe-bottom));
     left: 12px;
     width: auto;
   }
@@ -8960,7 +8968,7 @@ svg {
 
   .install-prompt {
     right: 12px;
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(76px + var(--app-safe-bottom));
     left: 12px;
     width: auto;
   }
@@ -9013,7 +9021,7 @@ html {
 }
 
 .main-content {
-  padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(58px + var(--app-safe-bottom));
 }
 
 .study-card--answered {
@@ -9081,7 +9089,7 @@ html {
   z-index: 5;
   margin-right: -2px;
   margin-left: -2px;
-  padding: 13px 2px max(2px, env(safe-area-inset-bottom, 0px));
+  padding: 13px 2px max(2px, var(--app-safe-bottom));
   background: var(--surface);
   box-shadow: 0 -10px 18px color-mix(in srgb, var(--surface) 84%, transparent);
 }
@@ -9102,15 +9110,15 @@ html {
   }
 
   html {
-    scroll-padding-bottom: calc(var(--mobile-action-clearance) + var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(var(--mobile-action-clearance) + var(--mobile-nav-clearance) + var(--app-safe-bottom));
   }
 
   .app-shell {
-    padding-bottom: calc(var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--mobile-nav-clearance) + var(--app-safe-bottom));
   }
 
   .main-content {
-    padding-bottom: calc(28px + var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(28px + var(--mobile-nav-clearance) + var(--app-safe-bottom));
   }
 
   .study-card--answered {
@@ -9129,7 +9137,7 @@ html {
   .study-page .rating-panel {
     position: fixed;
     right: 8px;
-    bottom: calc(var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--mobile-nav-clearance) + var(--app-safe-bottom));
     left: 8px;
     top: auto;
     width: auto;
@@ -9154,17 +9162,17 @@ html {
 
   .practice-next,
   .practice-summary > .button:last-child {
-    bottom: calc(var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--mobile-nav-clearance) + var(--app-safe-bottom));
   }
 
   .modal-panel:not(.settings-modal) > .modal-panel__footer {
-    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(10px, var(--app-safe-bottom));
   }
 }
 
 @media (max-height: 860px) and (min-width: 761px) {
   .topbar {
-    min-height: 68px;
+    min-height: calc(68px + var(--app-safe-top));
   }
 
   .main-content {
@@ -9215,7 +9223,7 @@ html {
   .flashcard-modal > form > .modal-panel__footer {
     position: fixed;
     right: auto;
-    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    bottom: max(12px, var(--app-safe-bottom));
     left: 50%;
     z-index: 60;
     width: min(620px, calc(100vw - 44px));
@@ -9229,7 +9237,7 @@ html {
 
 @media (orientation: landscape) and (max-height: 640px) {
   .topbar {
-    min-height: 58px;
+    min-height: calc(58px + var(--app-safe-top));
   }
 
   .main-content {
@@ -9241,8 +9249,8 @@ html {
   }
 
   .modal-backdrop {
-    padding-top: max(8px, env(safe-area-inset-top, 0px));
-    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    padding-top: max(8px, var(--app-safe-top));
+    padding-bottom: max(8px, var(--app-safe-bottom));
   }
 
   .modal-panel {
@@ -9378,11 +9386,11 @@ html {
   .flashcard-modal > form > .modal-panel__footer {
     position: fixed;
     right: 8px;
-    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    bottom: max(8px, var(--app-safe-bottom));
     left: 8px;
     z-index: 60;
     margin: 0;
-    padding: 10px 10px max(10px, env(safe-area-inset-bottom, 0px));
+    padding: 10px 10px max(10px, var(--app-safe-bottom));
     border: 1px solid var(--border);
     border-radius: 14px;
     align-items: center;
@@ -9442,7 +9450,7 @@ html {
 
 .xp-celebration {
   position: fixed;
-  top: calc(82px + env(safe-area-inset-top, 0px));
+  top: calc(82px + var(--app-safe-top));
   right: 24px;
   z-index: 58;
   display: inline-flex;
@@ -9501,7 +9509,7 @@ html {
 
 @media (max-width: 760px) {
   .xp-celebration {
-    top: calc(72px + env(safe-area-inset-top, 0px));
+    top: calc(72px + var(--app-safe-top));
     right: 12px;
     max-width: calc(100vw - 24px);
   }

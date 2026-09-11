@@ -75,6 +75,14 @@ jobs:
     name: Android APK and AAB
     needs: desktop
     runs-on: ubuntu-22.04
+    env:
+      VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+      VITE_AI_BRIDGE_URL: ${{ vars.VITE_AI_BRIDGE_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -109,6 +117,105 @@ jobs:
 
       - name: Initialize Android project
         run: npm run tauri -- android init
+
+      - name: Configure Android system-bar insets
+        shell: bash
+        run: |
+          set -euo pipefail
+          activity=$(find src-tauri/gen/android/app/src/main -name MainActivity.kt -type f | head -n 1)
+          test -n "$activity"
+          python3 - "$activity" <<'PY'
+          import sys
+          from pathlib import Path
+
+          activity = Path(sys.argv[1])
+          activity.write_text(r'''package com.deutschly.app
+
+          import android.os.Build
+          import android.os.Bundle
+          import android.view.WindowInsets
+          import android.webkit.JavascriptInterface
+          import android.webkit.WebView
+          import androidx.activity.enableEdgeToEdge
+
+          class MainActivity : TauriActivity() {
+              private var contentWebView: WebView? = null
+              private var currentInsets = WindowInsetValues()
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  enableEdgeToEdge()
+                  super.onCreate(savedInstanceState)
+              }
+
+              override fun onWebViewCreate(webView: WebView) {
+                  super.onWebViewCreate(webView)
+                  contentWebView = webView
+                  webView.addJavascriptInterface(InsetsBridge(), "DeutschlyAndroidInsets")
+                  webView.setOnApplyWindowInsetsListener { _, insets ->
+                      currentInsets = readInsets(insets)
+                      publishInsets()
+                      insets
+                  }
+                  webView.requestApplyInsets()
+                  webView.postDelayed({ publishInsets() }, 900)
+              }
+
+              private fun readInsets(insets: WindowInsets): WindowInsetValues {
+                  val density = resources.displayMetrics.density.coerceAtLeast(1f)
+                  val (left, top, right, bottom) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                      val values = insets.getInsets(
+                          WindowInsets.Type.statusBars() or
+                              WindowInsets.Type.navigationBars() or
+                              WindowInsets.Type.displayCutout(),
+                      )
+                      listOf(values.left, values.top, values.right, values.bottom)
+                  } else {
+                      @Suppress("DEPRECATION")
+                      listOf(
+                          insets.systemWindowInsetLeft,
+                          insets.systemWindowInsetTop,
+                          insets.systemWindowInsetRight,
+                          insets.systemWindowInsetBottom,
+                      )
+                  }
+                  return WindowInsetValues(
+                      top = top / density,
+                      right = right / density,
+                      bottom = bottom / density,
+                      left = left / density,
+                  )
+              }
+
+              private fun publishInsets() {
+                  val webView = contentWebView ?: return
+                  val insets = currentInsets
+                  val script = """
+                      (function() {
+                        var detail = {top: ${insets.top}, right: ${insets.right}, bottom: ${insets.bottom}, left: ${insets.left}};
+                        window.__DEUTSCHLY_ANDROID_INSETS__ = detail;
+                        window.dispatchEvent(new CustomEvent('deutschly:android-insets', {detail: detail}));
+                      })();
+                  """.trimIndent()
+                  webView.post { webView.evaluateJavascript(script, null) }
+              }
+
+              private inner class InsetsBridge {
+                  @JavascriptInterface
+                  fun getInsets(): String {
+                      val insets = currentInsets
+                      return "{\"top\":${insets.top},\"right\":${insets.right},\"bottom\":${insets.bottom},\"left\":${insets.left}}"
+                  }
+              }
+
+              private data class WindowInsetValues(
+                  val top: Float = 0f,
+                  val right: Float = 0f,
+                  val bottom: Float = 0f,
+                  val left: Float = 0f,
+              )
+          }
+          ''', encoding="utf-8")
+          PY
 
       - name: Configure Android release signing
         env:
