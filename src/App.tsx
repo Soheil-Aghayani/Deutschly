@@ -2051,29 +2051,30 @@ function StudyPage({
                 <div className="study-answer__hidden"><Eye size={18} aria-hidden="true" /> Answer hidden until you recall it</div>
               )}
             </div>
-            {!showAnswer ? (
+            {!showAnswer && (
               <button type="button" className="button button--primary button--large" onClick={onShowAnswer}>
                 Show answer
                 <Eye size={18} aria-hidden="true" />
               </button>
-            ) : (
-              <div className="rating-panel">
-                <span className="rating-panel__label">How well did you remember it?</span>
-                <div className="rating-grid">
-                  {ratingMeta.map(({ id, label, detail, icon: Icon }) => {
-                    const nextInterval = scheduleReview(card, id, getDayKey()).interval;
-                    return (
-                    <button type="button" className={`rating-button rating-button--${id}`} key={id} onClick={() => onRate(id)}>
-                      <Icon size={16} aria-hidden="true" />
-                      <span><strong>{label}</strong><small>{detail}</small></span>
-                      <em>{nextInterval} day{nextInterval === 1 ? "" : "s"}</em>
-                    </button>
-                    );
-                  })}
-                </div>
-              </div>
             )}
           </article>
+          {showAnswer && (
+            <div className="rating-panel">
+              <span className="rating-panel__label">How well did you remember it?</span>
+              <div className="rating-grid">
+                {ratingMeta.map(({ id, label, detail, icon: Icon }) => {
+                  const nextInterval = scheduleReview(card, id, getDayKey()).interval;
+                  return (
+                  <button type="button" className={`rating-button rating-button--${id}`} key={id} onClick={() => onRate(id)}>
+                    <Icon size={16} aria-hidden="true" />
+                    <span><strong>{label}</strong><small>{detail}</small></span>
+                    <em>{nextInterval} day{nextInterval === 1 ? "" : "s"}</em>
+                  </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <p className="study-hint"><KeyboardHint>Space</KeyboardHint> to reveal <span>·</span> <KeyboardHint>1–4</KeyboardHint> to rate</p>
         </div>
 
@@ -2339,6 +2340,9 @@ function PracticePage({ cards, level, onAddCard, onAwardXp, onCompleteSession }:
   const practiceAudio = questionMode === "cloze" ? questionValue.replace("____", card.german) : displayWord;
   const isFinalQuestion = sessionCards.length > 0 && index === sessionCards.length - 1;
   const missedCards = sessionAttempts.filter((attempt) => !attempt.correct).map((attempt) => attempt.german).filter((word, wordIndex, words) => words.indexOf(word) === wordIndex);
+  const scrollToPracticeStart = () => {
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
+  };
 
   const startSession = () => {
     const shuffled = shuffleCards(eligibleCards);
@@ -2362,6 +2366,7 @@ function PracticePage({ cards, level, onAddCard, onAwardXp, onCompleteSession }:
     setLastXp(0);
     setSessionAttempts([]);
     setSessionComplete(false);
+    scrollToPracticeStart();
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -2392,6 +2397,7 @@ function PracticePage({ cards, level, onAddCard, onAwardXp, onCompleteSession }:
     setSubmitted(false);
     setIsCorrect(false);
     setLastXp(0);
+    scrollToPracticeStart();
   };
 
   const handleNextKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -3949,7 +3955,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section ref={panelRef} className="modal-panel" tabIndex={hasPrefilledContent ? -1 : undefined} role="dialog" aria-modal="true" aria-labelledby="add-card-title">
+      <section ref={panelRef} className="modal-panel flashcard-modal" tabIndex={hasPrefilledContent ? -1 : undefined} role="dialog" aria-modal="true" aria-labelledby="add-card-title">
         <div className="modal-panel__heading"><div><span className="section-eyebrow">PERSONAL LIBRARY</span><h2 id="add-card-title">{editing ? "Edit a flashcard" : "Add a flashcard"}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close add card dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
         <p className="modal-panel__intro">Add a word, phrase, or grammar item. Deutschly checks your entry for duplicates and common issues before it joins the review queue.</p>
         {liveMatch && <div className={`card-live-match card-live-match--${liveMatch.type}`} role="status"><Info size={15} aria-hidden="true" /><span><strong>{liveMatch.type === "exact" ? "This card is already saved." : "A card with this headword already exists."}</strong><small>{liveMatch.card.german} · {liveMatch.card.translation}. Press Check card to compare the meaning.</small></span></div>}
@@ -4720,6 +4726,7 @@ export default function App() {
       setStudyQueueIds((current) => current ? current.filter((id) => id !== card.id) : current);
     }
     setShowAnswer(false);
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
     const ratingMessage = `${rating === "again" ? "We’ll bring it back tomorrow" : `Next review in ${schedule.interval} days`} · +${xpAward} XP`;
     const levelMessage = nextLevel > previousLevel ? `Level ${nextLevel} reached. Your practice capacity is now ${getPracticeSessionLength(nextLevel, 999)} cards.` : "";
     showToast([ratingMessage, newlyUnlocked.length > 0 ? formatAchievementUnlocks(newlyUnlocked) : "", levelMessage].filter(Boolean).join(" "), {

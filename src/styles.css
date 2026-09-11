@@ -8902,3 +8902,379 @@ kbd {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Viewport-safe action surfaces.
+   These controls remain reachable while the page keeps its full content flow.
+   The extra clearance prevents the fixed/sticky surfaces from hiding content or focus. */
+:root {
+  --desktop-action-clearance: 172px;
+  --mobile-nav-clearance: 82px;
+}
+
+html {
+  scroll-padding-bottom: calc(var(--desktop-action-clearance) + 24px);
+}
+
+.main-content {
+  padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+}
+
+.study-card--answered {
+  padding-bottom: 28px;
+}
+
+.study-page .rating-panel {
+  position: fixed;
+  right: auto;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  z-index: 18;
+  width: min(900px, calc(100vw - 48px));
+  max-width: 900px;
+  margin: 0;
+  padding: 13px 16px 15px;
+  text-align: left;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 15px 38px rgba(37, 43, 91, 0.16);
+  backdrop-filter: blur(18px);
+  transform: translateX(-50%);
+  animation: action-dock-in 220ms ease both;
+}
+
+.study-page .rating-panel__label {
+  margin-bottom: 8px;
+}
+
+.study-page .rating-button {
+  min-height: 70px;
+}
+
+.practice-next,
+.practice-summary > .button:last-child {
+  position: sticky;
+  bottom: 18px;
+  z-index: 4;
+  box-shadow: 0 10px 24px rgba(37, 43, 91, 0.13);
+  scroll-margin-bottom: 24px;
+}
+
+.modal-panel:not(.settings-modal) > .modal-panel__footer {
+  position: sticky;
+  bottom: -1px;
+  z-index: 5;
+  margin-right: -2px;
+  margin-left: -2px;
+  padding: 13px 2px max(2px, env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  box-shadow: 0 -10px 18px color-mix(in srgb, var(--surface) 84%, transparent);
+}
+
+@keyframes action-dock-in {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes action-dock-in-mobile {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --mobile-action-clearance: 210px;
+  }
+
+  html {
+    scroll-padding-bottom: calc(var(--mobile-action-clearance) + var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell {
+    padding-bottom: calc(var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .main-content {
+    padding-bottom: calc(28px + var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .study-card--answered {
+    padding-bottom: 18px;
+  }
+
+  .study-page .rating-panel {
+    right: 8px;
+    bottom: calc(var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
+    left: 8px;
+    width: auto;
+    max-width: none;
+    padding: 10px 10px 11px;
+    transform: none;
+    animation-name: action-dock-in-mobile;
+  }
+
+  .study-page .rating-button {
+    min-height: 72px;
+    padding: 9px;
+  }
+
+  .practice-next,
+  .practice-summary > .button:last-child {
+    bottom: calc(var(--mobile-nav-clearance) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .modal-panel:not(.settings-modal) > .modal-panel__footer {
+    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-height: 860px) and (min-width: 761px) {
+  .topbar {
+    min-height: 68px;
+  }
+
+  .main-content {
+    padding-top: 24px;
+  }
+
+  .study-card {
+    padding-top: 21px;
+    padding-bottom: 20px;
+  }
+
+  .study-card__prompt {
+    margin-top: 27px;
+    margin-bottom: 11px;
+  }
+
+  .study-answer {
+    min-height: 92px;
+    margin-top: 17px;
+    margin-bottom: 15px;
+    padding: 13px;
+  }
+
+  .voice-recorder {
+    gap: 7px;
+    padding: 10px;
+    margin-top: 10px;
+  }
+
+  .practice-card {
+    padding-top: 21px;
+    padding-bottom: 20px;
+  }
+
+  .practice-card__prompt {
+    margin-top: 32px;
+    margin-bottom: 13px;
+  }
+
+  .practice-answer {
+    margin-top: 25px;
+  }
+
+  .flashcard-modal {
+    padding-bottom: 96px;
+  }
+
+  .flashcard-modal > form > .modal-panel__footer {
+    position: fixed;
+    right: auto;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    z-index: 60;
+    width: min(620px, calc(100vw - 44px));
+    margin: 0;
+    padding: 13px 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    transform: translateX(-50%);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 640px) {
+  .topbar {
+    min-height: 58px;
+  }
+
+  .main-content {
+    padding-top: 16px;
+  }
+
+  .page-stack {
+    gap: 17px;
+  }
+
+  .modal-backdrop {
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .modal-panel {
+    max-height: calc(100dvh - 16px);
+  }
+}
+
+@media (max-width: 640px) {
+  /* Keep the active practice prompt and its answer field in the first viewport. */
+  .practice-page__intro {
+    flex-direction: row;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .practice-page__intro p {
+    display: none;
+  }
+
+  .practice-page__intro h1 {
+    margin-bottom: 0;
+    font-size: 28px;
+  }
+
+  .practice-score {
+    min-height: 36px;
+    gap: 4px;
+    padding: 0 8px;
+  }
+
+  .practice-score strong {
+    font-size: 13px;
+  }
+
+  .practice-score span,
+  .practice-score em {
+    font-size: 9px;
+  }
+
+  .practice-score em {
+    padding-left: 5px;
+  }
+
+  .practice-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 9px 10px;
+  }
+
+  .practice-toolbar__summary,
+  .practice-select {
+    grid-column: auto;
+  }
+
+  .practice-toolbar__summary {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 7px;
+  }
+
+  .practice-toolbar__copy span,
+  .practice-select span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .practice-toolbar__copy strong {
+    font-size: 10px;
+  }
+
+  .practice-select select {
+    min-width: 116px;
+    height: 36px;
+    font-size: 10px;
+  }
+
+  .practice-card {
+    min-height: 0;
+    padding: 16px 13px 18px;
+  }
+
+  .practice-card__prompt {
+    margin-top: 24px;
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+
+  .practice-card__question {
+    font-size: clamp(25px, 9vw, 40px);
+  }
+
+  .practice-card__question--cloze {
+    font-size: clamp(18px, 6vw, 25px);
+  }
+
+  .practice-card__audio {
+    min-height: 34px;
+    margin-top: 4px;
+  }
+
+  .practice-answer {
+    margin-top: 18px;
+  }
+
+  .practice-answer__row {
+    flex-direction: row;
+  }
+
+  .practice-answer__row input {
+    flex: 1 1 auto;
+    width: auto;
+    min-height: 48px;
+    height: 48px;
+  }
+
+  .practice-answer__row .button {
+    width: auto;
+    min-height: 48px;
+    padding: 0 12px;
+  }
+
+  .flashcard-modal {
+    padding-bottom: 104px;
+  }
+
+  .flashcard-modal > form > .modal-panel__footer {
+    position: fixed;
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    left: 8px;
+    z-index: 60;
+    margin: 0;
+    padding: 10px 10px max(10px, env(safe-area-inset-bottom, 0px));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    align-items: center;
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .flashcard-modal > form > .modal-panel__footer > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .flashcard-modal > form > .modal-panel__footer > div {
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .study-page .rating-panel {
+    animation: none;
+  }
+}
