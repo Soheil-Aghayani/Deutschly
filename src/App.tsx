@@ -77,8 +77,8 @@ import {
   subscribeToFirebaseAuth,
 } from "./lib/firebase";
 import type { FirebaseAuthProvider, FirebaseUserSummary } from "./lib/firebase";
-import { generateGermanWordBatch, getAiUsageStatus, reviewCardWithGemini } from "./lib/gemini";
-import type { AiUsageStatus, GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel } from "./lib/gemini";
+import { generateGermanWordBatch, getAiUsageStatus, getDefaultAiSettings, normalizeAiSettings, reviewCardWithGemini } from "./lib/gemini";
+import type { AiProvider, AiSettings, AiUsageStatus, GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel } from "./lib/gemini";
 import { playPracticeFeedbackSound } from "./lib/feedbackSounds";
 import { formatGermanPartOfSpeech, isGermanWordRecord, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./data/germanWordsCore";
 import type { GermanWordRecord } from "./data/germanWordsCore";
@@ -116,6 +116,11 @@ type WordBankDecision = "pending" | "added" | "dismissed";
 type ToastAction = { label: string; onClick: () => void };
 type ToastState = { message: string; action?: ToastAction };
 type XpCelebration = { amount: number; level?: number; id: number };
+type NativeUpdate = import("@tauri-apps/plugin-updater").Update;
+
+function isTauriRuntime(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
 
 interface Flashcard {
   id: string;
@@ -220,6 +225,7 @@ interface OverflowMenuItem {
 interface FirebaseMergePrompt {
   remoteState: AppState;
   remoteProfileName: string;
+  remoteAiSettings: AiSettings;
 }
 
 interface SyncConflict {
@@ -261,6 +267,7 @@ const WORD_BANK_KEY = "deutschly:word-bank:v1";
 const SYNC_ENDPOINT_KEY = "deutschly:sync:endpoint:v1";
 const SYNC_ROOM_KEY = "deutschly:sync:room:v1";
 const AUTO_SYNC_KEY = "deutschly:sync:auto:v1";
+const AI_SETTINGS_KEY = "deutschly:ai-settings:v1";
 const SYNC_BASELINE_KEY = "deutschly:sync:baseline:v1";
 const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v3";
 const PWA_INSTALL_DISMISSED_KEY = "deutschly:pwa:install-dismissed:v1";
@@ -1104,6 +1111,16 @@ function loadState(): AppState {
 function loadLocalSetting(key: string): string {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(key) ?? "";
+}
+
+function loadAiSettings(): AiSettings {
+  if (typeof window === "undefined") return getDefaultAiSettings();
+  try {
+    const raw = window.localStorage.getItem(AI_SETTINGS_KEY);
+    return normalizeAiSettings(raw ? JSON.parse(raw) : getDefaultAiSettings());
+  } catch {
+    return getDefaultAiSettings();
+  }
 }
 
 function loadGeneratedWordBank(): GermanWordRecord[] {
@@ -2649,7 +2666,7 @@ function formatUsageCountdown(seconds: number | null): string {
   return remainingSeconds === 0 ? `${minutes}m` : `${minutes}m ${remainingSeconds}s`;
 }
 
-function AiQuotaStatus({ endpoint, refreshKey }: { endpoint: string; refreshKey: number }) {
+function AiQuotaStatus({ settings, refreshKey }: { settings: AiSettings; refreshKey: number }) {
   const [usage, setUsage] = useState<AiUsageStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -2658,10 +2675,16 @@ function AiQuotaStatus({ endpoint, refreshKey }: { endpoint: string; refreshKey:
 
   useEffect(() => {
     let mounted = true;
+    if (settings.provider !== "cloudflare" && settings.provider !== "bridge") {
+      setUsage(null);
+      setError(null);
+      setLoading(false);
+      return () => { mounted = false; };
+    }
     const load = async () => {
       setLoading(true);
       try {
-        const nextUsage = await getAiUsageStatus(endpoint);
+        const nextUsage = await getAiUsageStatus(settings);
         if (!mounted) return;
         setUsage(nextUsage);
         setError(null);
@@ -2679,7 +2702,7 @@ function AiQuotaStatus({ endpoint, refreshKey }: { endpoint: string; refreshKey:
       mounted = false;
       window.clearInterval(refreshTimer);
     };
-  }, [endpoint, manualRefreshKey, refreshKey]);
+  }, [settings, manualRefreshKey, refreshKey]);
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow(Date.now()), 1_000);
@@ -2704,7 +2727,13 @@ function AiQuotaStatus({ endpoint, refreshKey }: { endpoint: string; refreshKey:
           <strong>AI availability</strong>
           {limit !== null && <span>{remaining} of {limit} requests left</span>}
         </div>
-        {usage ? (
+        {settings.provider === "off" ? (
+          <small>AI is off. Saved cards and the checked word bank work offline.</small>
+        ) : settings.provider === "gemini" ? (
+          <small>Using your Gemini API key. Usage and billing are managed by your provider.</small>
+        ) : settings.provider === "ollama" ? (
+          <small>Using Ollama on this device. No AI request leaves your local network.</small>
+        ) : usage ? (
           <small>
             {limit !== null ? `This window resets in ${formatUsageCountdown(windowCountdown)}.` : "The local AI bridge controls its own provider limit."}
             {usage.dailyNeurons ? ` Daily pool: ${usage.dailyNeurons.toLocaleString()} neurons; resets in ${formatUsageCountdown(dailyCountdown)}.` : ""}
@@ -2740,7 +2769,7 @@ function LibraryPage({
   wordBankInboxItems,
   onWordBankDecision,
   onGenerateWordBatch,
-  aiEndpoint,
+  aiSettings,
   onEditCard,
   weakCardsOnly,
   onWeakCardsOnlyChange,
@@ -2773,7 +2802,7 @@ function LibraryPage({
   wordBankInboxItems: WordBankInboxItem[];
   onWordBankDecision: (wordId: string, decision: WordBankDecision) => void;
   onGenerateWordBatch: (level: GermanWordBatchLevel, count: number) => Promise<GermanWordRecord[]>;
-  aiEndpoint: string;
+  aiSettings: AiSettings;
   onEditCard: (card: Flashcard) => void;
   weakCardsOnly: boolean;
   onWeakCardsOnlyChange: (value: boolean) => void;
@@ -2950,7 +2979,7 @@ function LibraryPage({
           </form>
         </div>
         {wordBankError && <div className="word-bank-generator__error" role="alert"><Info size={15} aria-hidden="true" /><span>{wordBankError}</span><button type="button" className="text-button" onClick={onOpenSync}><Cloud size={14} aria-hidden="true" /> Set up AI bridge</button></div>}
-        <AiQuotaStatus endpoint={aiEndpoint} refreshKey={aiUsageRefreshKey} />
+        <AiQuotaStatus settings={aiSettings} refreshKey={aiUsageRefreshKey} />
         {wordBankInboxItems.length > 0 && <div className="word-bank-generated word-bank-inbox" aria-live="polite">
           <div className="word-bank-generated__heading"><div><strong>AI word inbox</strong><span>{wordBankInboxCounts.pending} waiting · {wordBankInboxCounts.added} added · {wordBankInboxCounts.dismissed} not for me</span></div><span>{wordBankInboxCounts.pending} waiting</span></div>
           <div className="word-bank-inbox__filters" role="group" aria-label="AI word inbox filters">
@@ -3655,6 +3684,14 @@ interface ProfileModalProps {
   onOpenSync: () => void;
   onResetProgress: () => void;
   onInstallApp: () => void;
+  isNativeApp: boolean;
+  nativeUpdateVersion: string | null;
+  nativeUpdateChecking: boolean;
+  nativeUpdateInstalling: boolean;
+  onCheckForNativeUpdate: () => void;
+  onInstallNativeUpdate: () => void;
+  aiSettings: AiSettings;
+  onAiSettingsChange: (settings: AiSettings) => void;
   firebaseConfigured: boolean;
   firebaseUser: FirebaseUserSummary | null;
   firebaseBusy: boolean;
@@ -3694,6 +3731,14 @@ function ProfileModal({
   onOpenSync,
   onResetProgress,
   onInstallApp,
+  isNativeApp,
+  nativeUpdateVersion,
+  nativeUpdateChecking,
+  nativeUpdateInstalling,
+  onCheckForNativeUpdate,
+  onInstallNativeUpdate,
+  aiSettings,
+  onAiSettingsChange,
   firebaseConfigured,
   firebaseUser,
   firebaseBusy,
@@ -3738,6 +3783,27 @@ function ProfileModal({
 
           <FirebaseAccountSection configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} error={firebaseError} onSignIn={onFirebaseSignIn} onSignOut={onFirebaseSignOut} onSync={onFirebaseSync} onDeleteAccount={onFirebaseDeleteAccount} />
 
+          <details className="settings-section settings-section--disclosure" open>
+            <summary className="settings-section__heading settings-section__summary">
+              <span className="settings-section__icon settings-section__icon--indigo" aria-hidden="true"><Sparkles size={16} /></span>
+              <span><h3 id="settings-ai-title">AI &amp; integrations</h3><p>Choose who provides optional card checks and word suggestions.</p></span>
+              <ChevronDown className="settings-section__chevron" size={17} aria-hidden="true" />
+            </summary>
+            <div className="settings-section__disclosure-content">
+              <label className="form-field" htmlFor="settings-ai-provider"><span>AI provider</span><select id="settings-ai-provider" value={aiSettings.provider} onChange={(event) => onAiSettingsChange(normalizeAiSettings({ ...aiSettings, provider: event.target.value as AiProvider }))}>
+                <option value="off">Off — fully local study</option>
+                <option value="cloudflare">My Cloudflare Worker</option>
+                <option value="gemini">My Gemini API key</option>
+                <option value="ollama">Ollama on this device</option>
+                <option value="bridge">Compatible Deutschly bridge</option>
+              </select></label>
+              {(aiSettings.provider === "cloudflare" || aiSettings.provider === "bridge" || aiSettings.provider === "ollama") && <label className="form-field" htmlFor="settings-ai-endpoint"><span>{aiSettings.provider === "ollama" ? "Ollama address" : "Worker / bridge address"}</span><input id="settings-ai-endpoint" value={aiSettings.endpoint} onChange={(event) => onAiSettingsChange(normalizeAiSettings({ ...aiSettings, endpoint: event.target.value }))} placeholder={aiSettings.provider === "ollama" ? "http://127.0.0.1:11434" : "https://your-worker.example.workers.dev"} inputMode="url" spellCheck={false} /></label>}
+              {(aiSettings.provider === "cloudflare" || aiSettings.provider === "bridge" || aiSettings.provider === "gemini") && <label className="form-field" htmlFor="settings-ai-key"><span>{aiSettings.provider === "gemini" ? "Gemini API key" : "Optional access key"}</span><input id="settings-ai-key" type="password" value={aiSettings.apiKey} onChange={(event) => onAiSettingsChange(normalizeAiSettings({ ...aiSettings, apiKey: event.target.value }))} placeholder="Stored only in this device profile" autoComplete="off" spellCheck={false} /></label>}
+              {(aiSettings.provider === "gemini" || aiSettings.provider === "ollama") && <label className="form-field" htmlFor="settings-ai-model"><span>Model</span><input id="settings-ai-model" value={aiSettings.model} onChange={(event) => onAiSettingsChange(normalizeAiSettings({ ...aiSettings, model: event.target.value }))} placeholder={aiSettings.provider === "ollama" ? "qwen2.5:3b" : "gemini-2.0-flash"} spellCheck={false} /></label>}
+              <div className="settings-notification settings-notification--default" role="status"><span className="settings-notification__copy"><Info size={14} aria-hidden="true" /><span><strong>{aiSettings.provider === "off" ? "Core study is offline-ready" : "AI is optional"}</strong><small>{aiSettings.provider === "off" ? "Saved cards, review scheduling, and the checked word bank do not need a network." : "Your provider handles its own quota. API keys stay on this device and are never sent to Deutschly by default."}</small></span></span></div>
+            </div>
+          </details>
+
           <section className="settings-section" aria-labelledby="settings-appearance-title">
             <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--indigo" aria-hidden="true">{theme === "light" ? <Sun size={16} /> : <Moon size={16} />}</span><div><h3 id="settings-appearance-title">Appearance</h3><p>Choose the surface that feels easiest to study in.</p></div></div>
             <div className="settings-row settings-row--stack-mobile">
@@ -3778,10 +3844,11 @@ function ProfileModal({
             <div className="settings-action-grid"><button type="button" className="button button--outline" onClick={onExportBackup}><Download size={15} aria-hidden="true" /> Export backup</button><button type="button" className="button button--outline" onClick={() => backupInputRef.current?.click()}><Upload size={15} aria-hidden="true" /> Import backup</button><button type="button" className="button button--outline" onClick={onOpenSync}><Cloud size={15} aria-hidden="true" /> Sync devices</button><button type="button" className="button button--ghost settings-danger-action" onClick={onResetProgress}><RefreshCw size={15} aria-hidden="true" /> Reset progress</button></div>
           </section>
 
-          <section className="settings-section" aria-labelledby="settings-app-title">
-            <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Download size={16} /></span><div><h3 id="settings-app-title">App</h3><p>Make Deutschly easy to return to on your phone or computer.</p></div></div>
-            <div className="settings-row settings-app-row"><div className="settings-row__copy"><strong>Install Deutschly</strong><small>{installCopy}</small></div>{!isInstalled && canInstall && <button type="button" className="button button--outline" onClick={onInstallApp}>Install app</button>}{isInstalled && <span className="settings-status settings-status--success"><CheckCircle2 size={14} aria-hidden="true" /> Installed</span>}</div>
-          </section>
+            <section className="settings-section" aria-labelledby="settings-app-title">
+              <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Download size={16} /></span><div><h3 id="settings-app-title">App</h3><p>Make Deutschly easy to return to on your phone or computer.</p></div></div>
+              <div className="settings-row settings-app-row"><div className="settings-row__copy"><strong>Install Deutschly</strong><small>{installCopy}</small></div>{!isInstalled && canInstall && <button type="button" className="button button--outline" onClick={onInstallApp}>Install app</button>}{isInstalled && <span className="settings-status settings-status--success"><CheckCircle2 size={14} aria-hidden="true" /> Installed</span>}</div>
+              {isNativeApp && <div className="settings-row settings-app-row settings-app-row--update"><div className="settings-row__copy"><strong>{nativeUpdateVersion ? `Deutschly ${nativeUpdateVersion} is ready` : "Native updates"}</strong><small>{nativeUpdateVersion ? "Install it when you are ready. Your local cards and settings are kept." : "Deutschly checks for signed updates without interrupting your study."}</small></div><div className="settings-action-inline">{nativeUpdateVersion && <button type="button" className="button button--primary" onClick={onInstallNativeUpdate} disabled={nativeUpdateInstalling}>{nativeUpdateInstalling ? "Installing..." : "Install update"}</button>}<button type="button" className="button button--outline" onClick={onCheckForNativeUpdate} disabled={nativeUpdateChecking || nativeUpdateInstalling}>{nativeUpdateChecking ? "Checking..." : "Check now"}</button></div></div>}
+            </section>
         </div>
 
         <div className="modal-panel__footer"><span><Settings size={15} aria-hidden="true" /> Name changes are saved with your profile.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Cancel</button><button type="button" className="button button--primary" onClick={() => onSave(draftName)}>Save profile</button></div></div>
@@ -3859,7 +3926,7 @@ function SyncModal({
   );
 }
 
-function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, editing = false, geminiEndpoint }: { onClose: () => void; onSave: (draft: CardDraft) => void; onDelete?: () => void; existingCards: Flashcard[]; initialDraft?: Partial<CardDraft>; editing?: boolean; geminiEndpoint: string }) {
+function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, editing = false, aiSettings }: { onClose: () => void; onSave: (draft: CardDraft) => void; onDelete?: () => void; existingCards: Flashcard[]; initialDraft?: Partial<CardDraft>; editing?: boolean; aiSettings: AiSettings }) {
   const [draft, setDraft] = useState<CardDraft>(() => createCardDraft(initialDraft));
   const [checkResult, setCheckResult] = useState<CardCheckResult | null>(null);
   const [referenceChecked, setReferenceChecked] = useState(false);
@@ -3930,7 +3997,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
     };
 
     try {
-      setAiReview(await reviewCardWithGemini(geminiEndpoint, input));
+      setAiReview(await reviewCardWithGemini(aiSettings, input));
     } catch (error) {
       setAiError(error instanceof Error ? error.message : "The AI could not review this card.");
     } finally {
@@ -4045,6 +4112,7 @@ export default function App() {
   const [syncEndpoint, setSyncEndpoint] = useState(() => loadLocalSetting(SYNC_ENDPOINT_KEY));
   const [syncRoom, setSyncRoom] = useState(() => loadLocalSetting(SYNC_ROOM_KEY) || createSyncRoom());
   const [autoSync, setAutoSync] = useState(() => loadLocalBooleanSetting(AUTO_SYNC_KEY));
+  const [aiSettings, setAiSettings] = useState<AiSettings>(() => loadAiSettings());
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [testingConnection, setTestingConnection] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUserSummary | null>(null);
@@ -4056,6 +4124,9 @@ export default function App() {
   const [syncConflict, setSyncConflict] = useState<SyncConflict | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [xpCelebration, setXpCelebration] = useState<XpCelebration | null>(null);
+  const [nativeUpdate, setNativeUpdate] = useState<NativeUpdate | null>(null);
+  const [nativeUpdateChecking, setNativeUpdateChecking] = useState(false);
+  const [nativeUpdateInstalling, setNativeUpdateInstalling] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [pdfCandidates, setPdfCandidates] = useState<PdfCandidate[]>(() => state.pdfImport?.candidates ?? []);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -4079,6 +4150,7 @@ export default function App() {
   const toastTimerRef = useRef<number | undefined>(undefined);
   const xpCelebrationTimerRef = useRef<number | undefined>(undefined);
   const studyActionLockRef = useRef<string | null>(null);
+  const studyActionLockUntilRef = useRef(0);
   const stateRef = useRef(state);
   const profileNameRef = useRef(profileName);
   const syncInFlightRef = useRef(false);
@@ -4131,6 +4203,10 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    window.localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(aiSettings));
+  }, [aiSettings]);
 
   const ensureGermanWordDatabase = () => {
     germanWordDatabasePromiseRef.current ??= loadGermanWordDatabase().then((words) => {
@@ -4238,7 +4314,7 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (addCardOpen || activeTab !== "study") return;
-      if (studyActionLockRef.current) {
+      if (studyActionLockRef.current || Date.now() < studyActionLockUntilRef.current) {
         if (event.code === "Space") event.preventDefault();
         return;
       }
@@ -4267,6 +4343,40 @@ export default function App() {
     if (xpCelebrationTimerRef.current) window.clearTimeout(xpCelebrationTimerRef.current);
     xpCelebrationTimerRef.current = window.setTimeout(() => setXpCelebration(null), 1900);
   };
+
+  const checkForNativeUpdate = async (silent = false) => {
+    if (!isTauriRuntime() || nativeUpdateChecking || nativeUpdateInstalling) return;
+    setNativeUpdateChecking(true);
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const nextUpdate = await check();
+      setNativeUpdate(nextUpdate);
+      if (!silent) showToast(nextUpdate ? `Deutschly ${nextUpdate.version} is ready to install.` : "Deutschly is up to date.");
+    } catch (error) {
+      if (!silent) showToast(error instanceof Error ? error.message : "Deutschly could not check for updates.");
+    } finally {
+      setNativeUpdateChecking(false);
+    }
+  };
+
+  const installNativeUpdate = async () => {
+    if (!nativeUpdate || nativeUpdateInstalling) return;
+    setNativeUpdateInstalling(true);
+    try {
+      await nativeUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") showToast("Downloading the Deutschly update… Your cards are safe.");
+      }, { restartAfterInstall: true });
+    } catch (error) {
+      setNativeUpdateInstalling(false);
+      showToast(error instanceof Error ? error.message : "The update could not be installed.");
+    }
+  };
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return undefined;
+    const timer = window.setTimeout(() => void checkForNativeUpdate(true), 3_500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!state.reminderEnabled || dueCards.length === 0) return undefined;
@@ -4434,7 +4544,7 @@ export default function App() {
   };
 
   const handleGenerateWordBatch = async (level: GermanWordBatchLevel, count: number): Promise<GermanWordRecord[]> => {
-    const response = await generateGermanWordBatch(syncEndpoint, {
+    const response = await generateGermanWordBatch(aiSettings, {
       level,
       count,
       existingWords: wordBank.map((word) => word.german),
@@ -4715,12 +4825,13 @@ export default function App() {
 
   function handleRate(rating: ReviewRating) {
     const card = studyCards[0];
-    if (!card || !showAnswer || studyActionLockRef.current) return;
+    if (!card || !showAnswer || studyActionLockRef.current || Date.now() < studyActionLockUntilRef.current) return;
     const wasQueueSession = studyQueueIds !== null;
     const previousState = stateRef.current;
     const previousCard = previousState.cards.find((item) => item.id === card.id);
     if (!previousCard) return;
     studyActionLockRef.current = card.id;
+    studyActionLockUntilRef.current = Date.now() + 450;
     const schedule = scheduleReview(card, rating, todayKey);
     const reviewedAt = new Date().toISOString();
     const xpAward = getXpForRating(rating);
@@ -5047,7 +5158,7 @@ export default function App() {
     setFirebaseError(null);
     const localState = stateRef.current;
     try {
-      const remote = pending ? { state: pending.remoteState, profileName: pending.remoteProfileName } : await loadFirebaseCloudDocument(firebaseUser.uid);
+      const remote = pending ? { state: pending.remoteState, profileName: pending.remoteProfileName, aiSettings: pending.remoteAiSettings } : await loadFirebaseCloudDocument(firebaseUser.uid);
       const remoteState = remote ? normalizeAppState(remote.state) : null;
       const shouldPrompt = !pending
         && Boolean(remoteState)
@@ -5056,7 +5167,7 @@ export default function App() {
         && getSyncFingerprint(localState) !== getSyncFingerprint(remoteState as AppState);
       if (shouldPrompt && remoteState) {
         firebaseChoiceRequiredRef.current = firebaseUser.uid;
-        setFirebaseMergePrompt({ remoteState, remoteProfileName: remote?.profileName ? normalizeProfileName(remote.profileName) : "" });
+        setFirebaseMergePrompt({ remoteState, remoteProfileName: remote?.profileName ? normalizeProfileName(remote.profileName) : "", remoteAiSettings: normalizeAiSettings(remote?.aiSettings) });
         return;
       }
       const resolvedState = strategy === "local"
@@ -5075,7 +5186,13 @@ export default function App() {
         window.localStorage.setItem(PROFILE_NAME_KEY, resolvedProfileName);
         setProfileOnboardingOpen(false);
       }
-      const syncedAt = await saveFirebaseCloudDocument(firebaseUser.uid, { state: resolvedState, profileName: resolvedProfileName });
+      const resolvedAiSettings = strategy === "local"
+        ? aiSettings
+        : strategy === "remote"
+          ? normalizeAiSettings(remote?.aiSettings)
+          : remote?.aiSettings ? normalizeAiSettings(remote.aiSettings) : aiSettings;
+      setAiSettings(resolvedAiSettings);
+      const syncedAt = await saveFirebaseCloudDocument(firebaseUser.uid, { state: resolvedState, profileName: resolvedProfileName, aiSettings: resolvedAiSettings });
       lastFirebaseSyncFingerprintRef.current = getSyncFingerprint(resolvedState);
       firebaseChoiceRequiredRef.current = "";
       setFirebaseMergePrompt(null);
@@ -5192,6 +5309,12 @@ export default function App() {
     const timer = window.setTimeout(() => void handleFirebaseSync({ silent: true }), 900);
     return () => window.clearTimeout(timer);
   }, [firebaseConfigured, firebaseUser?.uid, profileName]);
+
+  useEffect(() => {
+    if (!firebaseConfigured || !firebaseUser || !lastFirebaseSyncFingerprintRef.current) return undefined;
+    const timer = window.setTimeout(() => void handleFirebaseSync({ silent: true, strategy: "local" }), 900);
+    return () => window.clearTimeout(timer);
+  }, [firebaseConfigured, firebaseUser?.uid, aiSettings]);
 
   const handleTestConnection = async () => {
     if (testingConnection || !syncEndpoint.trim()) return;
@@ -5537,9 +5660,9 @@ export default function App() {
 
         <main id="main-content" className="main-content">
           {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
-          {activeTab === "study" && <StudyPage dueCards={studyCards} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => { if (!studyActionLockRef.current && studyCards[0]) setShowAnswer(true); }} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} onContinueReview={handleStartReview} hasMoreDueCards={studyQueueIds === null && studySession.total > 0 && studySession.reviewed >= studySession.total && dueCards.length > 0} remainingDueCards={dueCards.length} />}
+          {activeTab === "study" && <StudyPage dueCards={studyCards} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => { if (!studyActionLockRef.current && Date.now() >= studyActionLockUntilRef.current && studyCards[0]) setShowAnswer(true); }} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} onContinueReview={handleStartReview} hasMoreDueCards={studyQueueIds === null && studySession.total > 0 && studySession.reviewed >= studySession.total && dueCards.length > 0} remainingDueCards={dueCards.length} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} onCompleteSession={handlePracticeComplete} />}
-          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onAddWordBankBatch={handleAddWordBankBatch} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} wordBankInboxItems={wordBankInboxItems} onWordBankDecision={handleWordBankDecision} onGenerateWordBatch={handleGenerateWordBatch} aiEndpoint={syncEndpoint} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
+          {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onAddWordBankBatch={handleAddWordBankBatch} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} wordBankInboxItems={wordBankInboxItems} onWordBankDecision={handleWordBankDecision} onGenerateWordBatch={handleGenerateWordBatch} aiSettings={aiSettings} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
           {activeTab === "progress" && <ProgressPage state={state} onViewWeakCards={handleViewWeakCards} onAdjustReminder={() => handleTabChange("overview")} onStartReview={handleStartReview} />}
         </main>
       </div>
@@ -5552,7 +5675,7 @@ export default function App() {
         ))}
       </nav>
 
-      {addCardOpen && <AddCardModal onClose={handleCloseAddCard} onSave={handleSaveCard} onDelete={editingCardId ? handleRequestDeleteCard : undefined} existingCards={state.cards.filter((card) => card.id !== editingCardId)} initialDraft={addCardSeed} editing={Boolean(editingCardId)} geminiEndpoint={syncEndpoint} />}
+      {addCardOpen && <AddCardModal onClose={handleCloseAddCard} onSave={handleSaveCard} onDelete={editingCardId ? handleRequestDeleteCard : undefined} existingCards={state.cards.filter((card) => card.id !== editingCardId)} initialDraft={addCardSeed} editing={Boolean(editingCardId)} aiSettings={aiSettings} />}
       {cardPendingDeletion && <DeleteCardModal card={cardPendingDeletion} onClose={() => setDeleteCardId(null)} onConfirm={handleConfirmDeleteCard} />}
       {profileOpen && <ProfileModal
         name={profileDisplayName}
@@ -5583,6 +5706,14 @@ export default function App() {
         onOpenSync={handleOpenSyncFromSettings}
         onResetProgress={handleResetProgressFromSettings}
         onInstallApp={() => { void handleInstallApp(); }}
+        isNativeApp={isTauriRuntime()}
+        nativeUpdateVersion={nativeUpdate?.version ?? null}
+        nativeUpdateChecking={nativeUpdateChecking}
+        nativeUpdateInstalling={nativeUpdateInstalling}
+        onCheckForNativeUpdate={() => { void checkForNativeUpdate(false); }}
+        onInstallNativeUpdate={() => { void installNativeUpdate(); }}
+        aiSettings={aiSettings}
+        onAiSettingsChange={setAiSettings}
         firebaseConfigured={firebaseConfigured}
         firebaseUser={firebaseUser}
         firebaseBusy={firebaseBusy}
@@ -5599,6 +5730,7 @@ export default function App() {
       {deleteAccountOpen && firebaseUser && <DeleteAccountModal email={firebaseUser.email ?? ""} busy={firebaseBusy} error={firebaseError} onClose={() => { if (!firebaseBusy) { setDeleteAccountOpen(false); setFirebaseError(null); } }} onConfirm={() => { void handleDeleteFirebaseAccount(); }} />}
       {firebaseMergePrompt && firebaseUser && <FirebaseMergeModal localCardCount={state.cards.length} remoteCardCount={firebaseMergePrompt.remoteState.cards.length} remoteProfileName={firebaseMergePrompt.remoteProfileName} busy={firebaseBusy} onClose={handleDeferFirebaseMerge} onResolve={handleFirebaseMergeChoice} />}
       {showInstallPrompt && <InstallPrompt canInstall={installPrompt.canInstall} isIos={installPrompt.isIos} isMobile={installPrompt.isMobile} onInstall={() => { void handleInstallApp(); }} onDismiss={handleDismissInstallPrompt} />}
+      {nativeUpdate && <aside className="native-update-banner" role="status" aria-live="polite"><div className="native-update-banner__icon" aria-hidden="true"><Download size={18} /></div><div><strong>Deutschly {nativeUpdate.version} is ready</strong><span>Your cards, AI settings, and progress stay on this device.</span></div><button type="button" className="button button--primary" onClick={() => { void installNativeUpdate(); }} disabled={nativeUpdateInstalling}>{nativeUpdateInstalling ? "Installing..." : "Install"}</button><button type="button" className="icon-button icon-button--small" onClick={() => setNativeUpdate(null)} aria-label="Dismiss update notice" title="Later"><X size={15} aria-hidden="true" /></button></aside>}
       {xpCelebration && <div key={xpCelebration.id} className="xp-celebration" role="status" aria-live="polite" aria-atomic="true"><span className="xp-celebration__icon" aria-hidden="true"><Sparkles size={17} /></span><span><strong>+{xpCelebration.amount} XP</strong><small>{xpCelebration.level ? `Level ${xpCelebration.level} unlocked` : "Memory momentum earned"}</small></span></div>}
       {toast && <div className="toast" role="status" aria-live="polite"><Check size={16} aria-hidden="true" /><span>{toast.message}</span>{toast.action && <button type="button" className="toast__action" onClick={() => { const action = toast.action; setToast(null); action?.onClick(); }}>{toast.action.label}</button>}</div>}
     </div>

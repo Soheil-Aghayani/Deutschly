@@ -5959,6 +5959,55 @@ svg {
   align-items: flex-start;
 }
 
+.settings-section--disclosure {
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-section__summary {
+  position: relative;
+  min-height: 62px;
+  padding: 14px;
+  align-items: flex-start;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-section__summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-section__summary > span:nth-child(2) {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.settings-section__chevron {
+  flex: 0 0 auto;
+  margin: 8px 2px 0 4px;
+  color: var(--text-muted);
+  transition: transform 180ms ease;
+}
+
+.settings-section--disclosure[open] .settings-section__chevron {
+  transform: rotate(180deg);
+}
+
+.settings-section__disclosure-content {
+  display: grid;
+  gap: 11px;
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-section__disclosure-content .form-field {
+  margin: 0;
+}
+
+.settings-section__disclosure-content .settings-notification {
+  margin-top: 0;
+}
+
 .settings-section__icon {
   display: inline-flex;
   flex: 0 0 auto;
@@ -6354,6 +6403,65 @@ svg {
 .settings-app-row {
   padding-top: 11px;
   margin-top: 11px;
+}
+
+.settings-app-row--update {
+  align-items: flex-start;
+}
+
+.settings-action-inline {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.native-update-banner {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(520px, calc(100vw - 48px));
+  padding: 12px;
+  color: var(--text-strong);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+}
+
+.native-update-banner__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: 10px;
+}
+
+.native-update-banner > div:nth-child(2) {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.native-update-banner strong {
+  font-size: 11px;
+}
+
+.native-update-banner span {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .settings-status {
@@ -8824,6 +8932,22 @@ svg {
 
   .settings-app-row {
     align-items: flex-start;
+  }
+
+  .settings-app-row--update {
+    flex-direction: column;
+  }
+
+  .settings-action-inline {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .native-update-banner {
+    right: 12px;
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    width: auto;
   }
 
   .toast {

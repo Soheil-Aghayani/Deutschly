@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { aiUsageUrl, generateGermanWordBatch, geminiReviewUrl, geminiWordBatchUrl, getAiUsageStatus, parseAiUsageStatus, parseGeminiCardReview, parseGermanWordBatch, reviewCardWithGemini } from "./gemini";
+import { aiUsageUrl, generateGermanWordBatch, geminiReviewUrl, geminiWordBatchUrl, getAiUsageStatus, getDefaultAiSettings, normalizeAiSettings, parseAiUsageStatus, parseGeminiCardReview, parseGermanWordBatch, reviewCardWithGemini } from "./gemini";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -18,6 +18,16 @@ const review = {
 };
 
 describe("Gemini card review bridge", () => {
+  it("normalizes user-owned AI provider settings", () => {
+    expect(normalizeAiSettings({ provider: "ollama", endpoint: "", model: "" })).toEqual({
+      provider: "ollama",
+      endpoint: "http://127.0.0.1:11434",
+      apiKey: "",
+      model: "qwen2.5:3b",
+    });
+    expect(getDefaultAiSettings().provider).toBe("off");
+  });
+
   it("maps the sync server URL to the review route", () => {
     expect(geminiReviewUrl("")).toBe("/api/gemini/check-card");
     expect(geminiReviewUrl("/api/sync")).toBe("/api/gemini/check-card");
@@ -73,6 +83,24 @@ describe("Gemini card review bridge", () => {
 
   it("rejects a response with an unsupported article", () => {
     expect(() => parseGeminiCardReview({ review: { ...review, article: "ein" } })).toThrow("invalid article");
+  });
+
+  it("uses a user Gemini key without sending it to the bridge route", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: JSON.stringify(review) }] } }],
+    }), { status: 200 }));
+    await reviewCardWithGemini({ provider: "gemini", endpoint: "", apiKey: "user-key", model: "gemini-2.0-flash" }, {
+      german: "Eis",
+      translation: "ice cream",
+      article: "das",
+      plural: "",
+      example: "Ich esse gern Eis.",
+      note: "",
+      kind: "word",
+      existingMatches: [],
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("generativelanguage.googleapis.com");
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ headers: expect.objectContaining({ "x-goog-api-key": "user-key" }) });
   });
 });
 

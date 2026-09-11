@@ -4,6 +4,45 @@ import type { GermanWordArticle, GermanWordRecord, GermanWordSource } from "../d
 export type GeminiArticle = "der" | "die" | "das" | "plural" | "none";
 export type GeminiConfidence = "high" | "medium" | "low";
 export type GeminiReviewVerdict = "looks-good" | "needs-review";
+export type AiProvider = "off" | "cloudflare" | "gemini" | "ollama" | "bridge";
+
+export interface AiSettings {
+  provider: AiProvider;
+  endpoint: string;
+  apiKey: string;
+  model: string;
+}
+
+const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+const DEFAULT_OLLAMA_MODEL = "qwen2.5:3b";
+const DEFAULT_OLLAMA_ENDPOINT = "http://127.0.0.1:11434";
+
+export function getDefaultAiSettings(): AiSettings {
+  const configuredEndpoint = String(import.meta.env.VITE_AI_BRIDGE_URL || "").trim();
+  return {
+    provider: configuredEndpoint ? "cloudflare" : "off",
+    endpoint: configuredEndpoint,
+    apiKey: "",
+    model: configuredEndpoint ? "" : DEFAULT_GEMINI_MODEL,
+  };
+}
+
+export function normalizeAiSettings(value: unknown): AiSettings {
+  const fallback = getDefaultAiSettings();
+  if (!isRecord(value)) return fallback;
+  const provider = ["off", "cloudflare", "gemini", "ollama", "bridge"].includes(String(value.provider))
+    ? String(value.provider) as AiProvider
+    : fallback.provider;
+  const endpoint = typeof value.endpoint === "string" ? value.endpoint.trim().slice(0, 500) : fallback.endpoint;
+  const apiKey = typeof value.apiKey === "string" ? value.apiKey.slice(0, 500) : fallback.apiKey;
+  const model = typeof value.model === "string" ? value.model.trim().slice(0, 120) : fallback.model;
+  return {
+    provider,
+    endpoint: provider === "ollama" ? endpoint || DEFAULT_OLLAMA_ENDPOINT : endpoint,
+    apiKey,
+    model: model || (provider === "ollama" ? DEFAULT_OLLAMA_MODEL : DEFAULT_GEMINI_MODEL),
+  };
+}
 
 export interface GeminiCardMatchInput {
   german: string;
@@ -87,6 +126,13 @@ function bridgeUnavailableMessage(): string {
   return "The AI needs a reachable HTTPS bridge in the published app. Run the bridge on your PC, then add its URL in Set up sync. The checked word bank is still available here.";
 }
 
+function providerUnavailableMessage(provider: AiProvider): string {
+  if (provider === "off") return "AI is turned off. You can still study saved cards and use the local word bank.";
+  if (provider === "ollama") return "Ollama is not reachable. Start Ollama on this device and confirm the local model name in Settings.";
+  if (provider === "gemini") return "Gemini could not be reached. Check your API key, model name, and network connection.";
+  return bridgeUnavailableMessage();
+}
+
 function readText(value: unknown, field: string, maxLength: number): string {
   if (typeof value !== "string") throw new GeminiRequestError(`The AI returned an invalid ${field}.`);
   return value.trim().slice(0, maxLength);
@@ -116,9 +162,23 @@ export function parseGeminiCardReview(payload: unknown): GeminiCardReview {
   };
 }
 
-export function geminiReviewUrl(endpoint: string): string {
+function settingsForTarget(target: string | AiSettings): AiSettings {
+  if (typeof target === "string") {
+    const endpoint = target.trim();
+    return {
+      provider: "bridge",
+      endpoint,
+      apiKey: "",
+      model: DEFAULT_GEMINI_MODEL,
+    };
+  }
+  return normalizeAiSettings(target);
+}
+
+export function geminiReviewUrl(target: string | AiSettings): string {
+  const settings = settingsForTarget(target);
   const configuredBridge = String(import.meta.env.VITE_AI_BRIDGE_URL || "").trim();
-  const explicitEndpoint = endpoint.trim();
+  const explicitEndpoint = settings.endpoint.trim();
   const normalizedEndpoint = explicitEndpoint === "/api/sync" && configuredBridge
     ? configuredBridge
     : explicitEndpoint || configuredBridge;
@@ -147,7 +207,7 @@ export function geminiReviewUrl(endpoint: string): string {
   }
 }
 
-async function readResponse(response: Response): Promise<Record<string, unknown>> {
+async function readResponse(response: Response, provider: AiProvider = "bridge"): Promise<Record<string, unknown>> {
   let payload: unknown = null;
   try {
     payload = await response.json();
@@ -157,37 +217,146 @@ async function readResponse(response: Response): Promise<Record<string, unknown>
 
   if (!response.ok) {
     const message = response.status === 404 || response.status === 405
-      ? bridgeUnavailableMessage()
+      ? providerUnavailableMessage(provider)
       : isRecord(payload) && typeof payload.error === "string"
         ? payload.error
         : `AI request failed (${response.status}).`;
     throw new GeminiRequestError(message, response.status);
   }
-  if (!isRecord(payload)) throw new GeminiRequestError("The AI bridge returned an invalid response.", response.status);
+  if (!isRecord(payload)) throw new GeminiRequestError("The AI provider returned an invalid response.", response.status);
   return payload;
 }
 
-export async function reviewCardWithGemini(endpoint: string, input: GeminiCardReviewInput): Promise<GeminiCardReview> {
+function bridgeHeaders(settings: AiSettings): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...(settings.apiKey && (settings.provider === "cloudflare" || settings.provider === "bridge")
+      ? { Authorization: `Bearer ${settings.apiKey}` }
+      : {}),
+  };
+}
+
+function parseJsonText(value: string, label: string): unknown {
+  const cleaned = value.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  try {
+    return JSON.parse(cleaned) as unknown;
+  } catch {
+    throw new GeminiRequestError(`The AI returned invalid JSON for ${label}.`);
+  }
+}
+
+function readGeminiText(payload: unknown): string {
+  if (!isRecord(payload) || !Array.isArray(payload.candidates)) throw new GeminiRequestError("Gemini returned no usable answer.");
+  const candidate = payload.candidates[0];
+  if (!isRecord(candidate) || !isRecord(candidate.content) || !Array.isArray(candidate.content.parts)) {
+    throw new GeminiRequestError("Gemini returned no usable answer.");
+  }
+  const text = candidate.content.parts
+    .filter(isRecord)
+    .map((part) => typeof part.text === "string" ? part.text : "")
+    .join("\n")
+    .trim();
+  if (!text) throw new GeminiRequestError("Gemini returned an empty answer.");
+  return text;
+}
+
+const cardReviewPrompt = (input: GeminiCardReviewInput) => `
+You are a careful German teacher. Review this flashcard and return JSON only.
+Required keys: verdict (looks-good or needs-review), article (der, die, das, plural, or none), article_confidence (high, medium, low), plural, plural_confidence (high, medium, low), translation, example, explanation, duplicate_hint.
+Keep the learner-facing text concise. Use English explanations and a natural German example.
+Card: ${JSON.stringify(input)}
+Existing cards with the same headword are only duplicate clues; do not invent duplicates.
+`;
+
+const wordBatchPrompt = (input: GermanWordBatchRequest) => `
+Create a checked German vocabulary batch for a learner at level ${input.level}. Return JSON only with keys level, requestedCount, returnedCount, words.
+Each word must contain id, german, englishMeanings (array), article (der, die, das, plural, or none), level (${input.level}), partOfSpeech (noun, verb, adjective, adverb, phrase, or other), examples (array), tags (array).
+Return at most ${input.count} useful words and do not use any existing word: ${JSON.stringify(input.existingWords)}
+`;
+
+async function requestDirectGemini(settings: AiSettings, prompt: string): Promise<unknown> {
+  const model = encodeURIComponent(settings.model || DEFAULT_GEMINI_MODEL);
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json", "x-goog-api-key": settings.apiKey },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+    }),
+  });
+  const payload = await readResponse(response, settings.provider);
+  return parseJsonText(readGeminiText(payload), "the response");
+}
+
+async function requestOllama(settings: AiSettings, prompt: string): Promise<unknown> {
+  const endpoint = (settings.endpoint || DEFAULT_OLLAMA_ENDPOINT).replace(/\/$/, "");
+  const response = await fetch(`${endpoint}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      model: settings.model || DEFAULT_OLLAMA_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      stream: false,
+      format: "json",
+      options: { temperature: 0.2 },
+    }),
+  });
+  const payload = await readResponse(response, settings.provider);
+  if (!isRecord(payload) || !isRecord(payload.message) || typeof payload.message.content !== "string") {
+    throw new GeminiRequestError("Ollama returned no usable answer.");
+  }
+  return parseJsonText(payload.message.content, "the response");
+}
+
+async function requestStructuredAi(target: string | AiSettings, prompt: string): Promise<unknown> {
+  const settings = settingsForTarget(target);
+  if (settings.provider === "off") throw new GeminiRequestError(providerUnavailableMessage(settings.provider));
+  try {
+    if (settings.provider === "gemini") {
+      if (!settings.apiKey.trim()) throw new GeminiRequestError("Add your Gemini API key in Settings before using Gemini.");
+      return await requestDirectGemini(settings, prompt);
+    }
+    if (settings.provider === "ollama") return await requestOllama(settings, prompt);
+    if (!settings.endpoint.trim()) throw new GeminiRequestError("Add an AI endpoint in Settings before using this provider.");
+    const response = await fetch(geminiReviewUrl(settings), {
+      method: "POST",
+      headers: bridgeHeaders(settings),
+      body: JSON.stringify({ card: prompt }),
+    });
+    return await readResponse(response, settings.provider);
+  } catch (error) {
+    if (error instanceof GeminiRequestError) throw error;
+    throw new GeminiRequestError(providerUnavailableMessage(settings.provider));
+  }
+}
+
+export async function reviewCardWithGemini(target: string | AiSettings, input: GeminiCardReviewInput): Promise<GeminiCardReview> {
+  const settings = settingsForTarget(target);
+  if (settings.provider === "gemini" || settings.provider === "ollama") {
+    return parseGeminiCardReview(await requestStructuredAi(settings, cardReviewPrompt(input)));
+  }
   let response: Response;
   try {
-    response = await fetch(geminiReviewUrl(endpoint), {
+    response = await fetch(geminiReviewUrl(settings), {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: bridgeHeaders(settings),
       body: JSON.stringify({ card: input }),
     });
   } catch {
-    throw new GeminiRequestError(bridgeUnavailableMessage());
+    throw new GeminiRequestError(providerUnavailableMessage(settings.provider));
   }
 
-  return parseGeminiCardReview(await readResponse(response));
+  return parseGeminiCardReview(await readResponse(response, settings.provider));
 }
 
-export function geminiWordBatchUrl(endpoint: string): string {
-  return geminiReviewUrl(endpoint).replace(/\/check-card$/, "/word-batch");
+export function geminiWordBatchUrl(target: string | AiSettings): string {
+  return geminiReviewUrl(target).replace(/\/check-card$/, "/word-batch");
 }
 
-export function aiUsageUrl(endpoint: string): string {
-  return geminiReviewUrl(endpoint).replace(/\/api\/gemini\/check-card$/, "/api/usage");
+export function aiUsageUrl(target: string | AiSettings): string {
+  return geminiReviewUrl(target).replace(/\/api\/gemini\/check-card$/, "/api/usage");
 }
 
 function readOptionalNumber(value: unknown, field: string): number | null {
@@ -218,19 +387,23 @@ export function parseAiUsageStatus(payload: unknown): AiUsageStatus {
   };
 }
 
-export async function getAiUsageStatus(endpoint: string): Promise<AiUsageStatus> {
+export async function getAiUsageStatus(target: string | AiSettings): Promise<AiUsageStatus> {
+  const settings = settingsForTarget(target);
+  if (settings.provider !== "cloudflare" && settings.provider !== "bridge") {
+    return { scope: settings.provider, limit: null, remaining: null };
+  }
   let response: Response;
   try {
-    response = await fetch(aiUsageUrl(endpoint), {
+    response = await fetch(aiUsageUrl(settings), {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}) },
       cache: "no-store",
     });
   } catch {
-    throw new GeminiRequestError(bridgeUnavailableMessage());
+    throw new GeminiRequestError(providerUnavailableMessage(settings.provider));
   }
 
-  return parseAiUsageStatus(await readResponse(response));
+  return parseAiUsageStatus(await readResponse(response, settings.provider));
 }
 
 function readStringArray(value: unknown, field: string, maxItems: number, maxLength: number): string[] {
@@ -301,17 +474,21 @@ export function parseGermanWordBatch(payload: unknown): GermanWordBatchResponse 
   };
 }
 
-export async function generateGermanWordBatch(endpoint: string, input: GermanWordBatchRequest): Promise<GermanWordBatchResponse> {
+export async function generateGermanWordBatch(target: string | AiSettings, input: GermanWordBatchRequest): Promise<GermanWordBatchResponse> {
+  const settings = settingsForTarget(target);
+  if (settings.provider === "gemini" || settings.provider === "ollama") {
+    return parseGermanWordBatch(await requestStructuredAi(settings, wordBatchPrompt(input)));
+  }
   let response: Response;
   try {
-    response = await fetch(geminiWordBatchUrl(endpoint), {
+    response = await fetch(geminiWordBatchUrl(settings), {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: bridgeHeaders(settings),
       body: JSON.stringify(input),
     });
   } catch {
-    throw new GeminiRequestError(bridgeUnavailableMessage());
+    throw new GeminiRequestError(providerUnavailableMessage(settings.provider));
   }
 
-  return parseGermanWordBatch(await readResponse(response));
+  return parseGermanWordBatch(await readResponse(response, settings.provider));
 }

@@ -15,6 +15,7 @@ export interface FirebaseUserSummary {
 export interface FirebaseCloudDocument {
   state: unknown;
   profileName?: string;
+  aiSettings?: unknown;
   updatedAt?: string;
 }
 
@@ -141,17 +142,19 @@ export async function loadFirebaseCloudDocument(uid: string): Promise<FirebaseCl
   return {
     state: value.state,
     profileName: typeof value.profileName === "string" ? value.profileName : undefined,
+    aiSettings: value.aiSettings && typeof value.aiSettings === "object" ? value.aiSettings : undefined,
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
   };
 }
 
-export async function saveFirebaseCloudDocument(uid: string, document: { state: unknown; profileName?: string }): Promise<string> {
+export async function saveFirebaseCloudDocument(uid: string, document: { state: unknown; profileName?: string; aiSettings?: unknown }): Promise<string> {
   if (!firebaseConfigured) throw new FirebaseSetupError("Firebase is not configured for this build yet.");
   const { setDoc } = await import("firebase/firestore/lite");
   const updatedAt = new Date().toISOString();
   await setDoc(await userDocument(uid), {
     state: cloneForFirestore(document.state),
     profileName: document.profileName ?? "",
+    ...(document.aiSettings ? { aiSettings: cloneForFirestore(document.aiSettings) } : {}),
     updatedAt,
   });
   return updatedAt;

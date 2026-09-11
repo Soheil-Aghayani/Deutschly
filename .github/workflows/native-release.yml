@@ -1,0 +1,133 @@
+name: Build native releases
+
+on:
+  push:
+    tags:
+      - "native-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  desktop:
+    name: Desktop (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+          - platform: ubuntu-22.04
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and publish desktop bundle
+        uses: tauri-apps/tauri-action@v1
+        env:
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_AI_BRIDGE_URL: ${{ vars.VITE_AI_BRIDGE_URL }}
+        with:
+          tagName: native-v__VERSION__
+          releaseName: Deutschly v__VERSION__
+          releaseBody: |
+            Deutschly native release. Use the Windows installer or Linux AppImage/deb for offline-first study. Android APK/AAB is uploaded by the mobile job.
+
+            The web edition remains available at https://soheil-aghayani.github.io/Deutschly/ for always-online access. Optional AI providers are configured per device in Settings.
+          releaseDraft: false
+          prerelease: false
+          includeDebug: false
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
+
+  android:
+    name: Android APK and AAB
+    needs: desktop
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+
+      - name: Setup Rust for Android
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Initialize Android project
+        run: npm run tauri -- android init
+
+      - name: Build APK
+        run: npm run tauri -- android build --apk
+
+      - name: Build AAB
+        run: npm run tauri -- android build --aab
+
+      - name: Find Android artifacts
+        id: artifacts
+        shell: bash
+        run: |
+          apk=$(find src-tauri/gen/android -type f -name '*.apk' | head -n 1)
+          aab=$(find src-tauri/gen/android -type f -name '*.aab' | head -n 1)
+          test -n "$apk"
+          test -n "$aab"
+          cp "$apk" "Deutschly-Android.apk"
+          cp "$aab" "Deutschly-Android.aab"
+
+      - name: Upload Android artifacts to the release
+        shell: bash
+        run: gh release upload "native-v${GITHUB_REF_NAME#native-v}" Deutschly-Android.apk Deutschly-Android.aab --clobber
