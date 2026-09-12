@@ -49,6 +49,31 @@ The native bundle contains the learning experience, so a user can review cards w
 
 Native builds check the signed GitHub release feed in the background. When a new version is ready, Deutschly shows an in-app notice and lets the user install it. The updater replaces the application bundle; it does not reset local cards or progress. Windows restarts after installation; Linux asks the user to relaunch. A Google/Firebase account can sync the learning state and AI configuration across devices when Firebase is configured for that deployment.
 
+## Support Deutschly
+
+Deutschly is built independently by [Soheil Aghayani](https://github.com/Soheil-Aghayani) and is intentionally ad-free. If the app helps you, you can leave a quiet coffee to support continued maintenance, source access, and better learning content—entirely optional, with no ads or interruptions.
+
+### About the maker
+
+[GitHub](https://github.com/Soheil-Aghayani) · [Portfolio](https://soheil-aghayani.github.io/)
+
+<details>
+<summary>View crypto support options</summary>
+
+Send only on the exact network shown below. Minimum transfers are guidance; network fees still apply.
+
+| Asset | Network | Minimum transfer | Address |
+| :--- | :--- | :--- | :--- |
+| BTC | BSC | 0.00001 BTC | `0x45ECCb5357132A077eE3a717fA7D5D2F30C1E2A9` |
+| TRX | TRON | 1 TRX | `TKMzF6JU5CjSoVq88oRaXnd6Ye7RUAscL1` |
+| TON | TON | 0.1 TON | `UQCOxNWxA84XKNlNMDJ-GREgcaG_wMtm-e6r6fcVpIKvXTai` |
+| ETH | Ethereum · ERC-20 | 0.0001 ETH | `0x45ECCb5357132A077eE3a717fA7D5D2F30C1E2A9` |
+| ETH | BSC | 0.002 ETH | `0x45ECCb5357132A077eE3a717fA7D5D2F30C1E2A9` |
+| ETH | Arbitrum | 0.0005 ETH | `0x45ECCb5357132A077eE3a717fA7D5D2F30C1E2A9` |
+| USDT | BSC | 0.1 USDT | `0x45ECCb5357132A077eE3a717fA7D5D2F30C1E2A9` |
+
+</details>
+
 ## AI that belongs to the learner
 
 AI is optional. Open **Settings → AI & integrations** and choose one of these providers:
@@ -139,7 +164,7 @@ Deutschly/
 ├─ src/                    # React application, settings, learning UI, and styles
 │  ├─ data/                # Lessons, generated word bank, and content metadata
 │  └─ lib/                 # Learning, sync, PDF, AI, Firebase, and persistence helpers
-├─ public/                 # PWA shell, icons, achievement art, and README hero
+├─ public/                 # PWA shell, icons, achievement art, crypto icons, and README hero
 ├─ src-tauri/              # Windows/Linux/Android native shell and signed updater config
 ├─ cloudflare/             # Optional Cloudflare AI bridge and worker tests
 ├─ server.mjs              # Private LAN sync and local AI bridge
@@ -149,7 +174,7 @@ Deutschly/
 <details>
 <summary><strong>Optional Firebase account sync</strong></summary>
 
-Create a Firebase project with Google Authentication and Firestore, copy .env.example to .env.local, and fill the VITE_FIREBASE_* values. Publish firestore.rules, add the deployed Pages domain and localhost to Firebase authorized domains, and add the same values as repository variables for GitHub Actions. Without Firebase, Deutschly stays local and the private-room flow remains available.
+Create a Firebase project with Google Authentication and Firestore, copy .env.example to .env.local, and fill the VITE_FIREBASE_* values. Enable the Google provider, publish firestore.rules, add the deployed Pages domain and localhost to Firebase authorized domains, and add the same values as repository variables for GitHub Actions. Current builds use a full-page redirect automatically when a browser blocks the sign-in popup; if Firebase reports an unauthorized domain, add the exact domain shown by the app. Without Firebase, Deutschly stays local and the private-room flow remains available.
 
 </details>
 

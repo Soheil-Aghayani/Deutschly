@@ -19,6 +19,8 @@ import {
   Clock3,
   Cloud,
   Copy,
+  Coffee,
+  Coins,
   Download,
   Eye,
   ExternalLink,
@@ -289,6 +291,25 @@ const PROFILE_NAME_MAX_LENGTH = 32;
 const PROFILE_DISPLAY_FALLBACK = "Learner";
 const LATIN_PROFILE_NAME_PATTERN = /^[\p{Script=Latin}]+(?:[\s.'’'-]+[\p{Script=Latin}]+)*$/u;
 
+interface CryptoSupportOption {
+  id: string;
+  asset: string;
+  network: string;
+  address: string;
+  minimum: string;
+  logo?: string;
+}
+
+const cryptoSupportOptions: CryptoSupportOption[] = [
+  { id: "btc-bsc", asset: "BTC", network: "BSC", address: "0x45ECCb5357132A077eE3a717fA7D5D2F30C1E2A9", minimum: "0.00001 BTC", logo: "btc.svg" },
+  { id: "trx-tron", asset: "TRX", network: "TRON", address: "TKMzF6JU5CjSoVq88oRaXnd6Ye7RUAscL1", minimum: "1 TRX", logo: "trx.svg" },
+  { id: "ton-ton", asset: "TON", network: "TON", address: "UQCOxNWxA84XKNlNMDJ-GREgcaG_wMtm-e6r6fcVpIKvXTai", minimum: "0.1 TON" },
+  { id: "eth-erc20", asset: "ETH", network: "Ethereum · ERC-20", address: "0x45ECCb5357132A077eE3a717fA7D5D2F30C1E2A9", minimum: "0.0001 ETH", logo: "eth.svg" },
+  { id: "eth-bsc", asset: "ETH", network: "BSC", address: "0x45ECCb5357132A077eE3a717fA7D5D2F30C1E2A9", minimum: "0.002 ETH", logo: "eth.svg" },
+  { id: "eth-arbitrum", asset: "ETH", network: "Arbitrum", address: "0x45ECCb5357132A077eE3a717fA7D5D2F30C1E2A9", minimum: "0.0005 ETH", logo: "eth.svg" },
+  { id: "usdt-bsc", asset: "USDT", network: "BSC", address: "0x45ECCb5357132A077eE3a717fA7D5D2F30C1E2A9", minimum: "0.1 USDT", logo: "usdt.svg" },
+];
+
 function getSyncBaselineStorageKey(endpoint: string, room: string): string {
   return `${SYNC_BASELINE_KEY}:${encodeURIComponent(endpoint.trim())}:${normalizeSyncRoom(room)}`;
 }
@@ -405,6 +426,67 @@ function AvatarEditor({ name, dayKey, photoURL, preference, config, onPreference
   );
 }
 
+function SupportDeutschly() {
+  const [selectedId, setSelectedId] = useState(cryptoSupportOptions[0].id);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const selected = cryptoSupportOptions.find((option) => option.id === selectedId) ?? cryptoSupportOptions[0];
+  const logoURL = selected.logo ? `${import.meta.env.BASE_URL}crypto/${selected.logo}` : "";
+
+  useEffect(() => {
+    setCopyState("idle");
+  }, [selectedId]);
+
+  const copyAddress = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(selected.address);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = selected.address;
+        textArea.setAttribute("readonly", "true");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        const copied = document.execCommand("copy");
+        textArea.remove();
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+  };
+
+  return (
+    <details className="settings-section settings-section--disclosure support-section">
+      <summary className="settings-section__heading settings-section__summary">
+        <span className="settings-section__icon settings-section__icon--orange" aria-hidden="true"><Coffee size={16} /></span>
+        <span><h3>Support Deutschly</h3><p>Keep the project ad-free and quietly maintained.</p></span>
+        <ChevronDown className="settings-section__chevron" size={17} aria-hidden="true" />
+      </summary>
+      <div className="settings-section__disclosure-content support-section__content">
+        <p className="support-section__intro">Deutschly is an independent project. If it helps you learn, you can leave a coffee with crypto—entirely optional, with no ads or interruptions.</p>
+        <div className="support-section__maker">
+          <div><strong>Made independently by Soheil Aghayani</strong><small>Building calm tools for learning and keeping useful sources accessible.</small></div>
+          <div className="support-section__links"><a href="https://github.com/Soheil-Aghayani" target="_blank" rel="noreferrer">GitHub <ExternalLink size={12} aria-hidden="true" /></a><a href="https://soheil-aghayani.github.io/" target="_blank" rel="noreferrer">Portfolio <ExternalLink size={12} aria-hidden="true" /></a></div>
+        </div>
+        <label className="form-field support-section__select" htmlFor="support-network"><span>Choose a currency and network</span><select id="support-network" value={selected.id} onChange={(event) => setSelectedId(event.target.value)}>{cryptoSupportOptions.map((option) => <option value={option.id} key={option.id}>{option.asset} · {option.network}</option>)}</select></label>
+        <div className="support-wallet-card">
+          <div className="support-wallet-card__heading">
+            <div className="support-wallet-card__asset">{logoURL ? <img src={logoURL} alt="" /> : <span aria-hidden="true"><Coins size={18} /></span>}<span><strong>{selected.asset}</strong><small>{selected.network}</small></span></div>
+            <span className="support-wallet-card__minimum">Minimum {selected.minimum}</span>
+          </div>
+          <code className="support-wallet-card__address">{selected.address}</code>
+          <div className="support-wallet-card__footer"><small>Send only on the network shown above.</small><button type="button" className="button button--icon" onClick={() => { void copyAddress(); }} aria-label={`Copy ${selected.asset} ${selected.network} address`} title="Copy address">{copyState === "copied" ? <Check size={17} aria-hidden="true" /> : <Copy size={17} aria-hidden="true" />}<span className="sr-only">{copyState === "copied" ? "Address copied" : "Copy address"}</span></button></div>
+          {copyState === "failed" && <small className="support-wallet-card__error">Copy was unavailable. Select the address and copy it manually.</small>}
+          {copyState === "copied" && <small className="support-wallet-card__success" role="status" aria-live="polite">Address copied.</small>}
+        </div>
+      </div>
+    </details>
+  );
+}
+
 type FirebaseErrorContext = "auth" | "sync" | "account";
 
 function isFirebaseNetworkError(error: unknown): boolean {
@@ -415,6 +497,12 @@ function isFirebaseNetworkError(error: unknown): boolean {
     || /failed to fetch|network|offline|timed out|timeout|err_connection|connection refused/i.test(message);
 }
 
+function isFirebasePopupBlocked(error: unknown): boolean {
+  const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "";
+  const message = error instanceof Error ? error.message : "";
+  return code === "auth/popup-blocked" || /popup.*blocked|blocked.*popup/i.test(message);
+}
+
 function firebaseErrorMessage(error: unknown, context: FirebaseErrorContext = "account"): string {
   const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "";
   if (isFirebaseNetworkError(error)) {
@@ -423,7 +511,7 @@ function firebaseErrorMessage(error: unknown, context: FirebaseErrorContext = "a
     return "Deutschly could not reach the account service. Turn on your VPN and try again.";
   }
   const message = error instanceof Error ? error.message : "";
-  if (code === "auth/popup-blocked") return "Google sign-in was blocked by the browser. Allow popups for Deutschly, then try again, or continue as a guest.";
+  if (code === "auth/popup-blocked") return "The Google sign-in popup was blocked. Deutschly normally switches to a secure full-page sign-in; refresh once if it did not open.";
   if (code === "auth/missing-initial-state" || /missing initial state|sessionStorage|storage-partitioned/i.test(message)) {
     return "Google sign-in needs a fresh browser session. Open Deutschly in Chrome or Safari, refresh once, and try again, or continue as a guest.";
   }
@@ -2017,9 +2105,9 @@ function OverviewPage({
             </div>
             <ChevronRight size={16} aria-hidden="true" />
           </button>
-        </aside>
-      </section>
-    </div>
+         </aside>
+       </section>
+     </div>
   );
 }
 
@@ -2549,8 +2637,8 @@ function PracticePage({ cards, level, onAddCard, onAwardXp, onCompleteSession }:
         </article>
 
         <aside className="practice-aside"><div className="practice-aside__heading"><div className="practice-aside__icon"><Languages size={19} aria-hidden="true" /></div><span className="section-eyebrow">ACTIVE RECALL</span></div><h2>Small answer, strong memory.</h2><p>Typing the article, plural, or meaning makes the detail easier to retrieve later in a real conversation.</p><div className="practice-aside__tips"><div><strong>1</strong><span>Try before looking.</span></div><div><strong>2</strong><span>Say it out loud.</span></div><div><strong>3</strong><span>Move on gently.</span></div></div></aside>
-      </section>
-    </div>
+             </section>
+         </div>
   );
 }
 
@@ -3933,9 +4021,11 @@ function ProfileModal({
             <section className="settings-section" aria-labelledby="settings-app-title">
               <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Download size={16} /></span><div><h3 id="settings-app-title">App</h3><p>Make Deutschly easy to return to on your phone or computer.</p></div></div>
               <div className="settings-row settings-app-row"><div className="settings-row__copy"><strong>Install Deutschly</strong><small>{installCopy}</small></div>{!isInstalled && canInstall && <button type="button" className="button button--outline" onClick={onInstallApp}>Install app</button>}{isInstalled && <span className="settings-status settings-status--success"><CheckCircle2 size={14} aria-hidden="true" /> Installed</span>}</div>
-              {isNativeApp && <div className="settings-row settings-app-row settings-app-row--update"><div className="settings-row__copy"><strong>{nativeUpdateVersion ? `Deutschly ${nativeUpdateVersion} is ready` : "Native updates"}</strong><small>{nativeUpdateVersion ? "Install it when you are ready. Your local cards and settings are kept." : "Deutschly checks for signed updates without interrupting your study."}</small></div><div className="settings-action-inline">{nativeUpdateVersion && <button type="button" className="button button--primary" onClick={onInstallNativeUpdate} disabled={nativeUpdateInstalling}>{nativeUpdateInstalling ? "Installing..." : "Install update"}</button>}<button type="button" className="button button--outline" onClick={onCheckForNativeUpdate} disabled={nativeUpdateChecking || nativeUpdateInstalling}>{nativeUpdateChecking ? "Checking..." : "Check now"}</button></div></div>}
-            </section>
-        </div>
+               {isNativeApp && <div className="settings-row settings-app-row settings-app-row--update"><div className="settings-row__copy"><strong>{nativeUpdateVersion ? `Deutschly ${nativeUpdateVersion} is ready` : "Native updates"}</strong><small>{nativeUpdateVersion ? "Install it when you are ready. Your local cards and settings are kept." : "Deutschly checks for signed updates without interrupting your study."}</small></div><div className="settings-action-inline">{nativeUpdateVersion && <button type="button" className="button button--primary" onClick={onInstallNativeUpdate} disabled={nativeUpdateInstalling}>{nativeUpdateInstalling ? "Installing..." : "Install update"}</button>}<button type="button" className="button button--outline" onClick={onCheckForNativeUpdate} disabled={nativeUpdateChecking || nativeUpdateInstalling}>{nativeUpdateChecking ? "Checking..." : "Check now"}</button></div></div>}
+             </section>
+
+           <SupportDeutschly />
+         </div>
 
         <div className="modal-panel__footer"><span><Settings size={15} aria-hidden="true" /> Name changes are saved with your profile.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Cancel</button><button type="button" className="button button--primary" onClick={() => onSave(draftName)}>Save profile</button></div></div>
       </section>
@@ -5358,14 +5448,25 @@ export default function App() {
     }
     setFirebaseBusy(true);
     setFirebaseError(null);
+    const useRedirect = shouldUseFirebaseRedirect();
     try {
-      const useRedirect = shouldUseFirebaseRedirect();
       const user = await signInWithFirebaseProvider(provider, useRedirect);
       if (user) {
         setFirebaseUser(user);
         showToast(`Signed in with ${provider === "google" ? "Google" : "GitHub"}.`);
       }
     } catch (error: unknown) {
+      if (!useRedirect && isFirebasePopupBlocked(error) && canUseBrowserSessionStorage()) {
+        setFirebaseError("The sign-in popup was blocked. Opening secure Google sign-in in this window…");
+        showToast("Opening secure Google sign-in…");
+        try {
+          await signInWithFirebaseProvider(provider, true);
+          return;
+        } catch (redirectError: unknown) {
+          setFirebaseError(firebaseErrorMessage(redirectError, "auth"));
+          return;
+        }
+      }
       setFirebaseError(firebaseErrorMessage(error, "auth"));
     } finally {
       setFirebaseBusy(false);
