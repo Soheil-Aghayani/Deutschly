@@ -134,23 +134,24 @@ jobs:
           import android.graphics.Color
           import android.os.Build
           import android.os.Bundle
-          import android.view.View
+          import android.view.ViewGroup
           import android.view.WindowInsets
           import android.webkit.JavascriptInterface
           import android.webkit.WebView
           import androidx.activity.enableEdgeToEdge
+          import kotlin.math.roundToInt
 
           class MainActivity : TauriActivity() {
               private var contentWebView: WebView? = null
-              private var contentRoot: View? = null
+              private var contentRoot: ViewGroup? = null
               private var currentInsets = WindowInsetValues()
 
               override fun onCreate(savedInstanceState: Bundle?) {
                   enableEdgeToEdge()
                   super.onCreate(savedInstanceState)
                   // Android 15 can force transparent system bars for target SDK 35.
-                  // Keep the window edge-to-edge, but inset the actual WebView below
-                  // both bars so fixed web content cannot sit underneath them.
+                  // Keep edge-to-edge system bars, but clip the native content
+                  // viewport so fixed web content cannot sit underneath them.
                   window.statusBarColor = Color.TRANSPARENT
                   window.navigationBarColor = Color.TRANSPARENT
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -212,7 +213,7 @@ jobs:
               }
 
               private fun refreshInsetsFromRoot() {
-                  val root = contentRoot ?: findViewById<View>(android.R.id.content)
+                  val root = contentRoot ?: findViewById<ViewGroup>(android.R.id.content)
                   val rootInsets = window.decorView.rootWindowInsets ?: root.rootWindowInsets ?: return
                   currentInsets = readInsets(rootInsets)
                   applyNativeInsets()
@@ -220,9 +221,19 @@ jobs:
               }
 
               private fun applyNativeInsets() {
-                  // Keep the WebView full-window and let the web UI consume
-                  // the published values. Padding the WebView does not move
-                  // fixed-position header/nav elements out of system bars.
+                  // Clip the native content viewport itself. This is different
+                  // from padding the WebView: fixed-position web elements now
+                  // see a viewport that genuinely starts below the status bar
+                  // and ends above the navigation/gesture area.
+                  val root = contentRoot ?: return
+                  val insets = currentInsets
+                  root.setPadding(
+                      insets.left.roundToInt(),
+                      insets.top.roundToInt(),
+                      insets.right.roundToInt(),
+                      insets.bottom.roundToInt(),
+                  )
+                  root.clipToPadding = true
                   contentWebView?.setPadding(0, 0, 0, 0)
               }
 
@@ -275,7 +286,7 @@ jobs:
                       (function() {
                         var detail = {top: ${insets.top}, right: ${insets.right}, bottom: ${insets.bottom}, left: ${insets.left}};
                         window.__DEUTSCHLY_ANDROID_INSETS__ = detail;
-                        document.documentElement.dataset.nativeWindowInsets = 'provided';
+                        document.documentElement.dataset.nativeWindowInsets = 'padded';
                         window.dispatchEvent(new CustomEvent('deutschly:android-insets', {detail: detail}));
                       })();
                   """.trimIndent()
