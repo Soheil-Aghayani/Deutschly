@@ -38,6 +38,7 @@ const firebaseConfig = {
 const firebaseConfigured = Object.values(firebaseConfig).every(Boolean);
 let firebaseApp: FirebaseApp | null = null;
 let firebaseAuth: Auth | null = null;
+let firebaseAuthPromise: Promise<Auth> | null = null;
 let firebaseDb: Firestore | null = null;
 
 const FIREBASE_REDIRECT_PENDING_KEY = "deutschly:firebase-redirect-pending";
@@ -70,9 +71,36 @@ async function getFirebaseAppAsync(): Promise<FirebaseApp> {
 }
 
 async function getFirebaseAuth(): Promise<Auth> {
-  const { getAuth } = await import("firebase/auth");
-  firebaseAuth ??= getAuth(await getFirebaseAppAsync());
-  return firebaseAuth;
+  if (firebaseAuth) return firebaseAuth;
+  firebaseAuthPromise ??= (async () => {
+    const authModule = await import("firebase/auth");
+    const app = await getFirebaseAppAsync();
+    try {
+      // Be explicit about storage order. IndexedDB works in the Android
+      // WebView, while the remaining entries keep web/PWA builds usable when
+      // a browser blocks one of the persistent stores.
+      return authModule.initializeAuth(app, {
+        persistence: [
+          authModule.indexedDBLocalPersistence,
+          authModule.browserLocalPersistence,
+          authModule.browserSessionPersistence,
+          authModule.inMemoryPersistence,
+        ],
+        popupRedirectResolver: authModule.browserPopupRedirectResolver,
+      });
+    } catch {
+      // Another Firebase consumer may have initialized Auth first. Reuse that
+      // instance instead of leaving the app with an unhandled blank state.
+      return authModule.getAuth(app);
+    }
+  })();
+  try {
+    firebaseAuth = await firebaseAuthPromise;
+    return firebaseAuth;
+  } catch (error) {
+    firebaseAuthPromise = null;
+    throw error;
+  }
 }
 
 function toUserSummary(user: User): FirebaseUserSummary {

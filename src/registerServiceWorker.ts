@@ -1,5 +1,6 @@
 export function registerServiceWorker() {
-  if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
+  const isTauriRuntime = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  if (!import.meta.env.PROD || !("serviceWorker" in navigator) || isTauriRuntime) return;
 
   window.addEventListener("load", () => {
     const hadController = Boolean(navigator.serviceWorker.controller);

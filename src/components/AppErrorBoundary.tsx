@@ -27,8 +27,8 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
     if (!this.state.hasError) return this.props.children;
 
     return (
-      <main className="app-crash-fallback" lang="en">
-        <div className="app-crash-fallback__card">
+      <main className="app-crash-fallback" lang="en" style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: "24px", background: "#f5f6fb", color: "#27314a" }}>
+        <div className="app-crash-fallback__card" style={{ width: "min(420px, 100%)", padding: "28px", background: "#ffffff", border: "1px solid #e4e7f0", borderRadius: "18px", boxShadow: "0 18px 45px rgba(37, 45, 78, 0.12)" }}>
           <div className="app-crash-fallback__icon" aria-hidden="true">📚</div>
           <p className="eyebrow">One moment...</p>
           <h1>Deutschly needs a refresh</h1>

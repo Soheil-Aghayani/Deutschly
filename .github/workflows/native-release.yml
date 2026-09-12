@@ -131,55 +131,113 @@ jobs:
           activity = Path(sys.argv[1])
           activity.write_text(r'''package com.deutschly.app
 
+          import android.graphics.Color
           import android.os.Build
           import android.os.Bundle
+          import android.view.View
           import android.view.WindowInsets
           import android.webkit.JavascriptInterface
           import android.webkit.WebView
           import androidx.activity.enableEdgeToEdge
+          import kotlin.math.roundToInt
 
           class MainActivity : TauriActivity() {
               private var contentWebView: WebView? = null
+              private var contentRoot: View? = null
               private var currentInsets = WindowInsetValues()
 
               override fun onCreate(savedInstanceState: Bundle?) {
                   enableEdgeToEdge()
                   super.onCreate(savedInstanceState)
+                  // Android 15 can force transparent system bars for target SDK 35.
+                  // Keep the window edge-to-edge, but inset the actual WebView below
+                  // both bars so fixed web content cannot sit underneath them.
+                  window.statusBarColor = Color.TRANSPARENT
+                  window.navigationBarColor = Color.TRANSPARENT
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                      window.isNavigationBarContrastEnforced = false
+                  }
                   window.decorView.setOnApplyWindowInsetsListener { _, insets ->
                       currentInsets = readInsets(insets)
+                      applyNativeInsets()
+                      publishInsets()
+                      insets
+                  }
+                  contentRoot = findViewById(android.R.id.content)
+                  contentRoot?.setOnApplyWindowInsetsListener { _, insets ->
+                      currentInsets = readInsets(insets)
+                      applyNativeInsets()
                       publishInsets()
                       insets
                   }
                   window.decorView.post { window.decorView.requestApplyInsets() }
+                  contentRoot?.post { refreshInsetsFromRoot() }
               }
 
               override fun onWebViewCreate(webView: WebView) {
                   super.onWebViewCreate(webView)
                   contentWebView = webView
+                  contentRoot = findViewById(android.R.id.content)
                   webView.addJavascriptInterface(InsetsBridge(), "DeutschlyAndroidInsets")
+                  webView.setOnApplyWindowInsetsListener { _, insets ->
+                      // Use the values captured from the window listener. On a few
+                      // WebView versions the child callback reports zero after the
+                      // window has already received the real system-bar insets.
+                      applyNativeInsets()
+                      publishInsets()
+                      insets
+                  }
                   requestInsets(webView)
                   webView.postDelayed({ requestInsets(webView) }, 250)
                   webView.postDelayed({ requestInsets(webView) }, 900)
+                  webView.postDelayed({ refreshInsetsFromRoot() }, 1200)
               }
 
               override fun onWindowFocusChanged(hasFocus: Boolean) {
                   super.onWindowFocusChanged(hasFocus)
-                  if (hasFocus) window.decorView.post { window.decorView.requestApplyInsets() }
+                  if (hasFocus) {
+                      window.decorView.post { window.decorView.requestApplyInsets() }
+                      contentRoot?.post { refreshInsetsFromRoot() }
+                  }
               }
 
               private fun requestInsets(webView: WebView) {
                   webView.requestApplyInsets()
                   window.decorView.requestApplyInsets()
-                  webView.post { publishInsets() }
+                  contentRoot?.requestApplyInsets()
+                  webView.post {
+                      refreshInsetsFromRoot()
+                      applyNativeInsets()
+                      publishInsets()
+                  }
+              }
+
+              private fun refreshInsetsFromRoot() {
+                  val root = contentRoot ?: findViewById<View>(android.R.id.content)
+                  val rootInsets = root.rootWindowInsets ?: return
+                  currentInsets = readInsets(rootInsets)
+                  applyNativeInsets()
+                  publishInsets()
+              }
+
+              private fun applyNativeInsets() {
+                  val webView = contentWebView ?: return
+                  val insets = currentInsets
+                  webView.setPadding(
+                      insets.left.roundToInt(),
+                      insets.top.roundToInt(),
+                      insets.right.roundToInt(),
+                      insets.bottom.roundToInt(),
+                  )
               }
 
               private fun readInsets(insets: WindowInsets): WindowInsetValues {
                   val density = resources.displayMetrics.density.coerceAtLeast(1f)
                   val (left, top, right, bottom) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                      val systemBars = insets.getInsets(
+                      val systemBars = insets.getInsetsIgnoringVisibility(
                           WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout(),
                       )
-                      val gestures = insets.getInsets(WindowInsets.Type.mandatorySystemGestures())
+                      val gestures = insets.getInsetsIgnoringVisibility(WindowInsets.Type.mandatorySystemGestures())
                       listOf(
                           maxOf(systemBars.left, gestures.left),
                           systemBars.top,
@@ -210,6 +268,7 @@ jobs:
                       (function() {
                         var detail = {top: ${insets.top}, right: ${insets.right}, bottom: ${insets.bottom}, left: ${insets.left}};
                         window.__DEUTSCHLY_ANDROID_INSETS__ = detail;
+                        document.documentElement.dataset.nativeWindowInsets = 'padded';
                         window.dispatchEvent(new CustomEvent('deutschly:android-insets', {detail: detail}));
                       })();
                   """.trimIndent()

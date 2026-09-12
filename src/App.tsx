@@ -420,6 +420,10 @@ function isMobileAuthBrowser(): boolean {
 
 function shouldUseFirebaseRedirect(): boolean {
   if (typeof window === "undefined") return false;
+  // Android WebView does not reliably create or communicate with the popup
+  // window used by Firebase Auth. A top-level redirect keeps the flow in the
+  // same WebView and preserves its storage partition.
+  if (isTauriRuntime()) return canUseBrowserSessionStorage();
   const firebaseHost = /(^|\.)web\.app$|(^|\.)firebaseapp\.com$/i.test(window.location.hostname);
   return firebaseHost && !isMobileAuthBrowser() && canUseBrowserSessionStorage();
 }
