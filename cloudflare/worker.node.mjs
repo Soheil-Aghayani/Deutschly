@@ -97,6 +97,19 @@ test("reviews a card and generates a normalized word", async () => {
   assert.equal(payload.words[0].article, "der");
 });
 
+test("accepts higher CEFR levels and part-of-speech filters", async () => {
+  const response = await worker.fetch(request("/api/gemini/word-batch", {
+    level: "B2",
+    count: 1,
+    partOfSpeech: "noun",
+    existingWords: [],
+  }, "10.0.0.6"), env);
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.level, "B2");
+  assert.equal(payload.words[0].partOfSpeech, "noun");
+});
+
 test("rejects an origin outside the allowlist", async () => {
   const response = await worker.fetch(request("/api/gemini/word-batch", {
     level: "A1",

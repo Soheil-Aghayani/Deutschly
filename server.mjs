@@ -117,9 +117,10 @@ const geminiArticles = new Set(["der", "die", "das", "plural", "none"]);
 const geminiKinds = new Set(["word", "phrase", "grammar"]);
 const geminiConfidence = new Set(["high", "medium", "low"]);
 const geminiVerdicts = new Set(["looks-good", "needs-review"]);
-const germanWordLevels = new Set(["A1", "A2"]);
+const germanWordLevels = new Set(["A1", "A2", "B1", "B2", "C1", "C2"]);
 const germanWordArticles = new Set(["der", "die", "das", "plural", "none"]);
 const germanWordPartsOfSpeech = new Set(["noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection", "numeral", "particle", "phrase", "grammar"]);
+const germanWordBatchPartsOfSpeech = new Set(["all", ...germanWordPartsOfSpeech]);
 
 function boundedString(value, field, { required = false, max = 320 } = {}) {
   if (typeof value !== "string") {
@@ -347,7 +348,10 @@ function germanWordKey(value) {
 function parseGermanWordBatchInput(payload) {
   if (!isRecord(payload)) throw new Error("The request must include a word batch object.");
   const level = boundedString(payload.level, "level", { required: true, max: 2 }).toUpperCase();
-  if (!germanWordLevels.has(level)) throw new Error("level must be A1 or A2.");
+  if (!germanWordLevels.has(level)) throw new Error("level must be one of A1, A2, B1, B2, C1, or C2.");
+
+  const partOfSpeech = payload.partOfSpeech === undefined ? "all" : boundedString(payload.partOfSpeech, "part of speech", { max: 20 }).toLocaleLowerCase("en-US");
+  if (!germanWordBatchPartsOfSpeech.has(partOfSpeech)) throw new Error("partOfSpeech must be all or a supported German part of speech.");
 
   const count = payload.count === undefined ? 20 : Number(payload.count);
   if (!Number.isInteger(count) || count < 1 || count > 40) throw new Error("count must be an integer between 1 and 40.");
@@ -356,7 +360,7 @@ function parseGermanWordBatchInput(payload) {
   if (!Array.isArray(rawExistingWords) || rawExistingWords.length > 500) throw new Error("existingWords must contain at most 500 items.");
   const existingWords = rawExistingWords.map((word) => boundedString(word, "existing word", { max: 120 })).filter(Boolean);
 
-  return { level, count, existingWords };
+  return { level, count, partOfSpeech, existingWords };
 }
 
 function createGermanWordId(level, german) {
@@ -385,6 +389,7 @@ function normalizeGermanWordBatch(payload, input) {
       const examples = modelStringArray(rawWord.examples, "examples", { maxItems: 2, maxLength: 220 });
       const tags = modelStringArray(rawWord.tags, "tags", { maxItems: 8, maxLength: 32 });
       const key = germanWordKey(german);
+      if (input.partOfSpeech !== "all" && partOfSpeech !== input.partOfSpeech) continue;
       if (!key || seen.has(key) || englishMeanings.length === 0) continue;
       seen.add(key);
       words.push({
@@ -418,11 +423,12 @@ function germanWordPrompt(input) {
     "If a noun has another common article with a different meaning, put those alternatives in article_variants and keep the primary meaning in article. Otherwise return an empty array.",
     "For verbs, adjectives, adverbs, and phrases use article none and an empty plural string.",
     "Set part_of_speech to exactly one of noun, verb, adjective, adverb, pronoun, preposition, conjunction, interjection, numeral, particle, phrase, or grammar. A single lexical item such as schnell is adjective even when it can also be used adverbially; use phrase only for multiword expressions.",
+    ...(input.partOfSpeech !== "all" ? [`Every word must be a ${input.partOfSpeech}.`] : ["Use a useful mix of parts of speech when appropriate."]),
     "Give one to four concise English meanings, up to two short natural examples, and useful learner tags.",
     "Prefer high-frequency standard German. Do not include proper names, regionalisms, offensive terms, or duplicate headwords.",
     "The requested level is fixed; do not return words above it just to fill the count.",
     "DATA START",
-    JSON.stringify({ level: input.level, count: input.count, existingWords: input.existingWords }),
+    JSON.stringify({ level: input.level, count: input.count, partOfSpeech: input.partOfSpeech, existingWords: input.existingWords }),
     "DATA END",
   ].join("\n");
 }

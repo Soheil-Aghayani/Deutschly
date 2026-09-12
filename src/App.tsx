@@ -59,10 +59,12 @@ import {
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import NiceAvatar from "react-nice-avatar";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { PaginationControls } from "./components/PaginationControls";
 import { useInstallPrompt } from "./hooks/useInstallPrompt";
-import { getAvataaarsOptions } from "./lib/avatar";
+import { getNiceAvatarConfig, NICE_AVATAR_OPTIONS, normalizeNiceAvatarConfig } from "./lib/avatar";
+import type { NiceAvatarConfig, ProfileAvatarPreference } from "./lib/avatar";
 import { achievementCatalog, getAchievementDefinition } from "./lib/achievements";
 import { getPageSlice } from "./lib/pagination";
 import type { AchievementDefinition, AchievementId } from "./lib/achievements";
@@ -78,10 +80,11 @@ import {
 } from "./lib/firebase";
 import type { FirebaseAuthProvider, FirebaseUserSummary } from "./lib/firebase";
 import { generateGermanWordBatch, getAiUsageStatus, getDefaultAiSettings, normalizeAiSettings, reviewCardWithGemini } from "./lib/gemini";
-import type { AiProvider, AiSettings, AiUsageStatus, GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel } from "./lib/gemini";
+import type { AiProvider, AiSettings, AiUsageStatus, GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel, GermanWordBatchPartOfSpeech } from "./lib/gemini";
+import { DEFAULT_WEBLLM_MODEL, prepareWebLlmModel, supportsWebLlm } from "./lib/webllm";
 import { playPracticeFeedbackSound } from "./lib/feedbackSounds";
 import { formatGermanPartOfSpeech, isGermanWordRecord, mergeGermanWordRecords, normalizeGermanWord, searchGermanWords } from "./data/germanWordsCore";
-import type { GermanWordRecord } from "./data/germanWordsCore";
+import type { GermanWordPartOfSpeech, GermanWordRecord } from "./data/germanWordsCore";
 import { loadGermanWordDatabase } from "./data/germanWordsRuntime";
 import { assessPdfCandidate, extractMenschenPdf, getMenschenLesson, normalizePdfCandidateStatuses } from "./lib/pdfImport";
 import type { PdfCandidate, PdfCandidateStatus } from "./lib/pdfImport";
@@ -101,6 +104,13 @@ import "./styles.css";
 type Tab = "overview" | "study" | "practice" | "library" | "progress";
 type Article = "der" | "die" | "das" | "plural" | "none";
 type CardKind = "word" | "phrase" | "grammar";
+type LocalModelStatus = "idle" | "loading" | "ready" | "error";
+
+interface LocalModelState {
+  status: LocalModelStatus;
+  progress: number;
+  message: string;
+}
 type ReviewRating = "again" | "hard" | "good" | "easy";
 type CardStatus = "new" | "learning" | "review";
 type Theme = "light" | "dark";
@@ -273,6 +283,8 @@ const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v3";
 const PWA_INSTALL_DISMISSED_KEY = "deutschly:pwa:install-dismissed:v1";
 const PROFILE_NAME_KEY = "deutschly:profile:name:v1";
 const PROFILE_MODE_KEY = "deutschly:profile:mode:v1";
+const AVATAR_PREFERENCE_KEY = "deutschly:profile:avatar-preference:v1";
+const AVATAR_CONFIG_KEY = "deutschly:profile:avatar-config:v1";
 const PROFILE_NAME_MAX_LENGTH = 32;
 const PROFILE_DISPLAY_FALLBACK = "Learner";
 const LATIN_PROFILE_NAME_PATTERN = /^[\p{Script=Latin}]+(?:[\s.'’'-]+[\p{Script=Latin}]+)*$/u;
@@ -294,6 +306,20 @@ function loadProfileName(): string {
   return isValidProfileName(name) ? name : "";
 }
 
+function loadAvatarPreference(): ProfileAvatarPreference {
+  return loadLocalSetting(AVATAR_PREFERENCE_KEY) === "google" ? "google" : "nice";
+}
+
+function loadAvatarConfig(seed: string): NiceAvatarConfig {
+  const stored = loadLocalSetting(AVATAR_CONFIG_KEY);
+  if (!stored) return getNiceAvatarConfig(seed);
+  try {
+    return normalizeNiceAvatarConfig(JSON.parse(stored), seed);
+  } catch {
+    return getNiceAvatarConfig(seed);
+  }
+}
+
 function getGoogleFirstName(user: FirebaseUserSummary): string {
   const firstToken = user.displayName.trim().split(/\s+/)[0] ?? "";
   const firstName = normalizeProfileName(firstToken);
@@ -311,49 +337,9 @@ function GoogleLogo({ size = 18 }: { size?: number }) {
   );
 }
 
-function ProfileAvatarArt({ options }: { options: ReturnType<typeof getAvataaarsOptions> }) {
-  const clipId = `profile-avatar-${useId().replace(/:/g, "")}`;
-  const skinColors: Record<string, string> = { Light: "#f8d7c1", Pale: "#f3c6a8", Tanned: "#d99a6c", Brown: "#ae6b45", DarkBrown: "#75452f" };
-  const hairColors: Record<string, string> = { BrownDark: "#2c1b18", Black: "#1c1b1b", Blonde: "#d6b370", PastelPink: "#d986ae", Red: "#a64b35" };
-  const clothesColors: Record<string, string> = { PastelBlue: "#8ed0e8", PastelGreen: "#83cdb1", PastelOrange: "#f0a36d", Heather: "#7f8ca8", Blue01: "#4d74d8", Gray01: "#657080" };
-  const skin = skinColors[options.skinColor] ?? skinColors.Light;
-  const hair = hairColors[options.hairColor] ?? hairColors.BrownDark;
-  const clothes = clothesColors[options.clotheColor] ?? clothesColors.PastelBlue;
-  const hasLongHair = options.topType.startsWith("LongHair");
-  const hasHijab = options.topType === "Hijab";
-  const hasGlasses = options.accessoriesType !== "Blank";
-  const isWink = options.eyeType === "Wink";
-  const isSurprised = options.eyeType === "Surprised";
-  const isSerious = options.mouthType === "Serious";
-
-  return (
-    <svg className="profile-avatar__art" viewBox="0 0 264 280" role="img" aria-label="Generated learner avatar" focusable="false">
-      <defs><clipPath id={clipId}><circle cx="132" cy="132" r="132" /></clipPath></defs>
-      <circle cx="132" cy="132" r="132" fill="#eef1ff" />
-      <g clipPath={`url(#${clipId})`}>
-        <path d="M27 280c4-55 44-86 105-86s101 31 105 86H27Z" fill={clothes} />
-        <path d="M75 212c16-12 36-18 57-18s41 6 57 18l-15 68H90l-15-68Z" fill="rgba(255,255,255,.16)" />
-        <ellipse cx="132" cy="125" rx="59" ry="70" fill={skin} />
-        <path d="M74 113c-1-48 21-78 59-78 40 0 62 28 58 79-14-19-27-29-46-34-22 18-46 27-71 27Z" fill={hair} />
-        {hasLongHair && <path d="M72 104c-17 36-9 104 19 126l25-18-6-93-38-15Zm120 0c17 36 9 104-19 126l-25-18 6-93 38-15Z" fill={hair} />}
-        {hasHijab && <path d="M65 120c-9-58 18-91 67-91s76 33 67 91l-18-12c-2-30-20-49-49-49s-47 19-49 49l-18 12Z" fill="#3c4774" />}
-        <path d="M96 121c8-5 17-5 25 0" fill="none" stroke="#593b32" strokeWidth="4" strokeLinecap="round" />
-        <path d="M143 121c8-5 17-5 25 0" fill="none" stroke="#593b32" strokeWidth="4" strokeLinecap="round" />
-        <ellipse cx="109" cy="137" rx={isSurprised ? 6 : 4} ry={isSurprised ? 8 : 4} fill="#2e3140" />
-        <ellipse cx="155" cy="137" rx={isWink ? 2 : isSurprised ? 6 : 4} ry={isWink ? 1 : isSurprised ? 8 : 4} fill="#2e3140" />
-        {hasGlasses && <><rect x="91" y="125" width="37" height="25" rx="10" fill="none" stroke="#4b5577" strokeWidth="4" /><rect x="136" y="125" width="37" height="25" rx="10" fill="none" stroke="#4b5577" strokeWidth="4" /><path d="M128 133h8" stroke="#4b5577" strokeWidth="4" /></>}
-        <path d="M125 143c-4 9-5 16 4 17" fill="none" stroke="#b87962" strokeWidth="3" strokeLinecap="round" />
-        <path d={isSerious ? "M119 174h26" : "M117 171c9 8 20 8 30 0"} fill="none" stroke="#8b4e4a" strokeWidth="4" strokeLinecap="round" />
-        {options.facialHairType !== "Blank" && <path d="M101 160c8 32 54 32 62 0-10 8-20 11-31 11s-21-3-31-11Z" fill={hair} opacity=".82" />}
-        {options.topType === "ShortHairTheCaesar" && <path d="M74 83c9-36 31-52 60-52 26 0 45 13 56 39-30-17-71-16-116 13Z" fill={hair} />}
-      </g>
-    </svg>
-  );
-}
-
-function ProfileAvatar({ name, dayKey, photoURL, size, className = "" }: { name: string; dayKey: string; photoURL?: string; size: number; className?: string }) {
+function ProfileAvatar({ name, dayKey, photoURL, preference = "nice", config, size, className = "" }: { name: string; dayKey: string; photoURL?: string; preference?: ProfileAvatarPreference; config?: NiceAvatarConfig; size: number; className?: string }) {
   const [photoFailed, setPhotoFailed] = useState(false);
-  const avatarOptions = getAvataaarsOptions(name.trim() || PROFILE_DISPLAY_FALLBACK, dayKey);
+  const avatarConfig = config ?? getNiceAvatarConfig(`${name.trim() || PROFILE_DISPLAY_FALLBACK}:${dayKey}`);
   const imageURL = photoURL?.trim();
 
   useEffect(() => {
@@ -362,8 +348,60 @@ function ProfileAvatar({ name, dayKey, photoURL, size, className = "" }: { name:
 
   return (
     <span className={`profile-avatar${className ? ` ${className}` : ""}`} style={{ width: size, height: size }} aria-hidden="true">
-      {imageURL && !photoFailed ? <img src={imageURL} alt="" referrerPolicy="no-referrer" onError={() => setPhotoFailed(true)} /> : <ProfileAvatarArt options={avatarOptions} />}
+      {preference === "google" && imageURL && !photoFailed ? <img src={imageURL} alt="" referrerPolicy="no-referrer" onError={() => setPhotoFailed(true)} /> : <NiceAvatar className="profile-avatar__nice" shape="circle" {...avatarConfig} style={{ width: "100%", height: "100%" }} />}
     </span>
+  );
+}
+
+const avatarEditorFields: Array<{ key: keyof typeof NICE_AVATAR_OPTIONS; label: string }> = [
+  { key: "sex", label: "Character" },
+  { key: "faceColor", label: "Skin tone" },
+  { key: "earSize", label: "Ears" },
+  { key: "hairStyle", label: "Hair" },
+  { key: "hairColor", label: "Hair color" },
+  { key: "eyeStyle", label: "Eyes" },
+  { key: "glassesStyle", label: "Glasses" },
+  { key: "hatStyle", label: "Hat" },
+  { key: "hatColor", label: "Hat color" },
+  { key: "mouthStyle", label: "Expression" },
+  { key: "shirtStyle", label: "Shirt" },
+  { key: "shirtColor", label: "Shirt color" },
+  { key: "bgColor", label: "Background" },
+];
+
+function AvatarEditor({ name, dayKey, photoURL, preference, config, onPreferenceChange, onConfigChange }: {
+  name: string;
+  dayKey: string;
+  photoURL?: string;
+  preference: ProfileAvatarPreference;
+  config: NiceAvatarConfig;
+  onPreferenceChange: (preference: ProfileAvatarPreference) => void;
+  onConfigChange: (config: NiceAvatarConfig) => void;
+}) {
+  const [editorOpen, setEditorOpen] = useState(false);
+  const googlePhotoAvailable = Boolean(photoURL?.trim());
+  const regenerate = () => onConfigChange(getNiceAvatarConfig(`${name.trim() || PROFILE_DISPLAY_FALLBACK}:${Date.now()}`));
+
+  return (
+    <div className="avatar-editor">
+      <div className="avatar-editor__heading">
+        <div><strong>Choose your avatar</strong><small>Use a calm local avatar, or your Google account photo.</small></div>
+        <button type="button" className="button button--outline avatar-editor__toggle" onClick={() => setEditorOpen((current) => !current)} aria-expanded={editorOpen} aria-controls="avatar-editor-options"><Pencil size={14} aria-hidden="true" /> {editorOpen ? "Close editor" : "Edit avatar"}</button>
+      </div>
+      <div className="avatar-editor__choices" role="group" aria-label="Avatar source">
+        <button type="button" className={`settings-choice${preference === "nice" ? " settings-choice--active" : ""}`} onClick={() => onPreferenceChange("nice")} aria-pressed={preference === "nice"}><Sparkles size={14} aria-hidden="true" /> Nice Avatar</button>
+        {googlePhotoAvailable && <button type="button" className={`settings-choice${preference === "google" ? " settings-choice--active" : ""}`} onClick={() => onPreferenceChange("google")} aria-pressed={preference === "google"}><GoogleLogo size={14} /> Google photo</button>}
+      </div>
+      {preference === "google" && googlePhotoAvailable && <small className="avatar-editor__hint">Your Google photo is shown only when you choose it. You can switch back at any time.</small>}
+      {!googlePhotoAvailable && <small className="avatar-editor__hint">Connect Google below if you want to use your account photo.</small>}
+      {preference === "nice" && editorOpen && <div id="avatar-editor-options" className="avatar-editor__options">
+        <div className="avatar-editor__preview"><ProfileAvatar name={name} dayKey={dayKey} preference="nice" config={config} size={74} /><div><strong>Local and deterministic</strong><small>Your choices stay on this device and do not call an avatar service.</small></div></div>
+        <div className="avatar-editor__grid">
+          {avatarEditorFields.map(({ key, label }) => <label className="form-field" key={key}><span>{label}</span><select value={String(config[key])} onChange={(event) => onConfigChange({ ...config, [key]: event.target.value } as NiceAvatarConfig)}>{NICE_AVATAR_OPTIONS[key].map((option) => <option value={option} key={option}>{option}</option>)}</select></label>)}
+        </div>
+        <button type="button" className="button button--ghost avatar-editor__randomize" onClick={regenerate}><RefreshCw size={14} aria-hidden="true" /> Randomize</button>
+      </div>}
+    </div>
   );
 }
 
@@ -451,6 +489,21 @@ const articleMeta: Record<Article, { label: string; detail: string }> = {
   plural: { label: "die", detail: "plural" },
   none: { label: "none", detail: "no article" },
 };
+
+const germanPartOfSpeechOptions: Array<{ value: GermanWordPartOfSpeech; label: string }> = [
+  { value: "noun", label: "Noun" },
+  { value: "verb", label: "Verb" },
+  { value: "adjective", label: "Adjective" },
+  { value: "adverb", label: "Adverb" },
+  { value: "phrase", label: "Phrase" },
+  { value: "pronoun", label: "Pronoun" },
+  { value: "preposition", label: "Preposition" },
+  { value: "conjunction", label: "Conjunction" },
+  { value: "interjection", label: "Interjection" },
+  { value: "numeral", label: "Numeral" },
+  { value: "particle", label: "Particle" },
+  { value: "grammar", label: "Grammar" },
+];
 
 const ratingMeta: Array<{ id: ReviewRating; label: string; detail: string; icon: LucideIcon }> = [
   { id: "again", label: "Again", detail: "I forgot", icon: RefreshCw },
@@ -2739,6 +2792,8 @@ function AiQuotaStatus({ settings, refreshKey }: { settings: AiSettings; refresh
           <small>Using your Gemini API key. Usage and billing are managed by your provider.</small>
         ) : settings.provider === "ollama" ? (
           <small>Using Ollama on this device. No AI request leaves your local network.</small>
+        ) : settings.provider === "webllm" ? (
+          <small>Using the downloaded WebGPU model on this device. No AI request leaves this device.</small>
         ) : usage ? (
           <small>
             {limit !== null ? `This window resets in ${formatUsageCountdown(windowCountdown)}.` : "The local AI bridge controls its own provider limit."}
@@ -2807,7 +2862,7 @@ function LibraryPage({
   wordBank: GermanWordRecord[];
   wordBankInboxItems: WordBankInboxItem[];
   onWordBankDecision: (wordId: string, decision: WordBankDecision) => void;
-  onGenerateWordBatch: (level: GermanWordBatchLevel, count: number) => Promise<GermanWordRecord[]>;
+  onGenerateWordBatch: (level: GermanWordBatchLevel, count: number, partOfSpeech: GermanWordBatchPartOfSpeech) => Promise<GermanWordRecord[]>;
   aiSettings: AiSettings;
   onEditCard: (card: Flashcard) => void;
   weakCardsOnly: boolean;
@@ -2829,6 +2884,7 @@ function LibraryPage({
   const [statusFilter, setStatusFilter] = useState<"all" | CardStatus>("all");
   const [wordBankQuery, setWordBankQuery] = useState("");
   const [wordBankLevel, setWordBankLevel] = useState<GermanWordBatchLevel>("A1");
+  const [wordBankPartOfSpeech, setWordBankPartOfSpeech] = useState<GermanWordBatchPartOfSpeech>("all");
   const [wordBankCount, setWordBankCount] = useState("10");
   const [wordBankGenerating, setWordBankGenerating] = useState(false);
   const [wordBankError, setWordBankError] = useState<string | null>(null);
@@ -2862,7 +2918,7 @@ function LibraryPage({
     setWordBankGenerating(true);
     setWordBankError(null);
     try {
-      const words = await onGenerateWordBatch(wordBankLevel, Number(wordBankCount));
+      const words = await onGenerateWordBatch(wordBankLevel, Number(wordBankCount), wordBankPartOfSpeech);
       if (words.length === 0) setWordBankError("The AI returned no new words. Try another level or run it again later.");
     } catch (error) {
       setWordBankError(error instanceof Error ? error.message : "The AI could not generate new words. Check the sync server and try again.");
@@ -2968,7 +3024,7 @@ function LibraryPage({
             <div>
               <span className="section-eyebrow">CHECKED WORD BANK</span>
               <h2 id="word-bank-title">Find a word to add</h2>
-              <p>Browse checked A1 and A2 vocabulary, then review a word before saving it as a flashcard.</p>
+              <p>Browse checked A1–C2 vocabulary, then review a word before saving it as a flashcard.</p>
             </div>
           </div>
           <span className="word-bank-card__count" role="status" aria-label={`${wordBank.length} words in the checked word bank`}>{wordBank.length} word-bank words</span>
@@ -2979,7 +3035,8 @@ function LibraryPage({
             <div><strong>Grow the bank with AI</strong><small>Generate common words locally, then review each one before adding a card.</small></div>
           </div>
           <form className="word-bank-generator__form" onSubmit={handleGenerateWordBatch}>
-            <label><span>Level</span><select value={wordBankLevel} onChange={(event) => setWordBankLevel(event.target.value as GermanWordBatchLevel)} disabled={wordBankGenerating}><option value="A1">A1</option><option value="A2">A2</option></select></label>
+              <label><span>Level</span><select value={wordBankLevel} onChange={(event) => setWordBankLevel(event.target.value as GermanWordBatchLevel)} disabled={wordBankGenerating}>{["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => <option value={level} key={level}>{level}</option>)}</select></label>
+              <label><span>Part of speech</span><select value={wordBankPartOfSpeech} onChange={(event) => setWordBankPartOfSpeech(event.target.value as GermanWordBatchPartOfSpeech)} disabled={wordBankGenerating}><option value="all">All types</option>{germanPartOfSpeechOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
             <label><span>Words</span><select value={wordBankCount} onChange={(event) => setWordBankCount(event.target.value)} disabled={wordBankGenerating}><option value="5">5</option><option value="10">10</option><option value="20">20</option></select></label>
             <button type="submit" className="button button--primary" disabled={wordBankGenerating}>{wordBankGenerating ? <><RefreshCw size={15} className="spin" aria-hidden="true" /> Generating...</> : <><Sparkles size={15} aria-hidden="true" /> Generate words</>}</button>
           </form>
@@ -3664,6 +3721,9 @@ function FirebaseAccountSection({
 
 interface ProfileModalProps {
   name: string;
+  avatarPreference: ProfileAvatarPreference;
+  avatarConfig: NiceAvatarConfig;
+  googlePhotoURL?: string;
   theme: Theme;
   dailyGoal: number;
   reminderEnabled: boolean;
@@ -3679,6 +3739,8 @@ interface ProfileModalProps {
   isMobile: boolean;
   onClose: () => void;
   onSave: (name: string) => void;
+  onAvatarPreferenceChange: (preference: ProfileAvatarPreference) => void;
+  onAvatarConfigChange: (config: NiceAvatarConfig) => void;
   onThemeChange: (theme: Theme) => void;
   onDailyGoalChange: (value: number) => void;
   onReminderToggle: () => void;
@@ -3699,6 +3761,8 @@ interface ProfileModalProps {
   onInstallNativeUpdate: () => void;
   aiSettings: AiSettings;
   onAiSettingsChange: (settings: AiSettings) => void;
+  localModelState: LocalModelState;
+  onPrepareLocalModel: () => void;
   firebaseConfigured: boolean;
   firebaseUser: FirebaseUserSummary | null;
   firebaseBusy: boolean;
@@ -3711,6 +3775,9 @@ interface ProfileModalProps {
 
 function ProfileModal({
   name,
+  avatarPreference,
+  avatarConfig,
+  googlePhotoURL,
   theme,
   dailyGoal,
   reminderEnabled,
@@ -3726,6 +3793,8 @@ function ProfileModal({
   isMobile,
   onClose,
   onSave,
+  onAvatarPreferenceChange,
+  onAvatarConfigChange,
   onThemeChange,
   onDailyGoalChange,
   onReminderToggle,
@@ -3746,6 +3815,8 @@ function ProfileModal({
   onInstallNativeUpdate,
   aiSettings,
   onAiSettingsChange,
+  localModelState,
+  onPrepareLocalModel,
   firebaseConfigured,
   firebaseUser,
   firebaseBusy,
@@ -3784,7 +3855,8 @@ function ProfileModal({
         <div className="settings-sections">
           <section className="settings-section" aria-labelledby="settings-profile-title">
             <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Settings size={16} /></span><div><h3 id="settings-profile-title">Profile</h3><p>Personal details used across your learning space.</p></div></div>
-            <div className="profile-preview"><ProfileAvatar className="profile-preview__avatar" name={draftName} dayKey={getDayKey()} photoURL={firebaseUser?.photoURL} size={58} /><div><span className="section-eyebrow">LEARNER</span><strong>{draftName.trim() || "Your name"}</strong><small>Private on this device</small></div></div>
+            <div className="profile-preview"><ProfileAvatar className="profile-preview__avatar" name={draftName} dayKey={getDayKey()} photoURL={googlePhotoURL} preference={avatarPreference} config={avatarConfig} size={58} /><div><span className="section-eyebrow">LEARNER</span><strong>{draftName.trim() || "Your name"}</strong><small>{avatarPreference === "google" ? "Google photo selected" : "Private on this device"}</small></div></div>
+            <AvatarEditor name={draftName} dayKey={getDayKey()} photoURL={googlePhotoURL} preference={avatarPreference} config={avatarConfig} onPreferenceChange={onAvatarPreferenceChange} onConfigChange={onAvatarConfigChange} />
             <label className="form-field" htmlFor="profile-name"><span>Display name</span><input id="profile-name" value={draftName} onChange={(event) => setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH))} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="name" spellCheck={false} /></label>
           </section>
 
@@ -3799,15 +3871,22 @@ function ProfileModal({
             <div className="settings-section__disclosure-content">
               <label className="form-field" htmlFor="settings-ai-provider"><span>AI provider</span><select id="settings-ai-provider" value={aiSettings.provider} onChange={(event) => onAiSettingsChange(normalizeAiSettings({ ...aiSettings, provider: event.target.value as AiProvider }))}>
                 <option value="off">Off — fully local study</option>
-                <option value="cloudflare">My Cloudflare Worker</option>
-                <option value="gemini">My Gemini API key</option>
-                <option value="ollama">Ollama on this device</option>
-                <option value="bridge">Compatible Deutschly bridge</option>
-              </select></label>
+               <option value="cloudflare">My Cloudflare Worker</option>
+               <option value="gemini">My Gemini API key</option>
+               <option value="ollama">Ollama on this device</option>
+               <option value="webllm">On-device model (WebGPU)</option>
+               <option value="bridge">Compatible Deutschly bridge</option>
+             </select></label>
               {(aiSettings.provider === "cloudflare" || aiSettings.provider === "bridge" || aiSettings.provider === "ollama") && <label className="form-field" htmlFor="settings-ai-endpoint"><span>{aiSettings.provider === "ollama" ? "Ollama address" : "Worker / bridge address"}</span><input id="settings-ai-endpoint" value={aiSettings.endpoint} onChange={(event) => onAiSettingsChange(normalizeAiSettings({ ...aiSettings, endpoint: event.target.value }))} placeholder={aiSettings.provider === "ollama" ? "http://127.0.0.1:11434" : "https://your-worker.example.workers.dev"} inputMode="url" spellCheck={false} /></label>}
-              {(aiSettings.provider === "cloudflare" || aiSettings.provider === "bridge" || aiSettings.provider === "gemini") && <label className="form-field" htmlFor="settings-ai-key"><span>{aiSettings.provider === "gemini" ? "Gemini API key" : "Optional access key"}</span><input id="settings-ai-key" type="password" value={aiSettings.apiKey} onChange={(event) => onAiSettingsChange(normalizeAiSettings({ ...aiSettings, apiKey: event.target.value }))} placeholder="Stored only in this device profile" autoComplete="off" spellCheck={false} /></label>}
-              {(aiSettings.provider === "gemini" || aiSettings.provider === "ollama") && <label className="form-field" htmlFor="settings-ai-model"><span>Model</span><input id="settings-ai-model" value={aiSettings.model} onChange={(event) => onAiSettingsChange(normalizeAiSettings({ ...aiSettings, model: event.target.value }))} placeholder={aiSettings.provider === "ollama" ? "qwen2.5:3b" : "gemini-2.0-flash"} spellCheck={false} /></label>}
-              <div className="settings-notification settings-notification--default" role="status"><span className="settings-notification__copy"><Info size={14} aria-hidden="true" /><span><strong>{aiSettings.provider === "off" ? "Core study is offline-ready" : "AI is optional"}</strong><small>{aiSettings.provider === "off" ? "Saved cards, review scheduling, and the checked word bank do not need a network." : "Your provider handles its own quota. API keys stay on this device and are never sent to Deutschly by default."}</small></span></span></div>
+               {(aiSettings.provider === "cloudflare" || aiSettings.provider === "bridge" || aiSettings.provider === "gemini") && <label className="form-field" htmlFor="settings-ai-key"><span>{aiSettings.provider === "gemini" ? "Gemini API key" : "Optional access key"}</span><input id="settings-ai-key" type="password" value={aiSettings.apiKey} onChange={(event) => onAiSettingsChange(normalizeAiSettings({ ...aiSettings, apiKey: event.target.value }))} placeholder="Stored only in this device profile" autoComplete="off" spellCheck={false} /></label>}
+               {(aiSettings.provider === "gemini" || aiSettings.provider === "ollama") && <label className="form-field" htmlFor="settings-ai-model"><span>Model</span><input id="settings-ai-model" value={aiSettings.model} onChange={(event) => onAiSettingsChange(normalizeAiSettings({ ...aiSettings, model: event.target.value }))} placeholder={aiSettings.provider === "ollama" ? "qwen2.5:3b" : "gemini-2.0-flash"} spellCheck={false} /></label>}
+               {aiSettings.provider === "webllm" && <div className={`settings-notification settings-local-model settings-local-model--${localModelState.status}`} role={localModelState.status === "error" ? "alert" : "status"} aria-live="polite">
+                 <span className="settings-notification__copy"><Download size={15} aria-hidden="true" /><span><strong>{localModelState.status === "ready" ? "On-device model ready" : "Private on-device AI"}</strong><small>{supportsWebLlm() ? "Download a small model to this device. WebLLM caches it locally, so later checks can run without an AI key." : "This app or browser does not expose WebGPU here. Use the PC bridge or Ollama on a device without WebGPU."}</small></span></span>
+                 <button type="button" className="button button--outline settings-local-model__action" onClick={onPrepareLocalModel} disabled={!supportsWebLlm() || localModelState.status === "loading" || localModelState.status === "ready"}>{localModelState.status === "loading" ? "Preparing..." : localModelState.status === "ready" ? "Ready" : "Download / prepare"}</button>
+                 {localModelState.status === "loading" && <div className="settings-local-model__progress" role="progressbar" aria-label="Downloading local AI model" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(localModelState.progress * 100)}><span style={{ width: `${Math.max(4, Math.round(localModelState.progress * 100))}%` }} /></div>}
+                 {localModelState.message && <small className="settings-local-model__message">{localModelState.message}</small>}
+               </div>}
+               <div className="settings-notification settings-notification--default" role="status"><span className="settings-notification__copy"><Info size={14} aria-hidden="true" /><span><strong>{aiSettings.provider === "off" ? "Core study is offline-ready" : "AI is optional"}</strong><small>{aiSettings.provider === "off" ? "Saved cards, review scheduling, and the checked word bank do not need a network." : "Your provider handles its own quota. API keys stay on this device and are never sent to Deutschly by default."}</small></span></span></div>
             </div>
           </details>
 
@@ -3909,8 +3988,13 @@ function SyncModal({
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close sync settings" title="Close"><X size={19} aria-hidden="true" /></button>
         </div>
         <p className="modal-panel__intro">Run the Deutschly bridge on your PC, then use the same room code on your phone. Your cards stay in this private room instead of going to a third-party service. The bridge can use Gemini or a free local Ollama model without putting an AI key in your browser.</p>
-        <div className="sync-modal__steps" aria-label="Sync setup steps">
-          <div><strong>1</strong><span>Open a terminal in the folder that contains <code>package.json</code>. For this project: <code>C:\Users\Soheil\Documents\ChatGPT\Gamify</code>.</span></div>
+        <div className={`sync-modal__connection sync-modal__connection--${isOnline ? syncStatus : "offline"}`}>
+          <span className="sync-modal__connection-icon" aria-hidden="true"><Cloud size={18} /></span>
+          <span><strong>{!isOnline ? "Offline-safe room" : syncStatus === "synced" ? "Private room ready" : syncStatus === "syncing" ? "Connecting your devices" : syncStatus === "conflict" ? "Room changes need a choice" : "Private room sync"}</strong><small>{room ? `Room ${room} · ${autoSync ? "automatic updates on" : "manual updates"}` : "Choose a room code to connect devices"}</small></span>
+          <span className="sync-modal__connection-dot" aria-hidden="true" />
+        </div>
+        <div className={`sync-modal__steps${syncStatus === "syncing" ? " sync-modal__steps--active" : ""}`} aria-label="Sync setup steps">
+          <div><strong>1</strong><span>Open a terminal in the Deutschly project folder—the folder that contains <code>package.json</code>.</span></div>
           <div><strong>2</strong><span>On the PC, run <code>npm run sync-server -- --host 0.0.0.0</code>. For free local AI, add <code>--ai-provider ollama</code>.</span></div>
           <div><strong>3</strong><span>Open the app on both devices over the same Wi-Fi network.</span></div>
           <div><strong>4</strong><span>Save the same room on both devices. Auto-sync can keep them up to date.</span></div>
@@ -4067,11 +4151,12 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
           </section>
           <section className="flashcard-form__section" aria-labelledby="flashcard-detail-heading">
             <div className="flashcard-form__section-heading"><span>2</span><div><strong id="flashcard-detail-heading">Make it memorable</strong><small>Add the grammar signal and context that help recall.</small></div></div>
-            <div className="form-grid form-grid--three">
-              <label className="form-field" htmlFor="card-article"><span>Article</span><select id="card-article" value={draft.article} onChange={(event) => update("article", event.target.value as Article)}><option value="der">der · masculine</option><option value="die">die · feminine</option><option value="das">das · neuter</option><option value="plural">die · plural</option><option value="none">No article</option></select></label>
-              <label className="form-field" htmlFor="card-plural"><span>Plural</span><input id="card-plural" value={draft.plural} onChange={(event) => update("plural", event.target.value)} placeholder="e.g. Bücher" /></label>
-              <label className="form-field" htmlFor="card-kind"><span>Item type</span><select id="card-kind" value={draft.kind} onChange={(event) => update("kind", event.target.value as CardKind)}><option value="word">Vocabulary</option><option value="phrase">Phrase</option><option value="grammar">Grammar</option></select></label>
-            </div>
+             <div className="form-grid form-grid--four">
+               <label className="form-field" htmlFor="card-article"><span>Article</span><select id="card-article" value={draft.article} onChange={(event) => update("article", event.target.value as Article)}><option value="der">der · masculine</option><option value="die">die · feminine</option><option value="das">das · neuter</option><option value="plural">die · plural</option><option value="none">No article</option></select></label>
+               <label className="form-field" htmlFor="card-plural"><span>Plural</span><input id="card-plural" value={draft.plural} onChange={(event) => update("plural", event.target.value)} placeholder="e.g. Bücher" /></label>
+               <label className="form-field" htmlFor="card-part-of-speech"><span>Part of speech</span><select id="card-part-of-speech" value={draft.partOfSpeech ?? ""} onChange={(event) => update("partOfSpeech", event.target.value)}><option value="">Not set</option>{germanPartOfSpeechOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
+               <label className="form-field" htmlFor="card-kind"><span>Item type</span><select id="card-kind" value={draft.kind} onChange={(event) => update("kind", event.target.value as CardKind)}><option value="word">Vocabulary</option><option value="phrase">Phrase</option><option value="grammar">Grammar</option></select></label>
+             </div>
             <div className="form-grid form-grid--two">
               <label className="form-field" htmlFor="card-example"><span>Example sentence</span><textarea id="card-example" value={draft.example} onChange={(event) => update("example", event.target.value)} placeholder="Write a sentence you can imagine using..." rows={2} /></label>
               <label className="form-field" htmlFor="card-note"><span>Personal note</span><textarea id="card-note" value={draft.note} onChange={(event) => update("note", event.target.value)} placeholder="A memory hint, related word, or pronunciation note" rows={2} /></label>
@@ -4120,6 +4205,7 @@ export default function App() {
   const [syncRoom, setSyncRoom] = useState(() => loadLocalSetting(SYNC_ROOM_KEY) || createSyncRoom());
   const [autoSync, setAutoSync] = useState(() => loadLocalBooleanSetting(AUTO_SYNC_KEY));
   const [aiSettings, setAiSettings] = useState<AiSettings>(() => loadAiSettings());
+  const [localModelState, setLocalModelState] = useState<LocalModelState>({ status: "idle", progress: 0, message: "" });
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [testingConnection, setTestingConnection] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUserSummary | null>(null);
@@ -4145,6 +4231,8 @@ export default function App() {
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [profileName, setProfileName] = useState(() => loadProfileName());
+  const [avatarPreference, setAvatarPreference] = useState<ProfileAvatarPreference>(() => loadAvatarPreference());
+  const [avatarConfig, setAvatarConfig] = useState<NiceAvatarConfig>(() => loadAvatarConfig(loadProfileName() || PROFILE_DISPLAY_FALLBACK));
   const [profileOnboardingOpen, setProfileOnboardingOpen] = useState(() => !loadProfileName());
   const [profileOpen, setProfileOpen] = useState(false);
   const [resetProgressOpen, setResetProgressOpen] = useState(false);
@@ -4217,6 +4305,14 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(aiSettings));
   }, [aiSettings]);
+
+  useEffect(() => {
+    window.localStorage.setItem(AVATAR_PREFERENCE_KEY, avatarPreference);
+  }, [avatarPreference]);
+
+  useEffect(() => {
+    window.localStorage.setItem(AVATAR_CONFIG_KEY, JSON.stringify(avatarConfig));
+  }, [avatarConfig]);
 
   const ensureGermanWordDatabase = () => {
     germanWordDatabasePromiseRef.current ??= loadGermanWordDatabase().then((words) => {
@@ -4346,6 +4442,30 @@ export default function App() {
     setToast({ message, action });
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setToast(null), 3000);
+  };
+
+  const handlePrepareLocalModel = async () => {
+    if (localModelState.status === "loading" || localModelState.status === "ready") return;
+    if (!supportsWebLlm()) {
+      const message = "This device does not expose WebGPU. Use the PC bridge or Ollama for local AI here.";
+      setLocalModelState({ status: "error", progress: 0, message });
+      showToast(message);
+      return;
+    }
+
+    setLocalModelState({ status: "loading", progress: 0, message: "Starting the local model…" });
+    try {
+      await prepareWebLlmModel(DEFAULT_WEBLLM_MODEL, (report) => {
+        setLocalModelState({ status: "loading", progress: report.progress, message: report.text });
+      });
+      setAiSettings((current) => normalizeAiSettings({ ...current, provider: "webllm", model: DEFAULT_WEBLLM_MODEL }));
+      setLocalModelState({ status: "ready", progress: 1, message: "Cached on this device. Future checks can run offline." });
+      showToast("Private on-device AI is ready.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The local AI model could not be prepared.";
+      setLocalModelState({ status: "error", progress: 0, message });
+      showToast(message);
+    }
   };
 
   const showXpCelebration = (amount: number, level?: number) => {
@@ -4553,10 +4673,11 @@ export default function App() {
     showToast(decision === "dismissed" ? "Word moved to Not for me." : "Word moved back to the AI inbox.");
   };
 
-  const handleGenerateWordBatch = async (level: GermanWordBatchLevel, count: number): Promise<GermanWordRecord[]> => {
+  const handleGenerateWordBatch = async (level: GermanWordBatchLevel, count: number, partOfSpeech: GermanWordBatchPartOfSpeech): Promise<GermanWordRecord[]> => {
     const response = await generateGermanWordBatch(aiSettings, {
       level,
       count,
+      partOfSpeech,
       existingWords: wordBank.map((word) => word.german),
     });
     const knownWords = new Set(wordBank.map((word) => normalizeGermanWord(word.german)));
@@ -5653,7 +5774,7 @@ export default function App() {
         </div>
         <div className="sidebar__bottom">
           <div className="sidebar-tip"><Sparkles size={16} aria-hidden="true" /><div><strong>Small steps, big recall.</strong><span>Your next review is ready.</span></div></div>
-          <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileDisplayName} profile avatar`}><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} size={32} /></div><div><strong>{profileDisplayName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
+          <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileDisplayName} profile avatar`}><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} preference={avatarPreference} config={avatarConfig} size={32} /></div><div><strong>{profileDisplayName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
         </div>
       </aside>
 
@@ -5664,7 +5785,7 @@ export default function App() {
             <button type="button" className="icon-button" onClick={toggleTheme} aria-label={state.theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={state.theme === "light" ? "Dark mode" : "Light mode"}>{state.theme === "light" ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}</button>
             <button type="button" className="icon-button notification-button" onClick={handleReminderBell} aria-label="View reminders" title="Reminders"><Bell size={18} aria-hidden="true" />{state.reminderEnabled && dueCards.length > 0 && <span aria-hidden="true" />}</button>
             <button type="button" className={`sync-button${syncing ? " sync-button--syncing" : ""}`} onClick={() => void handleSync()} disabled={syncing}><Cloud size={16} aria-hidden="true" />{syncing ? "Syncing..." : syncConfigured ? "Sync now" : "Set up sync"}</button>
-            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileDisplayName}`} title="Profile settings"><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} size={34} /></button>
+            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileDisplayName}`} title="Profile settings"><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} preference={avatarPreference} config={avatarConfig} size={34} /></button>
           </div>
         </header>
 
@@ -5689,6 +5810,9 @@ export default function App() {
       {cardPendingDeletion && <DeleteCardModal card={cardPendingDeletion} onClose={() => setDeleteCardId(null)} onConfirm={handleConfirmDeleteCard} />}
       {profileOpen && <ProfileModal
         name={profileDisplayName}
+        avatarPreference={avatarPreference}
+        avatarConfig={avatarConfig}
+        googlePhotoURL={firebaseUser?.photoURL}
         theme={state.theme}
         dailyGoal={state.dailyGoal}
         reminderEnabled={state.reminderEnabled}
@@ -5704,6 +5828,8 @@ export default function App() {
         isMobile={installPrompt.isMobile}
         onClose={() => setProfileOpen(false)}
         onSave={handleSaveProfile}
+        onAvatarPreferenceChange={setAvatarPreference}
+        onAvatarConfigChange={setAvatarConfig}
         onThemeChange={handleThemeChange}
         onDailyGoalChange={handleDailyGoalChange}
         onReminderToggle={handleReminderToggle}
@@ -5724,6 +5850,8 @@ export default function App() {
         onInstallNativeUpdate={() => { void installNativeUpdate(); }}
         aiSettings={aiSettings}
         onAiSettingsChange={setAiSettings}
+        localModelState={localModelState}
+        onPrepareLocalModel={() => { void handlePrepareLocalModel(); }}
         firebaseConfigured={firebaseConfigured}
         firebaseUser={firebaseUser}
         firebaseBusy={firebaseBusy}

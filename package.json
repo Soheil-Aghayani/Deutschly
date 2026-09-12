@@ -1,7 +1,7 @@
 {
   "name": "deutschly",
   "private": true,
-  "version": "0.1.14",
+  "version": "0.1.15",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@fontsource-variable/vazirmatn": "^5.3.0",
+    "@mlc-ai/web-llm": "^0.2.84",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-updater": "^2.11.0",
     "boring-avatars": "^2.0.4",
@@ -29,7 +30,8 @@
     "lucide-react": "^0.468.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "react-nice-avatar": "^1.5.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",

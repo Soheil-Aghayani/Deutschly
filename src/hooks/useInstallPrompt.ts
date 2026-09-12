@@ -5,15 +5,36 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
+const PWA_INSTALLED_KEY = "deutschly:pwa:installed:v1";
+
 function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
 function isStandaloneMode(): boolean {
   const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
+  const displayModes = ["standalone", "minimal-ui", "fullscreen", "window-controls-overlay"];
   const displayModeMatches = typeof window.matchMedia === "function"
-    && window.matchMedia("(display-mode: standalone)").matches;
-  return displayModeMatches || navigatorWithStandalone.standalone === true;
+    && displayModes.some((mode) => window.matchMedia(`(display-mode: ${mode})`).matches);
+  return displayModeMatches
+    || navigatorWithStandalone.standalone === true
+    || document.referrer.startsWith("android-app://");
+}
+
+function hasInstallMarker(): boolean {
+  try {
+    return window.localStorage.getItem(PWA_INSTALLED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function markInstalled(): void {
+  try {
+    window.localStorage.setItem(PWA_INSTALLED_KEY, "true");
+  } catch {
+    // Some embedded browsers expose no writable local storage.
+  }
 }
 
 function isIosDevice(): boolean {
@@ -43,7 +64,8 @@ export function useInstallPrompt() {
       return;
     }
 
-    setIsInstalled(isStandaloneMode());
+    const refreshInstalledState = () => setIsInstalled(isStandaloneMode() || hasInstallMarker());
+    refreshInstalledState();
     setIsIos(isIosDevice());
     setIsMobile(isMobileDevice());
 
@@ -52,15 +74,26 @@ export function useInstallPrompt() {
       setDeferredPrompt(event as BeforeInstallPromptEvent);
     };
     const handleInstalled = () => {
+      markInstalled();
       setIsInstalled(true);
       setDeferredPrompt(null);
     };
+
+    const displayModeQueries = typeof window.matchMedia === "function"
+      ? ["standalone", "minimal-ui", "fullscreen", "window-controls-overlay"].map((mode) => window.matchMedia(`(display-mode: ${mode})`))
+      : [];
+    displayModeQueries.forEach((query) => query.addEventListener?.("change", refreshInstalledState));
+    window.addEventListener("focus", refreshInstalledState);
+    document.addEventListener("visibilitychange", refreshInstalledState);
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleInstalled);
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleInstalled);
+      displayModeQueries.forEach((query) => query.removeEventListener?.("change", refreshInstalledState));
+      window.removeEventListener("focus", refreshInstalledState);
+      document.removeEventListener("visibilitychange", refreshInstalledState);
     };
   }, []);
 
@@ -69,7 +102,12 @@ export function useInstallPrompt() {
     await deferredPrompt.prompt();
     const choice = await deferredPrompt.userChoice;
     setDeferredPrompt(null);
-    return choice.outcome === "accepted";
+    if (choice.outcome === "accepted") {
+      markInstalled();
+      setIsInstalled(true);
+      return true;
+    }
+    return false;
   };
 
   return {

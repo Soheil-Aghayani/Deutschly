@@ -10,7 +10,8 @@ const PARTS_OF_SPEECH = new Set(["noun", "verb", "adjective", "adverb", "pronoun
 const KINDS = new Set(["word", "phrase", "grammar"]);
 const CONFIDENCE = new Set(["high", "medium", "low"]);
 const VERDICTS = new Set(["looks-good", "needs-review"]);
-const LEVELS = new Set(["A1", "A2"]);
+const LEVELS = new Set(["A1", "A2", "B1", "B2", "C1", "C2"]);
+const BATCH_PARTS_OF_SPEECH = new Set(["all", ...PARTS_OF_SPEECH]);
 
 const FALLBACK_WORDS = [
   ["A1", "Antwort", ["answer"], "die", "Antworten", "noun", ["Ich kenne die Antwort."], ["communication"]],
@@ -226,13 +227,15 @@ function createWordId(level, german) {
 function parseWordBatchInput(payload) {
   if (!isRecord(payload)) throw new WorkerError(400, "The request must include a word batch object.");
   const level = boundedString(payload.level, "level", { required: true, max: 2 }).toUpperCase();
-  if (!LEVELS.has(level)) throw new WorkerError(400, "level must be A1 or A2.");
+  if (!LEVELS.has(level)) throw new WorkerError(400, "level must be one of A1, A2, B1, B2, C1, or C2.");
+  const partOfSpeech = payload.partOfSpeech === undefined ? "all" : boundedString(payload.partOfSpeech, "part of speech", { max: 20 }).toLocaleLowerCase("en-US");
+  if (!BATCH_PARTS_OF_SPEECH.has(partOfSpeech)) throw new WorkerError(400, "partOfSpeech must be all or a supported German part of speech.");
   const count = payload.count === undefined ? 10 : Number(payload.count);
   if (!Number.isInteger(count) || count < 1 || count > 20) throw new WorkerError(400, "count must be an integer between 1 and 20.");
   const rawExistingWords = payload.existingWords === undefined ? [] : payload.existingWords;
   if (!Array.isArray(rawExistingWords) || rawExistingWords.length > 500) throw new WorkerError(400, "existingWords must contain at most 500 items.");
   const existingWords = rawExistingWords.map((word) => boundedString(word, "existing word", { max: 120 })).filter(Boolean);
-  return { level, count, existingWords };
+  return { level, count, partOfSpeech, existingWords };
 }
 
 function parseCardInput(payload) {
@@ -277,12 +280,13 @@ function germanWordPrompt(input) {
     "If a noun has another common article with a different meaning, put those alternatives in article_variants and keep the primary meaning in article. Otherwise return an empty array.",
     "For verbs, adjectives, adverbs, and phrases use article none and an empty plural string.",
     "Set part_of_speech to exactly one of noun, verb, adjective, adverb, pronoun, preposition, conjunction, interjection, numeral, particle, phrase, or grammar. A single lexical item such as schnell is adjective even when it can also be used adverbially; use phrase only for multiword expressions.",
+    ...(input.partOfSpeech !== "all" ? [`Every word must be a ${input.partOfSpeech}.`] : ["Use a useful mix of parts of speech when appropriate."]),
     "Give one to four concise English meanings, up to two short natural examples, and useful learner tags.",
     "Never guess a noun article. If you are not confident about an article, omit that word rather than inventing one.",
     "Prefer high-frequency standard German. Do not include proper names, regionalisms, offensive terms, or duplicate headwords.",
     "The requested level is fixed; do not return words above it just to fill the count.",
     "DATA START",
-    JSON.stringify({ level: input.level, count: input.count, existingWords: input.existingWords }),
+    JSON.stringify({ level: input.level, count: input.count, partOfSpeech: input.partOfSpeech, existingWords: input.existingWords }),
     "DATA END",
   ].join("\n");
 }
@@ -296,8 +300,9 @@ function germanWordRetryPrompt(input) {
     "Use a bare German headword in german, the correct article in article, and one to four English meanings.",
     "For nouns, use the standard article and everyday plural. If an article is uncertain, omit that word.",
     "Set part_of_speech to exactly one canonical value from the schema. A single lexical item such as schnell is adjective; use phrase only for multiword expressions. Examples and tags must be concise and accurate.",
+    ...(input.partOfSpeech !== "all" ? [`Every word must be a ${input.partOfSpeech}.`] : []),
     "DATA START",
-    JSON.stringify({ level: input.level, count: input.count, existingWords: input.existingWords }),
+    JSON.stringify({ level: input.level, count: input.count, partOfSpeech: input.partOfSpeech, existingWords: input.existingWords }),
     "DATA END",
   ].join("\n");
 }
@@ -391,6 +396,7 @@ function normalizeWordBatch(payload, input) {
       const examples = rawWord.examples === undefined ? [] : readModelArray(rawWord.examples, "examples", { maxItems: 2, maxLength: 220 });
       const tags = rawWord.tags === undefined ? [] : readModelArray(rawWord.tags, "tags", { maxItems: 8, maxLength: 32 });
       const key = germanWordKey(german);
+      if (input.partOfSpeech !== "all" && partOfSpeech !== input.partOfSpeech) continue;
       if (!key || seen.has(key) || englishMeanings.length === 0) continue;
       seen.add(key);
       words.push({
@@ -419,6 +425,7 @@ function fallbackWordBatch(input) {
   const seen = new Set(excluded);
   return FALLBACK_WORDS
     .filter((word) => word.level === input.level)
+    .filter((word) => input.partOfSpeech === "all" || word.partOfSpeech === input.partOfSpeech)
     .filter((word) => {
       const key = germanWordKey(word.german);
       if (!key || seen.has(key)) return false;

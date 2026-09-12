@@ -1,10 +1,11 @@
 import { formatGermanPartOfSpeech } from "../data/germanWords";
-import type { GermanWordArticle, GermanWordRecord, GermanWordSource } from "../data/germanWords";
+import type { GermanWordArticle, GermanWordPartOfSpeech, GermanWordRecord, GermanWordSource } from "../data/germanWords";
+import { DEFAULT_WEBLLM_MODEL, runWebLlmJson } from "./webllm";
 
 export type GeminiArticle = "der" | "die" | "das" | "plural" | "none";
 export type GeminiConfidence = "high" | "medium" | "low";
 export type GeminiReviewVerdict = "looks-good" | "needs-review";
-export type AiProvider = "off" | "cloudflare" | "gemini" | "ollama" | "bridge";
+export type AiProvider = "off" | "cloudflare" | "gemini" | "ollama" | "webllm" | "bridge";
 
 export interface AiSettings {
   provider: AiProvider;
@@ -30,7 +31,7 @@ export function getDefaultAiSettings(): AiSettings {
 export function normalizeAiSettings(value: unknown): AiSettings {
   const fallback = getDefaultAiSettings();
   if (!isRecord(value)) return fallback;
-  const provider = ["off", "cloudflare", "gemini", "ollama", "bridge"].includes(String(value.provider))
+  const provider = ["off", "cloudflare", "gemini", "ollama", "webllm", "bridge"].includes(String(value.provider))
     ? String(value.provider) as AiProvider
     : fallback.provider;
   const endpoint = typeof value.endpoint === "string" ? value.endpoint.trim().slice(0, 500) : fallback.endpoint;
@@ -38,9 +39,9 @@ export function normalizeAiSettings(value: unknown): AiSettings {
   const model = typeof value.model === "string" ? value.model.trim().slice(0, 120) : fallback.model;
   return {
     provider,
-    endpoint: provider === "ollama" ? endpoint || DEFAULT_OLLAMA_ENDPOINT : endpoint,
+    endpoint: provider === "ollama" ? endpoint || DEFAULT_OLLAMA_ENDPOINT : provider === "webllm" ? "" : endpoint,
     apiKey,
-    model: model || (provider === "ollama" ? DEFAULT_OLLAMA_MODEL : DEFAULT_GEMINI_MODEL),
+    model: provider === "webllm" ? DEFAULT_WEBLLM_MODEL : model || (provider === "ollama" ? DEFAULT_OLLAMA_MODEL : DEFAULT_GEMINI_MODEL),
   };
 }
 
@@ -73,12 +74,14 @@ export interface GeminiCardReview {
   duplicateHint: string;
 }
 
-export type GermanWordBatchLevel = "A1" | "A2";
+export type GermanWordBatchLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+export type GermanWordBatchPartOfSpeech = GermanWordPartOfSpeech | "all";
 
 export interface GermanWordBatchRequest {
   level: GermanWordBatchLevel;
   count: number;
   existingWords: string[];
+  partOfSpeech?: GermanWordBatchPartOfSpeech;
 }
 
 export interface GermanWordBatchResponse {
@@ -112,6 +115,7 @@ const ARTICLES = new Set<GeminiArticle>(["der", "die", "das", "plural", "none"])
 const CONFIDENCE = new Set<GeminiConfidence>(["high", "medium", "low"]);
 const VERDICTS = new Set<GeminiReviewVerdict>(["looks-good", "needs-review"]);
 const GERMAN_WORD_ARTICLES = new Set<GermanWordArticle>(["der", "die", "das", "plural", "none"]);
+const GERMAN_WORD_BATCH_LEVELS = new Set<GermanWordBatchLevel>(["A1", "A2", "B1", "B2", "C1", "C2"]);
 const GERMAN_WORD_LEVELS = new Set<GermanWordRecord["level"]>(["A1", "A2", "B1", "B2", "C1", "C2", "unknown"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -130,6 +134,7 @@ function providerUnavailableMessage(provider: AiProvider): string {
   if (provider === "off") return "AI is turned off. You can still study saved cards and use the local word bank.";
   if (provider === "ollama") return "Ollama is not reachable. Start Ollama on this device and confirm the local model name in Settings.";
   if (provider === "gemini") return "Gemini could not be reached. Check your API key, model name, and network connection.";
+  if (provider === "webllm") return "The on-device model could not start. This device needs WebGPU and enough free memory; use the PC bridge or Ollama if it is unavailable here.";
   return bridgeUnavailableMessage();
 }
 
@@ -271,7 +276,8 @@ Existing cards with the same headword are only duplicate clues; do not invent du
 
 const wordBatchPrompt = (input: GermanWordBatchRequest) => `
 Create a checked German vocabulary batch for a learner at level ${input.level}. Return JSON only with keys level, requestedCount, returnedCount, words.
-Each word must contain id, german, englishMeanings (array), article (der, die, das, plural, or none), level (${input.level}), partOfSpeech (noun, verb, adjective, adverb, phrase, or other), examples (array), tags (array).
+Each word must contain id, german, englishMeanings (array), article (der, die, das, plural, or none), level (${input.level}), partOfSpeech (noun, verb, adjective, adverb, pronoun, preposition, conjunction, interjection, numeral, particle, phrase, or grammar), examples (array), tags (array).
+${input.partOfSpeech && input.partOfSpeech !== "all" ? `Every word must be a ${input.partOfSpeech}.` : "Use a useful mix of parts of speech when appropriate."}
 Return at most ${input.count} useful words and do not use any existing word: ${JSON.stringify(input.existingWords)}
 `;
 
@@ -310,6 +316,15 @@ async function requestOllama(settings: AiSettings, prompt: string): Promise<unkn
   return parseJsonText(payload.message.content, "the response");
 }
 
+async function requestWebLlm(settings: AiSettings, prompt: string): Promise<unknown> {
+  try {
+    return parseJsonText(await runWebLlmJson(prompt, { model: settings.model || DEFAULT_WEBLLM_MODEL }), "the response");
+  } catch (error) {
+    if (error instanceof GeminiRequestError) throw error;
+    throw new GeminiRequestError(error instanceof Error ? error.message : providerUnavailableMessage("webllm"));
+  }
+}
+
 async function requestStructuredAi(target: string | AiSettings, prompt: string): Promise<unknown> {
   const settings = settingsForTarget(target);
   if (settings.provider === "off") throw new GeminiRequestError(providerUnavailableMessage(settings.provider));
@@ -319,6 +334,7 @@ async function requestStructuredAi(target: string | AiSettings, prompt: string):
       return await requestDirectGemini(settings, prompt);
     }
     if (settings.provider === "ollama") return await requestOllama(settings, prompt);
+    if (settings.provider === "webllm") return await requestWebLlm(settings, prompt);
     if (!settings.endpoint.trim()) throw new GeminiRequestError("Add an AI endpoint in Settings before using this provider.");
     const response = await fetch(geminiReviewUrl(settings), {
       method: "POST",
@@ -334,7 +350,7 @@ async function requestStructuredAi(target: string | AiSettings, prompt: string):
 
 export async function reviewCardWithGemini(target: string | AiSettings, input: GeminiCardReviewInput): Promise<GeminiCardReview> {
   const settings = settingsForTarget(target);
-  if (settings.provider === "gemini" || settings.provider === "ollama") {
+  if (settings.provider === "gemini" || settings.provider === "ollama" || settings.provider === "webllm") {
     return parseGeminiCardReview(await requestStructuredAi(settings, cardReviewPrompt(input)));
   }
   let response: Response;
@@ -462,7 +478,7 @@ function parseGermanWordRecord(value: unknown): GermanWordRecord {
 
 export function parseGermanWordBatch(payload: unknown): GermanWordBatchResponse {
   if (!isRecord(payload)) throw new GeminiRequestError("The AI returned an invalid word batch.");
-  const level = readEnum(payload.level, "word level", new Set<GermanWordBatchLevel>(["A1", "A2"]));
+  const level = readEnum(payload.level, "word level", GERMAN_WORD_BATCH_LEVELS);
   if (!Array.isArray(payload.words)) throw new GeminiRequestError("The AI returned an invalid word list.");
   const words = payload.words.map(parseGermanWordRecord);
   return {
@@ -476,7 +492,7 @@ export function parseGermanWordBatch(payload: unknown): GermanWordBatchResponse 
 
 export async function generateGermanWordBatch(target: string | AiSettings, input: GermanWordBatchRequest): Promise<GermanWordBatchResponse> {
   const settings = settingsForTarget(target);
-  if (settings.provider === "gemini" || settings.provider === "ollama") {
+  if (settings.provider === "gemini" || settings.provider === "ollama" || settings.provider === "webllm") {
     return parseGermanWordBatch(await requestStructuredAi(settings, wordBatchPrompt(input)));
   }
   let response: Response;

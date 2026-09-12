@@ -25,6 +25,11 @@ describe("Gemini card review bridge", () => {
       apiKey: "",
       model: "qwen2.5:3b",
     });
+    expect(normalizeAiSettings({ provider: "webllm", endpoint: "https://should-not-be-used", model: "gemini-2.0-flash" })).toMatchObject({
+      provider: "webllm",
+      endpoint: "",
+      model: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+    });
     expect(getDefaultAiSettings().provider).toBe("off");
   });
 
@@ -165,6 +170,10 @@ describe("Gemini German word agent bridge", () => {
     });
   });
 
+  it("accepts every supported CEFR level", () => {
+    expect(parseGermanWordBatch({ level: "C1", words: [{ ...word, id: "gemini-c1-zuverlaessig", level: "C1", german: "zuverlässig", article: "none", partOfSpeech: "adjective" }] }).level).toBe("C1");
+  });
+
   it("normalizes a German part-of-speech label from the bridge", () => {
     const result = parseGermanWordBatch({ level: "A1", words: [{ ...word, article: "none", german: "schnell", partOfSpeech: "Adjektiv" }] });
     expect(result.words[0]?.partOfSpeech).toBe("adjective");
@@ -187,11 +196,12 @@ describe("Gemini German word agent bridge", () => {
   });
 
   it("posts the word batch request without exposing a Gemini key", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ level: "A2", words: [{ ...word, level: "A2" }], requestedCount: 1, returnedCount: 1 }), { status: 200 }));
-    const result = await generateGermanWordBatch("/api/sync", { level: "A2", count: 1, existingWords: ["Eis"] });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ level: "B2", words: [{ ...word, id: "gemini-b2-sorgfaeltig", level: "B2", german: "sorgfältig", article: "none", partOfSpeech: "adjective" }], requestedCount: 1, returnedCount: 1 }), { status: 200 }));
+    const result = await generateGermanWordBatch("/api/sync", { level: "B2", count: 1, partOfSpeech: "adjective", existingWords: ["Eis"] });
 
-    expect(result.level).toBe("A2");
+    expect(result.level).toBe("B2");
     expect(fetchMock).toHaveBeenCalledWith("/api/gemini/word-batch", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({ level: "B2", partOfSpeech: "adjective" });
     expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("headers.x-goog-api-key");
   });
 });

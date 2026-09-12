@@ -1,6 +1,30 @@
+import { genConfig } from "react-nice-avatar";
+import type { AvatarFullConfig } from "react-nice-avatar";
+
 export type AvatarVariant = "beam" | "sunset" | "bauhaus" | "marble" | "ring";
+export type ProfileAvatarPreference = "nice" | "google";
+export type NiceAvatarConfig = Required<AvatarFullConfig>;
 
 const DAILY_VARIANTS: readonly AvatarVariant[] = ["beam", "sunset", "bauhaus", "ring"];
+
+export const NICE_AVATAR_OPTIONS = {
+  sex: ["man", "woman"],
+  faceColor: ["#F9C9B6", "#AC6651"],
+  earSize: ["small", "big"],
+  hairColor: ["#000", "#fff", "#77311D", "#FC909F", "#D2EFF3", "#506AF4", "#F48150"],
+  hairStyle: ["normal", "thick", "mohawk", "womanLong", "womanShort"],
+  hatColor: ["#000", "#fff", "#77311D", "#FC909F", "#D2EFF3", "#506AF4", "#F48150"],
+  hatStyle: ["beanie", "turban", "none"],
+  eyeStyle: ["circle", "oval", "smile"],
+  glassesStyle: ["round", "square", "none"],
+  noseStyle: ["short", "long", "round"],
+  mouthStyle: ["laugh", "smile", "peace"],
+  shirtStyle: ["hoody", "short", "polo"],
+  shirtColor: ["#9287FF", "#6BD9E9", "#FC909F", "#F4D150", "#77311D"],
+  bgColor: ["#9287FF", "#6BD9E9", "#FC909F", "#F4D150", "#E0DDFF", "#D2EFF3", "#FFEDEF", "#FFEBA4", "#506AF4", "#F48150", "#74D153"],
+} as const;
+
+type NiceAvatarOptionKey = keyof typeof NICE_AVATAR_OPTIONS;
 
 function hashValue(value: string): number {
   let hash = 0;
@@ -15,21 +39,6 @@ export interface DailyAvatar {
   variant: AvatarVariant;
 }
 
-export interface AvataaarsOptions {
-  avatarStyle: "Circle" | "Transparent";
-  topType: string;
-  accessoriesType: string;
-  hairColor: string;
-  facialHairType: string;
-  facialHairColor: string;
-  clotheType: string;
-  clotheColor: string;
-  eyeType: string;
-  eyebrowType: string;
-  mouthType: string;
-  skinColor: string;
-}
-
 export function getDailyAvatar(baseSeed: string, dayKey: string): DailyAvatar {
   const dailySeed = `${baseSeed}:${dayKey}`;
   return {
@@ -38,38 +47,39 @@ export function getDailyAvatar(baseSeed: string, dayKey: string): DailyAvatar {
   };
 }
 
-const AVATAAARS_OPTIONS = {
-  topType: ["ShortHairShortFlat", "ShortHairTheCaesar", "ShortHairSides", "LongHairStraight", "LongHairFro", "Hijab"] as const,
-  accessoriesType: ["Blank", "Prescription01", "Round", "Sunglasses"] as const,
-  hairColor: ["BrownDark", "Black", "Blonde", "PastelPink", "Red"] as const,
-  facialHairType: ["Blank", "BeardMedium", "MoustacheFancy"] as const,
-  facialHairColor: ["BrownDark", "Black", "Blonde", "Red"] as const,
-  clotheType: ["ShirtCrewNeck", "Hoodie", "CollarSweater", "BlazerShirt", "GraphicShirt"] as const,
-  clotheColor: ["PastelBlue", "PastelGreen", "PastelOrange", "Heather", "Blue01", "Gray01"] as const,
-  eyeType: ["Default", "Happy", "Wink", "Surprised"] as const,
-  eyebrowType: ["Default", "RaisedExcited", "UpDown", "Angry"] as const,
-  mouthType: ["Default", "Smile", "Serious", "Twinkle"] as const,
-  skinColor: ["Light", "Pale", "Tanned", "Brown", "DarkBrown"] as const,
-};
-
-function pickAvatarOption<T extends readonly string[]>(options: T, seed: number, offset: number): T[number] {
-  return options[(seed + offset * 17) % options.length];
+export function getNiceAvatarConfig(seed: string, overrides: Partial<NiceAvatarConfig> = {}): NiceAvatarConfig {
+  const generated = genConfig(seed || "Deutschly learner");
+  return {
+    ...generated,
+    hairColorRandom: false,
+    isGradient: false,
+    ...overrides,
+  };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function normalizeNiceAvatarConfig(value: unknown, seed: string): NiceAvatarConfig {
+  const fallback = getNiceAvatarConfig(seed);
+  if (!isRecord(value)) return fallback;
+
+  const next = { ...fallback } as Record<string, unknown>;
+  for (const key of Object.keys(NICE_AVATAR_OPTIONS) as NiceAvatarOptionKey[]) {
+    const candidate = value[key];
+    if (NICE_AVATAR_OPTIONS[key].includes(candidate as never)) next[key] = candidate;
+  }
+  if (typeof value.eyeBrowStyle === "string" && ["up", "upWoman"].includes(value.eyeBrowStyle)) next.eyeBrowStyle = value.eyeBrowStyle;
+  next.hairColorRandom = false;
+  next.isGradient = false;
+  return next as NiceAvatarConfig;
+}
+
+// Compatibility export for existing deterministic-avatar tests and saved
+// references from the previous generated-avatar implementation.
+export type AvataaarsOptions = NiceAvatarConfig;
+
 export function getAvataaarsOptions(baseSeed: string, dayKey: string): AvataaarsOptions {
-  const seed = hashValue(`${baseSeed}:${dayKey}`);
-  return {
-    avatarStyle: "Circle",
-    topType: pickAvatarOption(AVATAAARS_OPTIONS.topType, seed, 1),
-    accessoriesType: pickAvatarOption(AVATAAARS_OPTIONS.accessoriesType, seed, 2),
-    hairColor: pickAvatarOption(AVATAAARS_OPTIONS.hairColor, seed, 3),
-    facialHairType: pickAvatarOption(AVATAAARS_OPTIONS.facialHairType, seed, 4),
-    facialHairColor: pickAvatarOption(AVATAAARS_OPTIONS.facialHairColor, seed, 5),
-    clotheType: pickAvatarOption(AVATAAARS_OPTIONS.clotheType, seed, 6),
-    clotheColor: pickAvatarOption(AVATAAARS_OPTIONS.clotheColor, seed, 7),
-    eyeType: pickAvatarOption(AVATAAARS_OPTIONS.eyeType, seed, 8),
-    eyebrowType: pickAvatarOption(AVATAAARS_OPTIONS.eyebrowType, seed, 9),
-    mouthType: pickAvatarOption(AVATAAARS_OPTIONS.mouthType, seed, 10),
-    skinColor: pickAvatarOption(AVATAAARS_OPTIONS.skinColor, seed, 11),
-  };
+  return getNiceAvatarConfig(`${baseSeed}:${dayKey}`);
 }

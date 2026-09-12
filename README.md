@@ -39,7 +39,7 @@ Native downloads are published on the [latest release page](https://github.com/S
 - Adaptive reviews with keyboard controls, pronunciation, examples, XP, levels, and achievements.
 - Practice drills for articles, plurals, translations, sentence gaps, and mixed recall.
 - Personal cards, tags, search, weak-card filters, bulk actions, backups, and PDF source context.
-- A checked A1/A2 word bank with article, plural, part-of-speech, meaning, example, and source metadata.
+- A checked A1–C2 word bank with article, plural, part-of-speech, meaning, example, and source metadata.
 - Progress views for streaks, review activity, recall accuracy, daily goals, and milestones.
 - Local persistence by default, optional Google/Firebase sync, reminders, themes, and a signed native updater.
 
@@ -59,9 +59,16 @@ AI is optional. Open **Settings → AI & integrations** and choose one of these 
 | **My Cloudflare Worker** | Your own Worker URL and optional access key | No, unless your Worker runs a local/available model. |
 | **My Gemini API key** | Your Gemini key and model | No — the provider is remote. |
 | **Ollama on this device** | Local Ollama URL and downloaded model, for example qwen2.5:3b | Yes, after the model is installed. |
+| **On-device model (WebGPU)** | Choose it in Settings, then download the small Llama model once on a WebGPU-capable device | Yes, after the model is cached on that device. |
 | **Compatible bridge** | Any Deutschly-compatible bridge URL | Depends on that bridge. |
 
 Keys are stored locally on the device and are not included in the public build. If Firebase account sync is enabled, the selected AI configuration can follow the signed-in user; use a Firebase project and security rules you control, and avoid storing a key on a shared machine.
+
+The WebGPU model is downloaded from its model registry the first time you prepare it, then cached by the browser on that device. Android support depends on the installed WebView exposing WebGPU; when it does not, use the private PC bridge or Ollama instead. The app does not claim that every Android WebView can run an on-device model.
+
+### Repository visibility
+
+This GitHub repository is public, so its source and committed assets are readable by anyone. Learner cards, account data, API keys, and local sync rooms are not committed here; they stay in the browser/app or in the Firebase/private bridge you choose. A local computer path is never required by the sync UI.
 
 For the private LAN bridge:
 
@@ -88,7 +95,7 @@ These are the tested baselines for the downloadable builds:
 - **Windows:** Windows 10 1803 or newer, x64, with Microsoft WebView2 Evergreen installed or installable.
 - **Linux:** x86_64 distribution with WebKitGTK 4.1; Ubuntu 22.04+ and Debian 12+ are the supported baseline. AppImage may need FUSE or --appimage-extract-and-run.
 - **Android:** Android 7.0 / API 24 or newer. Use the APK for direct installation; the AAB is for a store pipeline.
-- **Web:** Current Chrome, Edge, Firefox, or Safari. Network access is required for the hosted site, account sync, remote AI, and deployments.
+- **Web:** Current Chrome, Edge, Firefox, or Safari. Network access is required for the hosted site, account sync, remote AI, and deployments; on-device AI additionally requires WebGPU.
 
 ## Run locally
 
