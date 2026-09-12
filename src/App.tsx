@@ -422,8 +422,10 @@ function shouldUseFirebaseRedirect(): boolean {
   if (typeof window === "undefined") return false;
   // Android WebView does not reliably create or communicate with the popup
   // window used by Firebase Auth. A top-level redirect keeps the flow in the
-  // same WebView and preserves its storage partition.
-  if (isTauriRuntime()) return canUseBrowserSessionStorage();
+  // same WebView and preserves its storage partition. Desktop Tauri builds
+  // use WebView2, where the popup flow is the reliable option; treating every
+  // Tauri build as Android leaves Windows users stuck on onboarding.
+  if (isTauriRuntime()) return isMobileAuthBrowser() && canUseBrowserSessionStorage();
   const firebaseHost = /(^|\.)web\.app$|(^|\.)firebaseapp\.com$/i.test(window.location.hostname);
   return firebaseHost && !isMobileAuthBrowser() && canUseBrowserSessionStorage();
 }
@@ -3588,6 +3590,7 @@ function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogl
               {configured && <button type="button" className="button button--outline onboarding-modal__choice" onClick={handleGoogleAction} disabled={busy}><GoogleLogo size={18} /><span>{busy ? "Opening Google..." : user ? "Review Google name" : "Continue with Google"}</span><ArrowRight size={16} aria-hidden="true" /></button>}
               <button type="button" className="button button--primary onboarding-modal__choice" onClick={() => { setStep("guest"); setError(""); }} disabled={busy}><span>Continue as guest</span><ArrowRight size={16} aria-hidden="true" /></button>
             </div>
+            {configured && <div className="onboarding-modal__notice onboarding-modal__notice--local" role="status"><Sparkles size={15} aria-hidden="true" /><span><strong>Google is optional.</strong> Start as a guest to enter the app; AI settings are available from your profile afterward.</span></div>}
             {!configured && <div className="onboarding-modal__notice" role="status"><Info size={15} aria-hidden="true" /><span>Google sign-in is not available in this build yet. You can start as a guest and connect an account later from Settings.</span></div>}
             {firebaseError && <div className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {firebaseError}</div>}
           </>
