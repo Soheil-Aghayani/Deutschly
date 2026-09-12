@@ -145,30 +145,47 @@ jobs:
               override fun onCreate(savedInstanceState: Bundle?) {
                   enableEdgeToEdge()
                   super.onCreate(savedInstanceState)
+                  window.decorView.setOnApplyWindowInsetsListener { _, insets ->
+                      currentInsets = readInsets(insets)
+                      publishInsets()
+                      insets
+                  }
+                  window.decorView.post { window.decorView.requestApplyInsets() }
               }
 
               override fun onWebViewCreate(webView: WebView) {
                   super.onWebViewCreate(webView)
                   contentWebView = webView
                   webView.addJavascriptInterface(InsetsBridge(), "DeutschlyAndroidInsets")
-                  webView.setOnApplyWindowInsetsListener { _, insets ->
-                      currentInsets = readInsets(insets)
-                      publishInsets()
-                      insets
-                  }
+                  requestInsets(webView)
+                  webView.postDelayed({ requestInsets(webView) }, 250)
+                  webView.postDelayed({ requestInsets(webView) }, 900)
+              }
+
+              override fun onWindowFocusChanged(hasFocus: Boolean) {
+                  super.onWindowFocusChanged(hasFocus)
+                  if (hasFocus) window.decorView.post { window.decorView.requestApplyInsets() }
+              }
+
+              private fun requestInsets(webView: WebView) {
                   webView.requestApplyInsets()
-                  webView.postDelayed({ publishInsets() }, 900)
+                  window.decorView.requestApplyInsets()
+                  webView.post { publishInsets() }
               }
 
               private fun readInsets(insets: WindowInsets): WindowInsetValues {
                   val density = resources.displayMetrics.density.coerceAtLeast(1f)
                   val (left, top, right, bottom) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                      val values = insets.getInsets(
-                          WindowInsets.Type.statusBars() or
-                              WindowInsets.Type.navigationBars() or
-                              WindowInsets.Type.displayCutout(),
+                      val systemBars = insets.getInsets(
+                          WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout(),
                       )
-                      listOf(values.left, values.top, values.right, values.bottom)
+                      val gestures = insets.getInsets(WindowInsets.Type.mandatorySystemGestures())
+                      listOf(
+                          maxOf(systemBars.left, gestures.left),
+                          systemBars.top,
+                          maxOf(systemBars.right, gestures.right),
+                          maxOf(systemBars.bottom, gestures.bottom),
+                      )
                   } else {
                       @Suppress("DEPRECATION")
                       listOf(

@@ -40,6 +40,28 @@ let firebaseApp: FirebaseApp | null = null;
 let firebaseAuth: Auth | null = null;
 let firebaseDb: Firestore | null = null;
 
+const FIREBASE_REDIRECT_PENDING_KEY = "deutschly:firebase-redirect-pending";
+
+function setFirebaseRedirectPending(pending: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (pending) window.sessionStorage.setItem(FIREBASE_REDIRECT_PENDING_KEY, "1");
+    else window.sessionStorage.removeItem(FIREBASE_REDIRECT_PENDING_KEY);
+  } catch {
+    // Redirect mode is only selected when sessionStorage is available. If it
+    // disappears during navigation, getRedirectResult must stay a no-op.
+  }
+}
+
+function hasFirebaseRedirectPending(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(FIREBASE_REDIRECT_PENDING_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 async function getFirebaseAppAsync(): Promise<FirebaseApp> {
   if (!firebaseConfigured) throw new FirebaseSetupError("Firebase is not configured for this build yet.");
   const { getApp, getApps, initializeApp } = await import("firebase/app");
@@ -100,17 +122,27 @@ export function subscribeToFirebaseAuth(onUser: (user: FirebaseUserSummary | nul
 }
 
 export async function finishFirebaseRedirectSignIn(): Promise<FirebaseUserSummary | null> {
-  if (!firebaseConfigured) return null;
+  if (!firebaseConfigured || !hasFirebaseRedirectPending()) return null;
   const [auth, { browserPopupRedirectResolver, getRedirectResult }] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
-  const result = await getRedirectResult(auth, browserPopupRedirectResolver);
-  return result?.user ? toUserSummary(result.user) : null;
+  try {
+    const result = await getRedirectResult(auth, browserPopupRedirectResolver);
+    return result?.user ? toUserSummary(result.user) : null;
+  } finally {
+    setFirebaseRedirectPending(false);
+  }
 }
 
 export async function signInWithFirebaseProvider(provider: FirebaseAuthProvider, useRedirect: boolean): Promise<FirebaseUserSummary | null> {
   const [auth, authModule] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
   const authProvider = provider === "google" ? new authModule.GoogleAuthProvider() : new authModule.GithubAuthProvider();
   if (useRedirect) {
-    await authModule.signInWithRedirect(auth, authProvider, authModule.browserPopupRedirectResolver);
+    setFirebaseRedirectPending(true);
+    try {
+      await authModule.signInWithRedirect(auth, authProvider, authModule.browserPopupRedirectResolver);
+    } catch (error) {
+      setFirebaseRedirectPending(false);
+      throw error;
+    }
     return null;
   }
   const result = await authModule.signInWithPopup(auth, authProvider, authModule.browserPopupRedirectResolver);

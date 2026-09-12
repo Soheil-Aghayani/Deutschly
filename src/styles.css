@@ -549,7 +549,7 @@ svg {
   align-items: center;
   justify-content: space-between;
   min-height: calc(76px + var(--app-safe-top));
-  padding: var(--app-safe-top) 40px 0;
+  padding: var(--app-safe-top) max(40px, var(--app-safe-right)) 0 max(40px, var(--app-safe-left));
   background: color-mix(in srgb, var(--background) 88%, transparent);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(16px);
@@ -656,7 +656,7 @@ svg {
 .main-content {
   width: 100%;
   max-width: 1480px;
-  padding: 34px 40px 58px;
+  padding: 34px max(40px, var(--app-safe-right)) 58px max(40px, var(--app-safe-left));
   margin: 0 auto;
 }
 
@@ -7939,7 +7939,7 @@ svg {
 
   .topbar {
     min-height: calc(68px + var(--app-safe-top));
-    padding: var(--app-safe-top) 18px 0;
+    padding: var(--app-safe-top) max(18px, var(--app-safe-right)) 0 max(18px, var(--app-safe-left));
   }
 
   .mobile-brand {
@@ -7984,7 +7984,7 @@ svg {
   }
 
   .main-content {
-    padding: 26px 18px 32px;
+    padding: 26px max(18px, var(--app-safe-right)) 32px max(18px, var(--app-safe-left));
   }
 
   .mobile-nav {
@@ -7996,7 +7996,7 @@ svg {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     min-height: calc(66px + var(--app-safe-bottom));
-    padding: 6px 8px max(6px, var(--app-safe-bottom));
+    padding: 6px max(8px, var(--app-safe-right)) max(6px, var(--app-safe-bottom)) max(8px, var(--app-safe-left));
     background: color-mix(in srgb, var(--surface) 94%, transparent);
     border-top: 1px solid var(--border);
     box-shadow: 0 -7px 25px rgba(36, 45, 77, 0.06);
