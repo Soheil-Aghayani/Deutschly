@@ -5959,11 +5959,13 @@ svg {
 }
 
 .settings-sections {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
 .settings-section {
+  flex: 0 0 auto;
   padding: 14px;
   background: var(--surface-soft);
   border: 1px solid var(--border);
@@ -5977,14 +5979,10 @@ svg {
 }
 
 .settings-section--disclosure {
-  align-self: start;
+  align-self: stretch;
   min-height: 62px;
   padding: 0;
   overflow: hidden;
-}
-
-.settings-section--disclosure[open] {
-  min-height: min-content;
 }
 
 .settings-section__summary {

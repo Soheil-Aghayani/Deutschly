@@ -1,6 +1,6 @@
 [package]
 name = "deutschly"
-version = "0.1.16"
+version = "0.1.17"
 description = "Deutschly — German flashcards that stick"
 authors = ["Soheil Aghayani"]
 license = "MIT"
