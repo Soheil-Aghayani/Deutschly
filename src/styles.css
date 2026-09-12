@@ -14,14 +14,9 @@
   text-rendering: optimizeLegibility;
 }
 
-/* Native Android applies the same insets as real WebView padding. Keep the
-   CSS safe-area layer at zero there so fixed elements are not inset twice. */
-html[data-native-window-insets="padded"] {
-  --app-safe-top: 0px;
-  --app-safe-right: 0px;
-  --app-safe-bottom: 0px;
-  --app-safe-left: 0px;
-}
+/* Native Android publishes its system-bar insets to these variables. Keep
+   consuming them in CSS: fixed headers and bottom navigation do not inherit
+   WebView padding reliably, especially in edge-to-edge WebViews. */
 
 * {
   box-sizing: border-box;

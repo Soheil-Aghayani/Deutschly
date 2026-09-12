@@ -5,6 +5,10 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
+function isTauriRuntime(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
 function isStandaloneMode(): boolean {
   const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
   const displayModeMatches = typeof window.matchMedia === "function"
@@ -29,6 +33,16 @@ export function useInstallPrompt() {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    // The native Android/Desktop shell is already installed. Chromium can
+    // still expose the PWA install event inside its WebView, but showing that
+    // prompt would be both incorrect and confusing to native users.
+    if (isTauriRuntime()) {
+      setIsInstalled(true);
+      setIsIos(false);
+      setIsMobile(false);
+      return;
+    }
+
     setIsInstalled(isStandaloneMode());
     setIsIos(isIosDevice());
     setIsMobile(isMobileDevice());
@@ -51,7 +65,7 @@ export function useInstallPrompt() {
   }, []);
 
   const install = async () => {
-    if (!deferredPrompt) return false;
+    if (isTauriRuntime() || !deferredPrompt) return false;
     await deferredPrompt.prompt();
     const choice = await deferredPrompt.userChoice;
     setDeferredPrompt(null);

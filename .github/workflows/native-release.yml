@@ -139,7 +139,6 @@ jobs:
           import android.webkit.JavascriptInterface
           import android.webkit.WebView
           import androidx.activity.enableEdgeToEdge
-          import kotlin.math.roundToInt
 
           class MainActivity : TauriActivity() {
               private var contentWebView: WebView? = null
@@ -214,35 +213,36 @@ jobs:
 
               private fun refreshInsetsFromRoot() {
                   val root = contentRoot ?: findViewById<View>(android.R.id.content)
-                  val rootInsets = root.rootWindowInsets ?: return
+                  val rootInsets = window.decorView.rootWindowInsets ?: root.rootWindowInsets ?: return
                   currentInsets = readInsets(rootInsets)
                   applyNativeInsets()
                   publishInsets()
               }
 
               private fun applyNativeInsets() {
-                  val webView = contentWebView ?: return
-                  val insets = currentInsets
-                  webView.setPadding(
-                      insets.left.roundToInt(),
-                      insets.top.roundToInt(),
-                      insets.right.roundToInt(),
-                      insets.bottom.roundToInt(),
-                  )
+                  // Keep the WebView full-window and let the web UI consume
+                  // the published values. Padding the WebView does not move
+                  // fixed-position header/nav elements out of system bars.
+                  contentWebView?.setPadding(0, 0, 0, 0)
               }
 
               private fun readInsets(insets: WindowInsets): WindowInsetValues {
                   val density = resources.displayMetrics.density.coerceAtLeast(1f)
+                  val statusBarFallback = systemDimension("status_bar_height")
+                  val navigationBarFallback = maxOf(
+                      systemDimension("navigation_bar_height"),
+                      systemDimension("navigation_bar_height_gesture"),
+                  )
                   val (left, top, right, bottom) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                      val systemBars = insets.getInsetsIgnoringVisibility(
-                          WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout(),
-                      )
+                      val types = WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
+                      val visibleBars = insets.getInsets(types)
+                      val stableBars = insets.getInsetsIgnoringVisibility(types)
                       val gestures = insets.getInsetsIgnoringVisibility(WindowInsets.Type.mandatorySystemGestures())
                       listOf(
-                          maxOf(systemBars.left, gestures.left),
-                          systemBars.top,
-                          maxOf(systemBars.right, gestures.right),
-                          maxOf(systemBars.bottom, gestures.bottom),
+                          maxOf(visibleBars.left, stableBars.left, gestures.left),
+                          maxOf(visibleBars.top, stableBars.top),
+                          maxOf(visibleBars.right, stableBars.right, gestures.right),
+                          maxOf(visibleBars.bottom, stableBars.bottom, gestures.bottom),
                       )
                   } else {
                       @Suppress("DEPRECATION")
@@ -253,12 +253,19 @@ jobs:
                           insets.systemWindowInsetBottom,
                       )
                   }
+                  val safeTop = maxOf(top, statusBarFallback)
+                  val safeBottom = maxOf(bottom, navigationBarFallback)
                   return WindowInsetValues(
-                      top = top / density,
+                      top = safeTop / density,
                       right = right / density,
-                      bottom = bottom / density,
+                      bottom = safeBottom / density,
                       left = left / density,
                   )
+              }
+
+              private fun systemDimension(name: String): Int {
+                  val resourceId = resources.getIdentifier(name, "dimen", "android")
+                  return if (resourceId == 0) 0 else resources.getDimensionPixelSize(resourceId)
               }
 
               private fun publishInsets() {
@@ -268,7 +275,7 @@ jobs:
                       (function() {
                         var detail = {top: ${insets.top}, right: ${insets.right}, bottom: ${insets.bottom}, left: ${insets.left}};
                         window.__DEUTSCHLY_ANDROID_INSETS__ = detail;
-                        document.documentElement.dataset.nativeWindowInsets = 'padded';
+                        document.documentElement.dataset.nativeWindowInsets = 'provided';
                         window.dispatchEvent(new CustomEvent('deutschly:android-insets', {detail: detail}));
                       })();
                   """.trimIndent()

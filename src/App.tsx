@@ -4202,7 +4202,10 @@ export default function App() {
   const activeStudyCardId = studyCards[0]?.id ?? null;
   const syncConfigured = Boolean(syncEndpoint.trim() && syncRoom.length >= 6);
   const syncFingerprint = useMemo(() => getSyncFingerprint(state), [state]);
-  const showInstallPrompt = !installDismissed && !installPrompt.isInstalled && (installPrompt.canInstall || installPrompt.isIos || installPrompt.isMobile);
+  const showInstallPrompt = !isTauriRuntime()
+    && !installDismissed
+    && !installPrompt.isInstalled
+    && (installPrompt.canInstall || installPrompt.isIos || installPrompt.isMobile);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
