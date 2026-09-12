@@ -228,13 +228,18 @@ jobs:
                   val root = contentRoot ?: return
                   val insets = currentInsets
                   root.setPadding(
-                      insets.left.roundToInt(),
-                      insets.top.roundToInt(),
-                      insets.right.roundToInt(),
-                      insets.bottom.roundToInt(),
+                      toNativePixels(insets.left),
+                      toNativePixels(insets.top),
+                      toNativePixels(insets.right),
+                      toNativePixels(insets.bottom),
                   )
                   root.clipToPadding = true
+                  root.clipChildren = true
                   contentWebView?.setPadding(0, 0, 0, 0)
+              }
+
+              private fun toNativePixels(cssInset: Float): Int {
+                  return (cssInset * resources.displayMetrics.density).roundToInt()
               }
 
               private fun readInsets(insets: WindowInsets): WindowInsetValues {
@@ -249,11 +254,12 @@ jobs:
                       val visibleBars = insets.getInsets(types)
                       val stableBars = insets.getInsetsIgnoringVisibility(types)
                       val gestures = insets.getInsetsIgnoringVisibility(WindowInsets.Type.mandatorySystemGestures())
+                      val tappable = insets.getInsetsIgnoringVisibility(WindowInsets.Type.tappableElement())
                       listOf(
                           maxOf(visibleBars.left, stableBars.left, gestures.left),
                           maxOf(visibleBars.top, stableBars.top),
                           maxOf(visibleBars.right, stableBars.right, gestures.right),
-                          maxOf(visibleBars.bottom, stableBars.bottom, gestures.bottom),
+                          maxOf(visibleBars.bottom, stableBars.bottom, gestures.bottom, tappable.bottom),
                       )
                   } else {
                       @Suppress("DEPRECATION")
