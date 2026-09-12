@@ -65,7 +65,7 @@ jobs:
           releaseBody: |
             Deutschly native release. Use the Windows installer or Linux AppImage/deb for offline-first study. Android APK/AAB is uploaded by the mobile job.
 
-            The web edition remains available at https://soheil-aghayani.github.io/Deutschly/ for always-online access. Optional AI providers are configured per device in Settings.
+            The web edition remains available at https://deutschly-app-2026.web.app/ for always-online access. Optional AI providers are configured per device in Settings.
           releaseDraft: false
           prerelease: false
           uploadUpdaterJson: true

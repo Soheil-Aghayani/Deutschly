@@ -474,7 +474,7 @@ function SupportDeutschly() {
         <ChevronDown className="settings-section__chevron" size={17} aria-hidden="true" />
       </summary>
       <div className="settings-section__disclosure-content support-section__content">
-        <p className="support-section__intro">Deutschly is an independent project. If it helps you learn, you can leave a coffee with crypto—entirely optional, with no ads or interruptions.</p>
+        <p className="support-section__intro">Deutschly is an independent project for learners everywhere, including the United States. If it helps you learn, you can leave a coffee with crypto—entirely optional, with no ads or interruptions.</p>
         <div className="support-section__maker">
           <div><strong>Made independently by Soheil Aghayani</strong><small>Building calm tools for learning and keeping useful sources accessible.</small></div>
           <div className="support-section__links"><a href="https://github.com/Soheil-Aghayani" target="_blank" rel="noreferrer">GitHub <ExternalLink size={12} aria-hidden="true" /></a><a href="https://soheil-aghayani.github.io/" target="_blank" rel="noreferrer">Portfolio <ExternalLink size={12} aria-hidden="true" /></a></div>
@@ -511,6 +511,14 @@ function isFirebasePopupBlocked(error: unknown): boolean {
   return code === "auth/popup-blocked" || /popup.*blocked|blocked.*popup/i.test(message);
 }
 
+function isFirebasePopupUnavailable(error: unknown): boolean {
+  const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "";
+  return isFirebasePopupBlocked(error)
+    || code === "auth/popup-closed-by-user"
+    || code === "auth/cancelled-popup-request"
+    || code === "auth/operation-not-supported-in-this-environment";
+}
+
 function firebaseErrorMessage(error: unknown, context: FirebaseErrorContext = "account"): string {
   const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "";
   if (isFirebaseNetworkError(error)) {
@@ -524,6 +532,7 @@ function firebaseErrorMessage(error: unknown, context: FirebaseErrorContext = "a
     return "Google sign-in needs a fresh browser session. Open Deutschly in Chrome or Safari, refresh once, and try again, or continue as a guest.";
   }
   if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return "The sign-in window was closed.";
+  if (code === "auth/operation-not-supported-in-this-environment") return "This app shell cannot complete Google popup sign-in. Deutschly is switching to secure full-page sign-in; if it still fails, open the web edition in a current browser.";
   if (code === "auth/operation-not-allowed") return "This sign-in provider is not enabled in Firebase yet.";
   if (code === "auth/unauthorized-domain") return "Add this website to Firebase Authentication authorized domains.";
   if (code === "auth/requires-recent-login") return "Sign in again, then retry account deletion for security.";
@@ -554,12 +563,11 @@ function isMobileAuthBrowser(): boolean {
 
 function shouldUseFirebaseRedirect(): boolean {
   if (typeof window === "undefined") return false;
-  // Android WebView does not reliably create or communicate with the popup
-  // window used by Firebase Auth. A top-level redirect keeps the flow in the
-  // same WebView and preserves its storage partition. Desktop Tauri builds
-  // use WebView2, where the popup flow is the reliable option; treating every
-  // Tauri build as Android leaves Windows users stuck on onboarding.
-  if (isTauriRuntime()) return isMobileAuthBrowser() && canUseBrowserSessionStorage();
+  // Native shells should use one top-level flow on every device. Android
+  // WebView cannot reliably communicate with a popup, and Windows WebView2
+  // can leave a blocked popup fallback hanging on the onboarding screen.
+  // Redirect keeps the auth state in the app's one browser context.
+  if (isTauriRuntime()) return canUseBrowserSessionStorage();
   const firebaseHost = /(^|\.)web\.app$|(^|\.)firebaseapp\.com$/i.test(window.location.hostname);
   return firebaseHost && !isMobileAuthBrowser() && canUseBrowserSessionStorage();
 }
@@ -4115,7 +4123,7 @@ function SyncModal({
           <span className="sync-modal__connection-dot" aria-hidden="true" />
         </div>
         <div className={`sync-modal__steps${syncStatus === "syncing" ? " sync-modal__steps--active" : ""}`} aria-label="Sync setup steps">
-          <div><strong>1</strong><span>Open a terminal in the Deutschly project folder—the folder that contains <code>package.json</code>.</span></div>
+          <div><strong>1</strong><span>Open a terminal in the Deutschly project folder—the folder that contains <code>package.json</code>. Your personal computer path is never needed or shown.</span></div>
           <div><strong>2</strong><span>On the PC, run <code>npm run sync-server -- --host 0.0.0.0</code>. For free local AI, add <code>--ai-provider ollama</code>.</span></div>
           <div><strong>3</strong><span>Open the app on both devices over the same Wi-Fi network.</span></div>
           <div><strong>4</strong><span>Save the same room on both devices. Auto-sync can keep them up to date.</span></div>
@@ -5509,7 +5517,9 @@ export default function App() {
         showToast(`Signed in with ${provider === "google" ? "Google" : "GitHub"}.`);
       }
     } catch (error: unknown) {
-      if (!useRedirect && isFirebasePopupBlocked(error) && canUseBrowserSessionStorage()) {
+      const canRetryInThisShell = typeof window !== "undefined"
+        && (isTauriRuntime() || isMobileAuthBrowser() || /(^|\.)web\.app$|(^|\.)firebaseapp\.com$/i.test(window.location.hostname));
+      if (!useRedirect && isFirebasePopupUnavailable(error) && canUseBrowserSessionStorage() && canRetryInThisShell) {
         setFirebaseError("The sign-in popup was blocked. Opening secure Google sign-in in this window…");
         showToast("Opening secure Google sign-in…");
         try {

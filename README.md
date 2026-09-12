@@ -3,7 +3,7 @@
   <h1>DEUTSCHLY</h1>
   <p><strong>German that sticks — one focused review at a time.</strong></p>
   <p>
-    <a href="https://soheil-aghayani.github.io/Deutschly/"><strong>Open the web app →</strong></a>
+    <a href="https://deutschly-app-2026.web.app/"><strong>Open the web app →</strong></a>
     ·
     <a href="https://github.com/Soheil-Aghayani/Deutschly/releases/latest"><strong>Download native builds →</strong></a>
   </p>
@@ -14,7 +14,7 @@
   </p>
 </div>
 
-Deutschly is a calm, adaptive German flashcard workspace for a **Menschen A1.1** learning journey. It is available as a web app, an installable PWA, and signed native builds for Windows, Linux, and Android.
+Deutschly is a calm, adaptive German flashcard workspace for a **Menschen A1.1** learning journey. It is for learners everywhere, including the United States, and is available as a web app, an installable PWA, and signed native builds for Windows, Linux, and Android. The Firebase-hosted web edition is the recommended browser surface for Google sign-in; the GitHub Pages edition remains available as a public mirror.
 
 ## Choose your edition
 
