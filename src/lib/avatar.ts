@@ -24,6 +24,29 @@ export const NICE_AVATAR_OPTIONS = {
   bgColor: ["#9287FF", "#6BD9E9", "#FC909F", "#F4D150", "#E0DDFF", "#D2EFF3", "#FFEDEF", "#FFEBA4", "#506AF4", "#F48150", "#74D153"],
 } as const;
 
+const AVATAR_COLOR_NAMES: Record<string, string> = {
+  "#000": "Ink black",
+  "#fff": "Cloud white",
+  "#77311d": "Chestnut",
+  "#fc909f": "Coral pink",
+  "#d2eff3": "Ice blue",
+  "#506af4": "Cobalt blue",
+  "#f48150": "Tangerine",
+  "#f9c9b6": "Peach",
+  "#ac6651": "Warm brown",
+  "#9287ff": "Lavender",
+  "#6bd9e9": "Bright cyan",
+  "#f4d150": "Sunflower",
+  "#e0ddff": "Soft lilac",
+  "#ffedef": "Blush pink",
+  "#ffeba4": "Butter yellow",
+  "#74d153": "Leaf green",
+};
+
+export function getAvatarColorName(value: string): string {
+  return AVATAR_COLOR_NAMES[value.trim().toLowerCase()] ?? "Custom color";
+}
+
 type NiceAvatarOptionKey = keyof typeof NICE_AVATAR_OPTIONS;
 
 function hashValue(value: string): number {

@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Clock3,
   Cloud,
+  Compass,
   Copy,
   Coffee,
   Coins,
@@ -65,7 +66,7 @@ import NiceAvatar from "react-nice-avatar";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { PaginationControls } from "./components/PaginationControls";
 import { useInstallPrompt } from "./hooks/useInstallPrompt";
-import { getNiceAvatarConfig, NICE_AVATAR_OPTIONS, normalizeNiceAvatarConfig } from "./lib/avatar";
+import { getAvatarColorName, getNiceAvatarConfig, NICE_AVATAR_OPTIONS, normalizeNiceAvatarConfig } from "./lib/avatar";
 import type { NiceAvatarConfig, ProfileAvatarPreference } from "./lib/avatar";
 import { achievementCatalog, getAchievementDefinition } from "./lib/achievements";
 import { getPageSlice } from "./lib/pagination";
@@ -211,6 +212,7 @@ interface CardDraft {
   example: string;
   note: string;
   tags: string;
+  deck: string;
   sourcePage?: number;
   lesson: string;
   kind: CardKind;
@@ -232,6 +234,7 @@ interface StatCardProps {
 interface OverflowMenuItem {
   label: string;
   onSelect: () => void;
+  danger?: boolean;
 }
 
 interface FirebaseMergePrompt {
@@ -250,6 +253,16 @@ interface SyncConflict {
 interface WordBankInboxItem {
   word: GermanWordRecord;
   decision: WordBankDecision;
+}
+
+interface DeckSummary {
+  name: string;
+  cards: Flashcard[];
+  subtitle: string;
+  progress: number;
+  dueCount: number;
+  tone: "indigo" | "mint";
+  icon: LucideIcon;
 }
 
 const MOBILE_PAGE_SIZE = 3;
@@ -283,6 +296,7 @@ const AI_SETTINGS_KEY = "deutschly:ai-settings:v1";
 const SYNC_BASELINE_KEY = "deutschly:sync:baseline:v1";
 const REMINDER_SNOOZE_KEY = "deutschly:reminder:snooze:v3";
 const PWA_INSTALL_DISMISSED_KEY = "deutschly:pwa:install-dismissed:v1";
+const WELCOME_TOUR_COMPLETED_KEY = "deutschly:welcome-tour-completed:v1";
 const PROFILE_NAME_KEY = "deutschly:profile:name:v1";
 const PROFILE_MODE_KEY = "deutschly:profile:mode:v1";
 const AVATAR_PREFERENCE_KEY = "deutschly:profile:avatar-preference:v1";
@@ -398,6 +412,8 @@ const avatarEditorFields: Array<{ key: keyof typeof NICE_AVATAR_OPTIONS; label: 
   { key: "bgColor", label: "Background" },
 ];
 
+const avatarColorFields = new Set<keyof typeof NICE_AVATAR_OPTIONS>(["faceColor", "hairColor", "hatColor", "shirtColor", "bgColor"]);
+
 function AvatarEditor({ name, dayKey, photoURL, preference, config, onPreferenceChange, onConfigChange }: {
   name: string;
   dayKey: string;
@@ -426,7 +442,22 @@ function AvatarEditor({ name, dayKey, photoURL, preference, config, onPreference
       {preference === "nice" && editorOpen && <div id="avatar-editor-options" className="avatar-editor__options">
         <div className="avatar-editor__preview"><ProfileAvatar name={name} dayKey={dayKey} preference="nice" config={config} size={74} /><div><strong>Local and deterministic</strong><small>Your choices stay on this device and do not call an avatar service.</small></div></div>
         <div className="avatar-editor__grid">
-          {avatarEditorFields.map(({ key, label }) => <label className="form-field" key={key}><span>{label}</span><select value={String(config[key])} onChange={(event) => onConfigChange({ ...config, [key]: event.target.value } as NiceAvatarConfig)}>{NICE_AVATAR_OPTIONS[key].map((option) => <option value={option} key={option}>{option}</option>)}</select></label>)}
+          {avatarEditorFields.map(({ key, label }) => {
+            const value = String(config[key]);
+            const isColor = avatarColorFields.has(key);
+            return (
+              <label className={`form-field avatar-editor__field${isColor ? " avatar-editor__field--color" : ""}`} key={key}>
+                <span>{label}</span>
+                <div className="avatar-editor__select-wrap">
+                  <select value={value} onChange={(event) => onConfigChange({ ...config, [key]: event.target.value } as NiceAvatarConfig)}>
+                    {NICE_AVATAR_OPTIONS[key].map((option) => <option value={option} key={option}>{isColor ? `${getAvatarColorName(option)} · ${option}` : option}</option>)}
+                  </select>
+                  {isColor && <span className="avatar-editor__swatch" style={{ backgroundColor: value }} aria-hidden="true" />}
+                </div>
+                {isColor && <small className="avatar-editor__color-caption"><span>{getAvatarColorName(value)}</span><code>{value}</code></small>}
+              </label>
+            );
+          })}
         </div>
         <button type="button" className="button button--ghost avatar-editor__randomize" onClick={regenerate}><RefreshCw size={14} aria-hidden="true" /> Randomize</button>
       </div>}
@@ -1470,6 +1501,7 @@ function createCardDraft(seed: Partial<CardDraft> = {}): CardDraft {
     example: "",
     note: "",
     tags: "",
+    deck: "My cards",
     lesson: "Personal cards",
     kind: "word",
     referenceChecked: false,
@@ -1593,6 +1625,7 @@ function prepareCardDraft(draft: CardDraft): CardDraft {
     example: draft.example.trim(),
     note: draft.note.trim(),
     tags: draft.tags.trim(),
+    deck: draft.deck.trim() || "My cards",
     lesson: draft.lesson.trim() || "Personal cards",
     sourcePage: typeof draft.sourcePage === "number" && Number.isFinite(draft.sourcePage) && draft.sourcePage > 0
       ? Math.floor(draft.sourcePage)
@@ -1641,6 +1674,33 @@ function getAverageCardMastery(cards: Flashcard[]): number {
 
 function formatCardCount(cards: Flashcard[]): string {
   return `${cards.length} ${cards.length === 1 ? "card" : "cards"}`;
+}
+
+function getDeckSubtitle(name: string, cards: Flashcard[]): string {
+  if (name === "Menschen A1.1") return "German foundations";
+  if (cards.length > 0 && cards.every((card) => card.kind === "phrase")) return "Phrases & dialogues";
+  if (cards.some((card) => card.kind === "grammar")) return "Grammar & structures";
+  return "Personal vocabulary";
+}
+
+function getDeckSummaries(cards: Flashcard[], todayKey = getDayKey()): DeckSummary[] {
+  const grouped = new Map<string, Flashcard[]>();
+  cards.forEach((card) => {
+    const name = card.deck.trim() || "My cards";
+    const existing = grouped.get(name) ?? [];
+    existing.push(card);
+    grouped.set(name, existing);
+  });
+
+  return [...grouped.entries()].map(([name, deckCards], index) => ({
+    name,
+    cards: deckCards,
+    subtitle: getDeckSubtitle(name, deckCards),
+    progress: getAverageCardMastery(deckCards),
+    dueCount: deckCards.filter((card) => card.due <= todayKey).length,
+    tone: index % 2 === 0 ? "indigo" : "mint",
+    icon: deckCards.some((card) => card.kind === "phrase") ? Headphones : BookOpen,
+  }));
 }
 
 function getCardCheck(cards: Flashcard[], draft: CardDraft): CardCheckResult {
@@ -1787,7 +1847,7 @@ function OverflowMenu({ label, items, className = "" }: { label: string; items: 
   return (
     <div ref={menuRef} className={`overflow-menu${className ? ` ${className}` : ""}`}>
       <button ref={triggerRef} type="button" className="icon-button icon-button--small overflow-menu__trigger" onClick={() => setOpen((current) => !current)} aria-label={label} aria-expanded={open} aria-haspopup="menu" aria-controls={menuId} title={label}><MoreHorizontal size={17} aria-hidden="true" /></button>
-      {open && <div id={menuId} className="overflow-menu__panel" role="menu" aria-label={label} onKeyDown={handleMenuKeyDown}>{items.map((item, index) => <button ref={index === 0 ? firstItemRef : undefined} type="button" className="overflow-menu__item" role="menuitem" key={item.label} onClick={() => { closeMenu(true); item.onSelect(); }}>{item.label}</button>)}</div>}
+      {open && <div id={menuId} className="overflow-menu__panel" role="menu" aria-label={label} onKeyDown={handleMenuKeyDown}>{items.map((item, index) => <button ref={index === 0 ? firstItemRef : undefined} type="button" className={`overflow-menu__item${item.danger ? " overflow-menu__item--danger" : ""}`} role="menuitem" key={item.label} onClick={() => { closeMenu(true); item.onSelect(); }}>{item.label}</button>)}</div>}
     </div>
   );
 }
@@ -1898,6 +1958,8 @@ function OverviewPage({
   onStartReview,
   onAddCard,
   onOpenLibrary,
+  onOpenDeck,
+  onDeleteDeck,
   onViewProgress,
   onReminderToggle,
   onReminderTimeChange,
@@ -1914,6 +1976,8 @@ function OverviewPage({
   onStartReview: () => void;
   onAddCard: () => void;
   onOpenLibrary: () => void;
+  onOpenDeck: (deckName: string) => void;
+  onDeleteDeck: (deckName: string) => void;
   onViewProgress: () => void;
   onReminderToggle: () => void;
   onReminderTimeChange: (value: string) => void;
@@ -1932,10 +1996,12 @@ function OverviewPage({
   const reminderTargetLabel = formatReminderTarget(reminderTarget, currentTime);
   const reminderActionLabel = reminderSnoozedUntil ? "Cancel snooze" : "Snooze";
   const reminderActionDescription = reminderSnoozedUntil ? `Cancel snooze scheduled ${reminderTargetLabel}` : `Snooze reminder until ${reminderTargetLabel}`;
-  const menschenCards = state.cards.filter((card) => card.deck === "Menschen A1.1");
-  const listeningCards = state.cards.filter((card) => card.deck === "Everyday listening");
-  const courseProgress = getAverageCardMastery(menschenCards);
-  const listeningProgress = getAverageCardMastery(listeningCards);
+  const deckSummaries = getDeckSummaries(state.cards);
+  const continueDeck = deckSummaries.find((deck) => deck.name === dueCards[0]?.deck) ?? deckSummaries[0];
+  const continueCard = dueCards.find((card) => card.deck === continueDeck?.name) ?? continueDeck?.cards[0];
+  const continueDueCount = continueDeck?.dueCount ?? 0;
+  const continueProgress = continueDeck?.progress ?? 0;
+  const ContinueDeckIcon = continueDeck?.icon ?? BookOpen;
   const week = [
     { label: "M", value: state.weeklyReviews[0] ?? 0 },
     { label: "T", value: state.weeklyReviews[1] ?? 0 },
@@ -2020,8 +2086,8 @@ function OverviewPage({
 
       <section className="stats-grid" aria-label="Your statistics">
         <StatCard icon={Flame} label="Current streak" value={`${state.streak} days`} detail={`Best: ${state.bestStreak} days`} tone="orange" active={hasActivityToday} complete={goalComplete} menuItems={[{ label: "View progress", onSelect: onViewProgress }]} />
-        <StatCard icon={BookMarked} label="Mastered cards" value={String(state.mastered)} detail="+18 this month" tone="indigo" menuItems={[{ label: "Open library", onSelect: onOpenLibrary }]} />
-        <StatCard icon={Timer} label="Study time" value={`${state.studyMinutes} min`} detail="Today · 24 min goal" tone="mint" menuItems={[{ label: "View progress", onSelect: onViewProgress }]} />
+        <StatCard icon={BookMarked} label="Mastered cards" value={String(state.mastered)} detail={`${state.totalReviews} total reviews`} tone="indigo" menuItems={[{ label: "Open library", onSelect: onOpenLibrary }]} />
+        <StatCard icon={Timer} label="Study time" value={`${state.studyMinutes} min`} detail={`${state.dailyGoal} cards daily goal`} tone="mint" menuItems={[{ label: "View progress", onSelect: onViewProgress }]} />
       </section>
 
       <section className="content-grid">
@@ -2030,30 +2096,29 @@ function OverviewPage({
           <article className="continue-card">
             <div className="continue-card__content">
               <div className="continue-card__topline">
-                <span className="deck-pill"><BookOpen size={14} aria-hidden="true" /> Menschen A1.1</span>
-                <span className="muted-label">{dueCards.length} due · {getPracticeSessionLength(getLevelProgress(state.xp).level, dueCards.length)} this session</span>
+                <span className="deck-pill"><ContinueDeckIcon size={14} aria-hidden="true" /> {continueDeck?.name ?? "Your library"}</span>
+                <span className="muted-label">{continueDueCount} due · {getPracticeSessionLength(getLevelProgress(state.xp).level, continueDueCount)} this session</span>
               </div>
-              <h3>Vocabulary essentials</h3>
-              <p>Lessons 1–6 · nouns, everyday phrases, and your first conversations.</p>
-              <div className="mini-progress"><span style={{ width: `${courseProgress}%` }} /></div>
+              <h3>{continueDeck?.name ?? "Build your library"}</h3>
+              <p>{continueDeck ? `${continueDeck.subtitle} · ${formatCardCount(continueDeck.cards)}` : "Add a card to start a personal review rhythm."}</p>
+              <div className="mini-progress"><span style={{ width: `${continueProgress}%` }} /></div>
               <div className="continue-card__footer">
-                <span>{courseProgress}% complete</span>
+                <span>{continueProgress}% mastered</span>
                 <button type="button" className="inline-button" onClick={onStartReview}>{dueCards.length > 0 ? "Continue" : "Open practice"} <ArrowRight size={15} aria-hidden="true" /></button>
               </div>
             </div>
-            <div className="flashcard-preview" aria-label="Flashcard preview">
-              <div className="flashcard-preview__topline"><ArticleBadge article="der" compact /><span>Word</span></div>
-              <strong>Bahnhof</strong>
-              <span>railway station</span>
-              <div className="flashcard-preview__example">Der Bahnhof ist in der Nähe.</div>
-              <PronunciationButton text="der Bahnhof" />
-            </div>
+            {continueCard ? <div className="flashcard-preview" aria-label="Flashcard preview">
+              <div className="flashcard-preview__topline"><ArticleBadge article={continueCard.article} partOfSpeech={continueCard.partOfSpeech} compact /><span>{continueCard.kind === "phrase" ? "Phrase" : continueCard.kind === "grammar" ? "Grammar" : "Word"}</span></div>
+              <strong>{continueCard.german}</strong>
+              <span>{continueCard.translation}</span>
+              {continueCard.example && <div className="flashcard-preview__example">{continueCard.example}</div>}
+              <PronunciationButton text={`${continueCard.article !== "none" ? `${continueCard.article} ` : ""}${continueCard.german}`} />
+            </div> : <div className="flashcard-preview flashcard-preview--empty" aria-label="No flashcard yet"><Sparkles size={20} aria-hidden="true" /><strong>Your next card starts here.</strong><span>Add a word, phrase, or grammar item to begin.</span></div>}
           </article>
 
           <SectionHeading eyebrow="YOUR COLLECTION" title="Your decks" action={{ label: "View library", onClick: onOpenLibrary }} />
           <div className="deck-grid">
-            <DeckCard icon={BookOpen} title="Menschen A1.1" subtitle="Course vocabulary" progress={courseProgress} count={formatCardCount(menschenCards)} tone="indigo" onClick={onOpenLibrary} onAddCard={onAddCard} />
-            <DeckCard icon={Headphones} title="Everyday listening" subtitle="Phrases & dialogues" progress={listeningProgress} count={formatCardCount(listeningCards)} tone="mint" onClick={onOpenLibrary} onAddCard={onAddCard} />
+            {deckSummaries.map((deck) => <DeckCard icon={deck.icon} title={deck.name} subtitle={deck.subtitle} progress={deck.progress} count={formatCardCount(deck.cards)} tone={deck.tone} onClick={() => onOpenDeck(deck.name)} onAddCard={onAddCard} onDelete={() => onDeleteDeck(deck.name)} key={deck.name} />)}
             <button type="button" className="new-deck-card" onClick={onAddCard}>
               <span className="new-deck-card__icon"><Plus size={20} aria-hidden="true" /></span>
               <strong>Add your own cards</strong>
@@ -2127,7 +2192,7 @@ function OverviewPage({
   );
 }
 
-function DeckCard({ icon: Icon, title, subtitle, progress, count, tone, onClick, onAddCard }: { icon: LucideIcon; title: string; subtitle: string; progress: number; count: string; tone: "indigo" | "mint"; onClick: () => void; onAddCard: () => void }) {
+function DeckCard({ icon: Icon, title, subtitle, progress, count, tone, onClick, onAddCard, onDelete }: { icon: LucideIcon; title: string; subtitle: string; progress: number; count: string; tone: "indigo" | "mint"; onClick: () => void; onAddCard: () => void; onDelete: () => void }) {
   return (
     <article className="deck-card">
       <button type="button" className="deck-card__main" onClick={onClick}>
@@ -2137,7 +2202,7 @@ function DeckCard({ icon: Icon, title, subtitle, progress, count, tone, onClick,
         <div className="deck-card__progress"><span style={{ width: `${progress}%` }} /></div>
         <div className="deck-card__footer"><span>{progress}% mastered</span><span>{count}</span></div>
       </button>
-      <OverflowMenu label={`More options for ${title}`} items={[{ label: "Open in library", onSelect: onClick }, { label: "Add a card", onSelect: onAddCard }]} className="deck-card__menu" />
+      <OverflowMenu label={`More options for ${title}`} items={[{ label: "Open in library", onSelect: onClick }, { label: "Add a card", onSelect: onAddCard }, { label: "Delete deck", onSelect: onDelete, danger: true }]} className="deck-card__menu" />
     </article>
   );
 }
@@ -2162,7 +2227,7 @@ function StudyPage({
   queueSession: boolean;
   showAnswer: boolean;
   onShowAnswer: () => void;
-  onRate: (rating: ReviewRating) => void;
+  onRate: (cardId: string, rating: ReviewRating) => void;
   onBack: () => void;
   onAddCard: () => void;
   onContinueReview: () => void;
@@ -2252,7 +2317,7 @@ function StudyPage({
 
       <div className="study-layout">
         <div className={`study-main${showAnswer ? " study-main--answered" : ""}`}>
-          <article className={`study-card${showAnswer ? " study-card--answered" : ""}`}>
+          <article className={`study-card${showAnswer ? " study-card--answered" : ""}`} key={card.id}>
             <div className="study-card__meta">
               <div className="study-card__source"><BookOpen size={15} aria-hidden="true" /> {card.deck} <span>·</span> {card.lesson}{card.sourcePage && <span> · p. {card.sourcePage}</span>}</div>
               <ArticleBadge article={card.article} partOfSpeech={card.partOfSpeech} />
@@ -2293,7 +2358,7 @@ function StudyPage({
                 {ratingMeta.map(({ id, label, detail, icon: Icon }) => {
                   const nextInterval = scheduleReview(card, id, getDayKey()).interval;
                   return (
-                  <button type="button" className={`rating-button rating-button--${id}`} key={id} onClick={() => onRate(id)}>
+                  <button type="button" className={`rating-button rating-button--${id}`} key={id} onClick={() => onRate(card.id, id)}>
                     <Icon size={16} aria-hidden="true" />
                     <span><strong>{label}</strong><small>{detail}</small></span>
                     <em>{nextInterval} day{nextInterval === 1 ? "" : "s"}</em>
@@ -3295,6 +3360,21 @@ function DeleteCardModal({ card, onClose, onConfirm }: { card: Flashcard; onClos
   );
 }
 
+function DeleteDeckModal({ name, count, onClose, onConfirm }: { name: string; count: number; onClose: () => void; onConfirm: () => void }) {
+  const panelRef = useModalFocus<HTMLElement>(onClose);
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={panelRef} className="modal-panel delete-card-modal" role="dialog" aria-modal="true" aria-labelledby="delete-deck-title">
+        <div className="modal-panel__heading"><div><span className="section-eyebrow">REMOVE FROM LIBRARY</span><h2 id="delete-deck-title">Delete this deck?</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Close delete deck dialog" title="Close"><X size={19} aria-hidden="true" /></button></div>
+        <p className="modal-panel__intro">This removes <strong>{name}</strong>, its {count} card{count === 1 ? "" : "s"}, and their review history from this device. You can restore everything with Undo right after deleting.</p>
+        <div className="delete-card-summary bulk-delete-summary"><div className="bulk-delete-summary__icon" aria-hidden="true"><Trash2 size={18} /></div><div className="delete-card-summary__copy"><strong>{name}</strong><span>{count} card{count === 1 ? "" : "s"} will be removed</span></div></div>
+        <div className="modal-panel__footer"><span><Info size={15} aria-hidden="true" /> Other decks and your course PDF stay saved.</span><div><button type="button" className="button button--ghost" onClick={onClose}>Cancel</button><button type="button" className="button button--danger" onClick={onConfirm}><Trash2 size={15} aria-hidden="true" /> Delete deck</button></div></div>
+      </section>
+    </div>
+  );
+}
+
 function BulkDeleteModal({ count, onClose, onConfirm }: { count: number; onClose: () => void; onConfirm: () => void }) {
   const panelRef = useModalFocus<HTMLElement>(onClose);
 
@@ -3810,6 +3890,71 @@ function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogl
   );
 }
 
+interface WelcomeTourProps {
+  name: string;
+  onComplete: () => void;
+}
+
+const welcomeTourSteps: Array<{ eyebrow: string; title: string; description: string; detail: string; icon: LucideIcon }> = [
+  {
+    eyebrow: "YOUR LEARNING SPACE",
+    title: "A calmer way to keep German close.",
+    description: "Welcome, {name}. Deutschly is built for small, repeatable moments—not noisy streak chasing.",
+    detail: "Start with what is ready today, then let the rhythm grow with you.",
+    icon: Sparkles,
+  },
+  {
+    eyebrow: "STUDY NOW",
+    title: "Review when your memory needs it.",
+    description: "Study now brings back due cards and spaces the next review based on how each one felt.",
+    detail: "Try to recall first. A rating is enough to guide the next return.",
+    icon: Brain,
+  },
+  {
+    eyebrow: "YOUR LIBRARY",
+    title: "Build a library that feels like yours.",
+    description: "Add words, phrases, and grammar from your lessons—or browse the checked word bank before saving anything.",
+    detail: "You stay in control of every card that enters your study space.",
+    icon: Library,
+  },
+  {
+    eyebrow: "PRIVATE BY DEFAULT",
+    title: "Choose how connected you want to be.",
+    description: "Guest mode stays on this device. Google sync is optional, and AI can stay local when your device supports it.",
+    detail: "You can change these choices later from your profile settings.",
+    icon: Compass,
+  },
+];
+
+function WelcomeTour({ name, onComplete }: WelcomeTourProps) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const panelRef = useModalFocus<HTMLElement>();
+  const step = welcomeTourSteps[stepIndex];
+  const StepIcon = step.icon;
+  const isLastStep = stepIndex === welcomeTourSteps.length - 1;
+  const description = step.description.replace("{name}", name || "there");
+
+  return (
+    <div className="modal-backdrop modal-backdrop--tour" role="presentation">
+      <section ref={panelRef} className="modal-panel tour-modal" role="dialog" aria-modal="true" aria-labelledby="welcome-tour-title" aria-describedby="welcome-tour-description">
+        <div className="tour-modal__topline"><span className="section-eyebrow">A QUICK TOUR</span><button type="button" className="text-button" onClick={onComplete}>Skip tour</button></div>
+        <div className="tour-modal__icon" aria-hidden="true"><StepIcon size={24} /></div>
+        <div className="tour-modal__step-label">{step.eyebrow}</div>
+        <h2 id="welcome-tour-title">{step.title}</h2>
+        <p id="welcome-tour-description" className="tour-modal__description">{description}</p>
+        <div className="tour-modal__detail"><Check size={15} aria-hidden="true" /><span>{step.detail}</span></div>
+        <div className="tour-modal__progress" role="group" aria-label={`Tour step ${stepIndex + 1} of ${welcomeTourSteps.length}`}>
+          {welcomeTourSteps.map((tourStep, index) => <span key={tourStep.eyebrow} className={index === stepIndex ? "is-active" : index < stepIndex ? "is-complete" : ""} aria-hidden="true" />)}
+        </div>
+        <div className="tour-modal__footer">
+          <button type="button" className="button button--ghost" onClick={() => setStepIndex((current) => Math.max(0, current - 1))} disabled={stepIndex === 0}>Back</button>
+          <button type="button" className="button button--primary" onClick={() => isLastStep ? onComplete() : setStepIndex((current) => current + 1)}>{isLastStep ? "Start learning" : "Next"}<ArrowRight size={15} aria-hidden="true" /></button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function FirebaseAccountSection({
   configured,
   user,
@@ -3875,6 +4020,7 @@ interface ProfileModalProps {
   onExportBackup: () => void;
   onImportBackup: (event: ChangeEvent<HTMLInputElement>) => void;
   onOpenSync: () => void;
+  onOpenTour: () => void;
   onResetProgress: () => void;
   onInstallApp: () => void;
   isNativeApp: boolean;
@@ -3932,6 +4078,7 @@ function ProfileModal({
   onExportBackup,
   onImportBackup,
   onOpenSync,
+  onOpenTour,
   onResetProgress,
   onInstallApp,
   isNativeApp,
@@ -4057,10 +4204,11 @@ function ProfileModal({
             <div className="settings-action-grid"><button type="button" className="button button--outline" onClick={onExportBackup}><Download size={15} aria-hidden="true" /> Export backup</button><button type="button" className="button button--outline" onClick={() => backupInputRef.current?.click()}><Upload size={15} aria-hidden="true" /> Import backup</button><button type="button" className="button button--outline" onClick={onOpenSync}><Cloud size={15} aria-hidden="true" /> Sync devices</button><button type="button" className="button button--ghost settings-danger-action" onClick={onResetProgress}><RefreshCw size={15} aria-hidden="true" /> Reset progress</button></div>
           </section>
 
-            <section className="settings-section" aria-labelledby="settings-app-title">
-              <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Download size={16} /></span><div><h3 id="settings-app-title">App</h3><p>Make Deutschly easy to return to on your phone or computer.</p></div></div>
-              <div className="settings-row settings-app-row"><div className="settings-row__copy"><strong>Install Deutschly</strong><small>{installCopy}</small></div>{!isInstalled && canInstall && <button type="button" className="button button--outline" onClick={onInstallApp}>Install app</button>}{isInstalled && <span className="settings-status settings-status--success"><CheckCircle2 size={14} aria-hidden="true" /> Installed</span>}</div>
-               {isNativeApp && <div className="settings-row settings-app-row settings-app-row--update"><div className="settings-row__copy"><strong>{nativeUpdateVersion ? `Deutschly ${nativeUpdateVersion} is ready` : "Native updates"}</strong><small>{nativeUpdateVersion ? "Install it when you are ready. Your local cards and settings are kept." : "Deutschly checks for signed updates without interrupting your study."}</small></div><div className="settings-action-inline">{nativeUpdateVersion && <button type="button" className="button button--primary" onClick={onInstallNativeUpdate} disabled={nativeUpdateInstalling}>{nativeUpdateInstalling ? "Installing..." : "Install update"}</button>}<button type="button" className="button button--outline" onClick={onCheckForNativeUpdate} disabled={nativeUpdateChecking || nativeUpdateInstalling}>{nativeUpdateChecking ? "Checking..." : "Check now"}</button></div></div>}
+              <section className="settings-section" aria-labelledby="settings-app-title">
+                <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Download size={16} /></span><div><h3 id="settings-app-title">App</h3><p>Make Deutschly easy to return to on your phone or computer.</p></div></div>
+                <div className="settings-row settings-app-row"><div className="settings-row__copy"><strong>Install Deutschly</strong><small>{installCopy}</small></div>{!isInstalled && canInstall && <button type="button" className="button button--outline" onClick={onInstallApp}>Install app</button>}{isInstalled && <span className="settings-status settings-status--success"><CheckCircle2 size={14} aria-hidden="true" /> Installed</span>}</div>
+                <div className="settings-row settings-app-row"><div className="settings-row__copy"><strong>Quick tour</strong><small>Revisit the four calm steps that explain how Deutschly fits together.</small></div><button type="button" className="button button--outline" onClick={onOpenTour}><Compass size={15} aria-hidden="true" /> Show tour</button></div>
+                {isNativeApp && <div className="settings-row settings-app-row settings-app-row--update"><div className="settings-row__copy"><strong>{nativeUpdateVersion ? `Deutschly ${nativeUpdateVersion} is ready` : "Native updates"}</strong><small>{nativeUpdateVersion ? "Install it when you are ready. Your local cards and settings are kept." : "Deutschly checks for signed updates without interrupting your study."}</small></div><div className="settings-action-inline">{nativeUpdateVersion && <button type="button" className="button button--primary" onClick={onInstallNativeUpdate} disabled={nativeUpdateInstalling}>{nativeUpdateInstalling ? "Installing..." : "Install update"}</button>}<button type="button" className="button button--outline" onClick={onCheckForNativeUpdate} disabled={nativeUpdateChecking || nativeUpdateInstalling}>{nativeUpdateChecking ? "Checking..." : "Check now"}</button></div></div>}
              </section>
 
            <SupportDeutschly />
@@ -4156,6 +4304,7 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
   const germanInputRef = useRef<HTMLInputElement>(null);
   const hasPrefilledContent = Boolean(initialDraft?.german?.trim() || initialDraft?.translation?.trim());
   const panelRef = useModalFocus<HTMLElement>(onClose, hasPrefilledContent ? undefined : () => germanInputRef.current, !hasPrefilledContent);
+  const existingDecks = [...new Set(existingCards.map((card) => card.deck.trim()).filter(Boolean))].sort();
   const wordSuggestions = useMemo(() => {
     if (editing || draft.kind !== "word" || normalizeGermanTerm(draft.german).length < 2) return [];
     return searchGermanWords(draft.german, 5);
@@ -4293,9 +4442,10 @@ function AddCardModal({ onClose, onSave, onDelete, existingCards, initialDraft, 
           </section>
           <section className="flashcard-form__section" aria-labelledby="flashcard-organize-heading">
             <div className="flashcard-form__section-heading"><span>3</span><div><strong id="flashcard-organize-heading">Organize your card</strong><small>Keep it easy to find in your personal library.</small></div></div>
-            <div className="form-grid form-grid--three">
+            <div className="form-grid form-grid--four">
               <label className="form-field" htmlFor="card-tags"><span>Tags</span><input id="card-tags" value={draft.tags} onChange={(event) => update("tags", event.target.value)} placeholder="e.g. lesson-1, difficult, travel" /></label>
               <label className="form-field" htmlFor="card-lesson"><span>Lesson or collection</span><input id="card-lesson" value={draft.lesson} onChange={(event) => update("lesson", event.target.value)} placeholder="e.g. Lesson 1" /></label>
+              <label className="form-field" htmlFor="card-deck"><span>Deck</span><input id="card-deck" list="card-deck-options" value={draft.deck} onChange={(event) => update("deck", event.target.value)} placeholder="e.g. Travel German" /><datalist id="card-deck-options">{existingDecks.map((deck) => <option value={deck} key={deck} />)}</datalist></label>
               <label className="form-field" htmlFor="card-source-page"><span>PDF page <small>(optional)</small></span><input id="card-source-page" type="number" min="1" value={draft.sourcePage ?? ""} onChange={(event) => update("sourcePage", event.target.value ? Number(event.target.value) : undefined)} placeholder="e.g. 14" /></label>
             </div>
           </section>
@@ -4357,6 +4507,7 @@ export default function App() {
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [wordBankReviewId, setWordBankReviewId] = useState<string | null>(null);
   const [deleteCardId, setDeleteCardId] = useState<string | null>(null);
+  const [deleteDeckName, setDeleteDeckName] = useState<string | null>(null);
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [profileName, setProfileName] = useState(() => loadProfileName());
@@ -4364,6 +4515,7 @@ export default function App() {
   const [avatarConfig, setAvatarConfig] = useState<NiceAvatarConfig>(() => loadAvatarConfig(loadProfileName() || PROFILE_DISPLAY_FALLBACK));
   const [googlePhotoFailed, setGooglePhotoFailed] = useState(false);
   const [profileOnboardingOpen, setProfileOnboardingOpen] = useState(() => !loadProfileName());
+  const [welcomeTourOpen, setWelcomeTourOpen] = useState(() => Boolean(loadProfileName()) && !loadLocalBooleanSetting(WELCOME_TOUR_COMPLETED_KEY));
   const [profileOpen, setProfileOpen] = useState(false);
   const [resetProgressOpen, setResetProgressOpen] = useState(false);
   const [reminderSnoozedUntil, setReminderSnoozedUntil] = useState<number | null>(() => {
@@ -4376,6 +4528,7 @@ export default function App() {
   const xpCelebrationTimerRef = useRef<number | undefined>(undefined);
   const studyActionLockRef = useRef<string | null>(null);
   const studyActionLockUntilRef = useRef(0);
+  const studySpaceHeldRef = useRef(false);
   const stateRef = useRef(state);
   const profileNameRef = useRef(profileName);
   const syncInFlightRef = useRef(false);
@@ -4391,6 +4544,9 @@ export default function App() {
   stateRef.current = state;
   profileNameRef.current = profileName;
   const cardPendingDeletion = deleteCardId ? state.cards.find((card) => card.id === deleteCardId) : undefined;
+  const deckPendingDeletion = deleteDeckName
+    ? { name: deleteDeckName, count: state.cards.filter((card) => card.deck === deleteDeckName).length }
+    : undefined;
   const profileDisplayName = profileName || PROFILE_DISPLAY_FALLBACK;
   const handleGooglePhotoError = () => setGooglePhotoFailed(true);
   const achievementBackfillKey = [state.totalReviews, state.reviewsToday, state.dailyGoal, state.lastReviewDay, state.bestStreak, state.xp, state.achievements.join("|")].join(":");
@@ -4496,10 +4652,18 @@ export default function App() {
   }, [state.cards, studyQueueIds]);
 
   useEffect(() => {
-    if (activeTab !== "study" || (!showAnswer && activeStudyCardId !== studyActionLockRef.current)) {
+    if (activeTab !== "study") {
       studyActionLockRef.current = null;
+      studyActionLockUntilRef.current = 0;
+      studySpaceHeldRef.current = false;
+      return;
     }
-  }, [activeTab, activeStudyCardId, showAnswer]);
+
+    if (studyActionLockRef.current && activeStudyCardId !== studyActionLockRef.current) {
+      studyActionLockRef.current = null;
+      studyActionLockUntilRef.current = 0;
+    }
+  }, [activeTab, activeStudyCardId]);
 
   useEffect(() => {
     const refreshNotificationPermission = () => setNotificationPermission(getNotificationPermission());
@@ -4550,35 +4714,50 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const modalOpen = addCardOpen || profileOpen || profileOnboardingOpen || syncOpen || resetProgressOpen || Boolean(deleteCardId) || Boolean(bulkDeleteIds) || deleteAccountOpen || Boolean(firebaseMergePrompt);
+    const modalOpen = addCardOpen || profileOpen || profileOnboardingOpen || welcomeTourOpen || syncOpen || resetProgressOpen || Boolean(deleteCardId) || Boolean(deleteDeckName) || Boolean(bulkDeleteIds) || deleteAccountOpen || Boolean(firebaseMergePrompt);
     document.documentElement.classList.toggle("modal-open", modalOpen);
     document.body.classList.toggle("modal-open", modalOpen);
     return () => {
       document.documentElement.classList.remove("modal-open");
       document.body.classList.remove("modal-open");
     };
-  }, [addCardOpen, profileOpen, profileOnboardingOpen, syncOpen, resetProgressOpen, deleteCardId, bulkDeleteIds, deleteAccountOpen, firebaseMergePrompt]);
+  }, [addCardOpen, profileOpen, profileOnboardingOpen, welcomeTourOpen, syncOpen, resetProgressOpen, deleteCardId, deleteDeckName, bulkDeleteIds, deleteAccountOpen, firebaseMergePrompt]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (addCardOpen || activeTab !== "study") return;
-      if (studyActionLockRef.current || Date.now() < studyActionLockUntilRef.current) {
-        if (event.code === "Space") event.preventDefault();
-        return;
-      }
       if (event.target instanceof HTMLElement && ["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(event.target.tagName)) return;
+
       if (event.code === "Space") {
         event.preventDefault();
+        if (event.repeat || studySpaceHeldRef.current) return;
+        studySpaceHeldRef.current = true;
+        if (studyActionLockRef.current || Date.now() < studyActionLockUntilRef.current || showAnswer || !studyCards[0]) return;
         setShowAnswer(true);
+        return;
       }
-      if (showAnswer && ["1", "2", "3", "4"].includes(event.key)) {
+
+      if (showAnswer && !studyActionLockRef.current && Date.now() >= studyActionLockUntilRef.current && ["1", "2", "3", "4"].includes(event.key)) {
+        event.preventDefault();
         const rating = ["again", "hard", "good", "easy"][Number(event.key) - 1] as ReviewRating;
-        handleRate(rating);
+        handleRate(activeStudyCardId ?? "", rating);
       }
     };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === "Space") studySpaceHeldRef.current = false;
+    };
+    const handleWindowBlur = () => {
+      studySpaceHeldRef.current = false;
+    };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeTab, addCardOpen, showAnswer, dueCards, studyCards]);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleWindowBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
+  }, [activeTab, addCardOpen, showAnswer, activeStudyCardId, studyCards]);
 
   const showToast = (message: string, action?: ToastAction) => {
     setToast({ message, action });
@@ -4870,6 +5049,7 @@ export default function App() {
       example: card.example ?? "",
       note: card.note ?? "",
       tags: (card.tags ?? []).join(", "),
+      deck: card.deck,
       sourcePage: card.sourcePage,
       lesson: card.lesson,
       kind: card.kind,
@@ -4922,6 +5102,45 @@ export default function App() {
           return { ...current, cards: [deletedCard, ...current.cards], deletedCardIds: nextDeletedCardIds, lastSyncedAt: restoredAt };
         });
         showToast(`${deletedCard.german} was restored to your library.`);
+      },
+    });
+  };
+
+  const handleRequestDeleteDeck = (deckName: string) => {
+    if (stateRef.current.cards.some((card) => card.deck === deckName)) setDeleteDeckName(deckName);
+  };
+
+  const handleConfirmDeleteDeck = () => {
+    const deckName = deleteDeckName;
+    if (!deckName) return;
+    const deletedCards = stateRef.current.cards.filter((card) => card.deck === deckName);
+    if (deletedCards.length === 0) {
+      setDeleteDeckName(null);
+      return;
+    }
+
+    const deletedAt = new Date().toISOString();
+    setState((current) => ({
+      ...current,
+      cards: current.cards.filter((card) => card.deck !== deckName),
+      deletedCardIds: { ...current.deletedCardIds, ...Object.fromEntries(deletedCards.map((card) => [card.id, deletedAt])) },
+      lastSyncedAt: deletedAt,
+    }));
+    setDeleteDeckName(null);
+    showToast(`${deckName} and ${deletedCards.length} card${deletedCards.length === 1 ? "" : "s"} were removed.`, {
+      label: "Undo",
+      onClick: () => {
+        const restoredAt = new Date().toISOString();
+        setState((current) => {
+          const existingIds = new Set(current.cards.map((card) => card.id));
+          const restoredCards = deletedCards.filter((card) => !existingIds.has(card.id));
+          const nextDeletedCardIds = { ...current.deletedCardIds };
+          deletedCards.forEach((card) => {
+            if (nextDeletedCardIds[card.id] === deletedAt) delete nextDeletedCardIds[card.id];
+          });
+          return { ...current, cards: [...restoredCards, ...current.cards], deletedCardIds: nextDeletedCardIds, lastSyncedAt: restoredAt };
+        });
+        showToast(`${deckName} was restored to your library.`);
       },
     });
   };
@@ -5004,6 +5223,11 @@ export default function App() {
     }
     setActiveTab(tab);
     if (tab !== "study") setShowAnswer(false);
+  };
+
+  const handleOpenDeck = (deckName: string) => {
+    setSearchQuery(deckName);
+    setActiveTab("library");
   };
 
   const handleStartReview = () => {
@@ -5101,9 +5325,9 @@ export default function App() {
     showToast([completionMessage, newlyUnlocked.length > 0 ? formatAchievementUnlocks(newlyUnlocked) : ""].filter(Boolean).join(" "));
   };
 
-  function handleRate(rating: ReviewRating) {
+  function handleRate(cardId: string, rating: ReviewRating) {
     const card = studyCards[0];
-    if (!card || !showAnswer || studyActionLockRef.current || Date.now() < studyActionLockUntilRef.current) return;
+    if (!card || card.id !== cardId || !showAnswer || studyActionLockRef.current || Date.now() < studyActionLockUntilRef.current) return;
     const wasQueueSession = studyQueueIds !== null;
     const previousState = stateRef.current;
     const previousCard = previousState.cards.find((item) => item.id === card.id);
@@ -5234,6 +5458,7 @@ export default function App() {
           example: preparedDraft.example || undefined,
           note: preparedDraft.note || undefined,
           tags: normalizeTags(preparedDraft.tags.split(",")),
+          deck: preparedDraft.deck,
           sourcePage: preparedDraft.sourcePage,
           lesson: preparedDraft.lesson,
           kind: preparedDraft.kind,
@@ -5257,9 +5482,9 @@ export default function App() {
       example: preparedDraft.example || undefined,
       note: preparedDraft.note || undefined,
       tags: normalizeTags(preparedDraft.tags.split(",")),
+      deck: preparedDraft.deck,
       sourcePage: preparedDraft.sourcePage,
       lesson: preparedDraft.lesson,
-      deck: "My cards",
       kind: preparedDraft.kind,
       due: todayKey,
       interval: 0,
@@ -5875,6 +6100,7 @@ export default function App() {
     window.localStorage.setItem(PROFILE_NAME_KEY, trimmedName);
     window.localStorage.setItem(PROFILE_MODE_KEY, mode);
     setProfileOnboardingOpen(false);
+    if (!loadLocalBooleanSetting(WELCOME_TOUR_COMPLETED_KEY)) setWelcomeTourOpen(true);
     showToast(mode === "google" ? `Welcome to Deutschly, ${trimmedName}. Your cards can now sync across devices.` : `Welcome to Deutschly, ${trimmedName}. Guest mode is saved on this device.`);
   };
   const handleViewWeakCards = () => {
@@ -5897,6 +6123,14 @@ export default function App() {
   const handleOpenSyncFromSettings = () => {
     setProfileOpen(false);
     setSyncOpen(true);
+  };
+  const handleOpenWelcomeTour = () => {
+    setProfileOpen(false);
+    setWelcomeTourOpen(true);
+  };
+  const handleCompleteWelcomeTour = () => {
+    window.localStorage.setItem(WELCOME_TOUR_COMPLETED_KEY, "true");
+    setWelcomeTourOpen(false);
   };
   const handleResetProgressFromSettings = () => {
     setProfileOpen(false);
@@ -5937,7 +6171,6 @@ export default function App() {
           </nav>
         </div>
         <div className="sidebar__bottom">
-          <div className="sidebar-tip"><Sparkles size={16} aria-hidden="true" /><div><strong>Small steps, big recall.</strong><span>Your next review is ready.</span></div></div>
           <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileDisplayName} profile avatar`}><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} preference={avatarPreference} config={avatarConfig} size={32} photoFailed={googlePhotoFailed} onPhotoError={handleGooglePhotoError} /></div><div><strong>{profileDisplayName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
         </div>
       </aside>
@@ -5954,7 +6187,7 @@ export default function App() {
         </header>
 
         <main id="main-content" className="main-content">
-          {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
+          {activeTab === "overview" && <OverviewPage state={state} profileName={profileDisplayName} dueCards={dueCards} currentTime={currentTime} onStartReview={handleStartReview} onAddCard={() => handleOpenAddCard()} onOpenLibrary={() => handleTabChange("library")} onOpenDeck={handleOpenDeck} onDeleteDeck={handleRequestDeleteDeck} onViewProgress={() => handleTabChange("progress")} onReminderToggle={handleReminderToggle} onReminderTimeChange={handleReminderTimeChange} onSnoozeReminder={handleSnoozeReminder} onAddReminderToCalendar={handleAddReminderToCalendar} notificationPermission={notificationPermission} onEnableNotifications={handleEnableNotifications} reminderSnoozedUntil={reminderSnoozedUntil} />}
           {activeTab === "study" && <StudyPage dueCards={studyCards} sessionReviewed={studySession.reviewed} sessionTotal={studySession.total} queueSession={studyQueueIds !== null} showAnswer={showAnswer} onShowAnswer={() => { if (!studyActionLockRef.current && Date.now() >= studyActionLockUntilRef.current && studyCards[0]) setShowAnswer(true); }} onRate={handleRate} onBack={() => handleTabChange("overview")} onAddCard={() => handleOpenAddCard()} onContinueReview={handleStartReview} hasMoreDueCards={studyQueueIds === null && studySession.total > 0 && studySession.reviewed >= studySession.total && dueCards.length > 0} remainingDueCards={dueCards.length} />}
           {activeTab === "practice" && <PracticePage cards={state.cards} level={getLevelProgress(state.xp).level} onAddCard={() => handleOpenAddCard()} onAwardXp={handlePracticeXp} onCompleteSession={handlePracticeComplete} />}
           {activeTab === "library" && <LibraryPage cards={state.cards} searchQuery={searchQuery} sourceFileName={state.sourceFileName} sourcePageCount={state.pdfImport?.pageCount ?? 0} sourceCandidateCount={state.pdfImport?.candidateCount ?? 0} sourcePreview={state.pdfImport?.textPreview ?? ""} pdfCandidates={pdfCandidates} pdfCandidateStatuses={state.pdfImport?.candidateStatuses ?? {}} pdfLoading={pdfLoading} pdfError={pdfError} onSearch={setSearchQuery} onAddCard={() => handleOpenAddCard()} onAddDatabaseWord={handleAddDatabaseWord} onAddWordBankBatch={handleAddWordBankBatch} onOpenSync={handleOpenSyncFromSettings} wordBank={wordBank} wordBankInboxItems={wordBankInboxItems} onWordBankDecision={handleWordBankDecision} onGenerateWordBatch={handleGenerateWordBatch} aiSettings={aiSettings} onEditCard={handleOpenEditCard} weakCardsOnly={weakCardsOnly} onWeakCardsOnlyChange={setWeakCardsOnly} onPdfUpload={handlePdfUpload} onUsePdfCandidate={handleUsePdfCandidate} onPdfCandidateStatusChange={handlePdfCandidateStatusChange} onExportBackup={handleExportBackup} onImportBackup={handleImportBackup} onBulkDelete={handleRequestBulkDelete} onBulkTag={handleBulkTag} onBulkExport={handleBulkExport} onStartReviewQueue={handleStartReviewQueue} />}
@@ -5972,6 +6205,7 @@ export default function App() {
 
       {addCardOpen && <AddCardModal onClose={handleCloseAddCard} onSave={handleSaveCard} onDelete={editingCardId ? handleRequestDeleteCard : undefined} existingCards={state.cards.filter((card) => card.id !== editingCardId)} initialDraft={addCardSeed} editing={Boolean(editingCardId)} aiSettings={aiSettings} />}
       {cardPendingDeletion && <DeleteCardModal card={cardPendingDeletion} onClose={() => setDeleteCardId(null)} onConfirm={handleConfirmDeleteCard} />}
+      {deckPendingDeletion && <DeleteDeckModal name={deckPendingDeletion.name} count={deckPendingDeletion.count} onClose={() => setDeleteDeckName(null)} onConfirm={handleConfirmDeleteDeck} />}
       {profileOpen && <ProfileModal
         name={profileDisplayName}
         avatarDayKey={todayKey}
@@ -6007,6 +6241,7 @@ export default function App() {
         onExportBackup={handleExportBackup}
         onImportBackup={handleImportBackup}
         onOpenSync={handleOpenSyncFromSettings}
+        onOpenTour={handleOpenWelcomeTour}
         onResetProgress={handleResetProgressFromSettings}
         onInstallApp={() => { void handleInstallApp(); }}
         isNativeApp={isTauriRuntime()}
@@ -6029,6 +6264,7 @@ export default function App() {
          onFirebaseDeleteAccount={handleRequestDeleteFirebaseAccount}
        />}
        {profileOnboardingOpen && <ProfileOnboardingModal configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} firebaseError={firebaseError} onGoogleSignIn={() => { void handleFirebaseSignIn("google"); }} onComplete={handleCompleteProfileOnboarding} />}
+      {welcomeTourOpen && !profileOnboardingOpen && <WelcomeTour name={profileDisplayName} onComplete={handleCompleteWelcomeTour} />}
       {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} isOnline={isOnline} testingConnection={testingConnection} conflict={syncConflict} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onResolveConflict={handleResolveSyncConflict} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
       {resetProgressOpen && <ResetProgressModal onClose={() => setResetProgressOpen(false)} onConfirm={handleResetProgress} />}
       {bulkDeleteIds && <BulkDeleteModal count={bulkDeleteIds.length} onClose={() => setBulkDeleteIds(null)} onConfirm={handleConfirmBulkDelete} />}
