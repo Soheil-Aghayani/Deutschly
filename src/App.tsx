@@ -358,18 +358,26 @@ function GoogleLogo({ size = 18 }: { size?: number }) {
   );
 }
 
-function ProfileAvatar({ name, dayKey, photoURL, preference = "nice", config, size, className = "" }: { name: string; dayKey: string; photoURL?: string; preference?: ProfileAvatarPreference; config?: NiceAvatarConfig; size: number; className?: string }) {
-  const [photoFailed, setPhotoFailed] = useState(false);
+interface ProfileAvatarProps {
+  name: string;
+  dayKey: string;
+  photoURL?: string;
+  preference?: ProfileAvatarPreference;
+  config?: NiceAvatarConfig;
+  size: number;
+  className?: string;
+  photoFailed?: boolean;
+  onPhotoError?: () => void;
+}
+
+function ProfileAvatar({ name, dayKey, photoURL, preference = "nice", config, size, className = "", photoFailed = false, onPhotoError }: ProfileAvatarProps) {
   const avatarConfig = config ?? getNiceAvatarConfig(`${name.trim() || PROFILE_DISPLAY_FALLBACK}:${dayKey}`);
   const imageURL = photoURL?.trim();
-
-  useEffect(() => {
-    setPhotoFailed(false);
-  }, [imageURL]);
+  const source = preference === "google" && imageURL && !photoFailed ? "google" : "nice";
 
   return (
-    <span className={`profile-avatar${className ? ` ${className}` : ""}`} style={{ width: size, height: size }} aria-hidden="true">
-      {preference === "google" && imageURL && !photoFailed ? <img src={imageURL} alt="" referrerPolicy="no-referrer" onError={() => setPhotoFailed(true)} /> : <NiceAvatar className="profile-avatar__nice" shape="circle" {...avatarConfig} style={{ width: "100%", height: "100%" }} />}
+    <span className={`profile-avatar${className ? ` ${className}` : ""}`} style={{ width: size, height: size }} data-avatar-source={source} aria-hidden="true">
+      {source === "google" ? <img src={imageURL} alt="" referrerPolicy="no-referrer" onError={onPhotoError} /> : <NiceAvatar className="profile-avatar__nice" shape="circle" {...avatarConfig} style={{ width: "100%", height: "100%" }} />}
     </span>
   );
 }
@@ -3399,7 +3407,24 @@ function getAchievementProgress(id: string, state: AppState): number {
   if (id === "week-streak") return Math.min(100, Math.round((state.bestStreak / 7) * 100));
   if (id === "daily-goal") return Math.min(100, Math.round((state.reviewsToday / Math.max(1, state.dailyGoal)) * 100));
   if (id === "xp-1500") return Math.min(100, Math.round((state.xp / 1500) * 100));
+  if (id === "ten-reviews") return Math.min(100, Math.round((state.totalReviews / 10) * 100));
+  if (id === "fifty-reviews") return Math.min(100, Math.round((state.totalReviews / 50) * 100));
+  if (id === "streak-30") return Math.min(100, Math.round((state.bestStreak / 30) * 100));
+  if (id === "xp-5000") return Math.min(100, Math.round((state.xp / 5000) * 100));
   return 0;
+}
+
+function getEligibleAchievementIds(state: AppState): string[] {
+  return [
+    ...(state.totalReviews >= 1 ? ["first-review"] : []),
+    ...(state.totalReviews >= 10 ? ["ten-reviews"] : []),
+    ...(state.totalReviews >= 50 ? ["fifty-reviews"] : []),
+    ...(state.bestStreak >= 7 ? ["week-streak"] : []),
+    ...(state.bestStreak >= 30 ? ["streak-30"] : []),
+    ...(state.lastReviewDay === getDayKey() && state.reviewsToday >= state.dailyGoal ? ["daily-goal"] : []),
+    ...(state.xp >= 1500 ? ["xp-1500"] : []),
+    ...(state.xp >= 5000 ? ["xp-5000"] : []),
+  ];
 }
 
 function formatAchievementDate(value?: string): string {
@@ -3809,9 +3834,11 @@ function FirebaseAccountSection({
 
 interface ProfileModalProps {
   name: string;
+  avatarDayKey: string;
   avatarPreference: ProfileAvatarPreference;
   avatarConfig: NiceAvatarConfig;
   googlePhotoURL?: string;
+  googlePhotoFailed: boolean;
   theme: Theme;
   dailyGoal: number;
   reminderEnabled: boolean;
@@ -3827,6 +3854,7 @@ interface ProfileModalProps {
   isMobile: boolean;
   onClose: () => void;
   onSave: (name: string) => void;
+  onGooglePhotoError: () => void;
   onAvatarPreferenceChange: (preference: ProfileAvatarPreference) => void;
   onAvatarConfigChange: (config: NiceAvatarConfig) => void;
   onThemeChange: (theme: Theme) => void;
@@ -3863,9 +3891,11 @@ interface ProfileModalProps {
 
 function ProfileModal({
   name,
+  avatarDayKey,
   avatarPreference,
   avatarConfig,
   googlePhotoURL,
+  googlePhotoFailed,
   theme,
   dailyGoal,
   reminderEnabled,
@@ -3881,6 +3911,7 @@ function ProfileModal({
   isMobile,
   onClose,
   onSave,
+  onGooglePhotoError,
   onAvatarPreferenceChange,
   onAvatarConfigChange,
   onThemeChange,
@@ -3943,8 +3974,8 @@ function ProfileModal({
         <div className="settings-sections">
           <section className="settings-section" aria-labelledby="settings-profile-title">
             <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Settings size={16} /></span><div><h3 id="settings-profile-title">Profile</h3><p>Personal details used across your learning space.</p></div></div>
-            <div className="profile-preview"><ProfileAvatar className="profile-preview__avatar" name={draftName} dayKey={getDayKey()} photoURL={googlePhotoURL} preference={avatarPreference} config={avatarConfig} size={58} /><div><span className="section-eyebrow">LEARNER</span><strong>{draftName.trim() || "Your name"}</strong><small>{avatarPreference === "google" ? "Google photo selected" : "Private on this device"}</small></div></div>
-            <AvatarEditor name={draftName} dayKey={getDayKey()} photoURL={googlePhotoURL} preference={avatarPreference} config={avatarConfig} onPreferenceChange={onAvatarPreferenceChange} onConfigChange={onAvatarConfigChange} />
+            <div className="profile-preview"><ProfileAvatar className="profile-preview__avatar" name={name} dayKey={avatarDayKey} photoURL={googlePhotoURL} preference={avatarPreference} config={avatarConfig} size={58} photoFailed={googlePhotoFailed} onPhotoError={onGooglePhotoError} /><div><span className="section-eyebrow">LEARNER</span><strong>{draftName.trim() || "Your name"}</strong><small>{avatarPreference === "google" ? "Google photo selected" : "Private on this device"}</small></div></div>
+            <AvatarEditor name={name} dayKey={avatarDayKey} photoURL={googlePhotoURL} preference={avatarPreference} config={avatarConfig} onPreferenceChange={onAvatarPreferenceChange} onConfigChange={onAvatarConfigChange} />
             <label className="form-field" htmlFor="profile-name"><span>Display name</span><input id="profile-name" value={draftName} onChange={(event) => setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH))} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="name" spellCheck={false} /></label>
           </section>
 
@@ -4323,6 +4354,7 @@ export default function App() {
   const [profileName, setProfileName] = useState(() => loadProfileName());
   const [avatarPreference, setAvatarPreference] = useState<ProfileAvatarPreference>(() => loadAvatarPreference());
   const [avatarConfig, setAvatarConfig] = useState<NiceAvatarConfig>(() => loadAvatarConfig(loadProfileName() || PROFILE_DISPLAY_FALLBACK));
+  const [googlePhotoFailed, setGooglePhotoFailed] = useState(false);
   const [profileOnboardingOpen, setProfileOnboardingOpen] = useState(() => !loadProfileName());
   const [profileOpen, setProfileOpen] = useState(false);
   const [resetProgressOpen, setResetProgressOpen] = useState(false);
@@ -4352,6 +4384,8 @@ export default function App() {
   profileNameRef.current = profileName;
   const cardPendingDeletion = deleteCardId ? state.cards.find((card) => card.id === deleteCardId) : undefined;
   const profileDisplayName = profileName || PROFILE_DISPLAY_FALLBACK;
+  const handleGooglePhotoError = () => setGooglePhotoFailed(true);
+  const achievementBackfillKey = [state.totalReviews, state.reviewsToday, state.dailyGoal, state.lastReviewDay, state.bestStreak, state.xp, state.achievements.join("|")].join(":");
   const wordBank = useMemo(() => mergeGermanWordRecords(databaseWords, state.wordBank), [databaseWords, state.wordBank]);
   const wordBankInboxItems = useMemo(() => {
     const wordsById = new Map(wordBank.map((word) => [word.id, word]));
@@ -4403,6 +4437,12 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(AVATAR_CONFIG_KEY, JSON.stringify(avatarConfig));
   }, [avatarConfig]);
+
+  useEffect(() => {
+    const candidateAchievements = getEligibleAchievementIds(state);
+    if (getNewAchievementDefinitions(state.achievements, candidateAchievements).length === 0) return;
+    setState((current) => applyAchievementUnlocks(current, candidateAchievements, new Date().toISOString()));
+  }, [achievementBackfillKey]);
 
   const ensureGermanWordDatabase = () => {
     germanWordDatabasePromiseRef.current ??= loadGermanWordDatabase().then((words) => {
@@ -4491,6 +4531,10 @@ export default function App() {
       unsubscribe();
     };
   }, [firebaseConfigured]);
+
+  useEffect(() => {
+    setGooglePhotoFailed(false);
+  }, [firebaseUser?.uid, firebaseUser?.photoURL]);
 
   useEffect(() => () => {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
@@ -4987,7 +5031,10 @@ export default function App() {
     const previousLevel = getLevelProgress(previousXp).level;
     const nextXp = previousXp + safeAmount;
     const updatedAt = new Date().toISOString();
-    const candidateAchievements = nextXp >= 1500 ? ["xp-1500"] : [];
+    const candidateAchievements = [
+      ...(nextXp >= 1500 ? ["xp-1500"] : []),
+      ...(nextXp >= 5000 ? ["xp-5000"] : []),
+    ];
     const newlyUnlocked = getNewAchievementDefinitions(stateRef.current.achievements, candidateAchievements);
     const achievementRewardXp = newlyUnlocked.reduce((sum, achievement) => sum + achievement.rewardXp, 0);
     const nextLevel = getLevelProgress(nextXp + achievementRewardXp).level;
@@ -5014,6 +5061,7 @@ export default function App() {
     const candidateAchievements = [
       ...(completesDailyGoal ? ["daily-goal"] : []),
       ...(nextStreak >= 7 ? ["week-streak"] : []),
+      ...(nextStreak >= 30 ? ["streak-30"] : []),
     ];
     const newlyUnlocked = getNewAchievementDefinitions(previousState.achievements, candidateAchievements);
     setState((current) => {
@@ -5038,6 +5086,7 @@ export default function App() {
       return applyAchievementUnlocks(nextState, [
         ...(nextReviewsToday >= current.dailyGoal ? ["daily-goal"] : []),
         ...(currentNextStreak >= 7 ? ["week-streak"] : []),
+        ...(currentNextStreak >= 30 ? ["streak-30"] : []),
       ], updatedAt);
     });
     const completionMessage = completesDailyGoal ? "Daily goal complete. Your streak is secured." : `${safeCardCount} practice cards added to today's path.`;
@@ -5066,9 +5115,13 @@ export default function App() {
       : previousState.lastStudyDay === addDays(todayKey, -1) ? previousState.streak + 1 : 1;
     const candidateAchievements = [
       ...(nextTotalReviews >= 1 ? ["first-review"] : []),
+      ...(nextTotalReviews >= 10 ? ["ten-reviews"] : []),
+      ...(nextTotalReviews >= 50 ? ["fifty-reviews"] : []),
       ...(nextStreak >= 7 ? ["week-streak"] : []),
+      ...(nextStreak >= 30 ? ["streak-30"] : []),
       ...(previousReviewsToday + 1 >= previousState.dailyGoal ? ["daily-goal"] : []),
       ...(nextXp >= 1500 ? ["xp-1500"] : []),
+      ...(nextXp >= 5000 ? ["xp-5000"] : []),
     ];
     const newlyUnlocked = getNewAchievementDefinitions(previousState.achievements, candidateAchievements);
     const achievementRewardXp = newlyUnlocked.reduce((sum, achievement) => sum + achievement.rewardXp, 0);
@@ -5875,7 +5928,7 @@ export default function App() {
         </div>
         <div className="sidebar__bottom">
           <div className="sidebar-tip"><Sparkles size={16} aria-hidden="true" /><div><strong>Small steps, big recall.</strong><span>Your next review is ready.</span></div></div>
-          <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileDisplayName} profile avatar`}><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} preference={avatarPreference} config={avatarConfig} size={32} /></div><div><strong>{profileDisplayName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
+          <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileDisplayName} profile avatar`}><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} preference={avatarPreference} config={avatarConfig} size={32} photoFailed={googlePhotoFailed} onPhotoError={handleGooglePhotoError} /></div><div><strong>{profileDisplayName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
         </div>
       </aside>
 
@@ -5886,7 +5939,7 @@ export default function App() {
             <button type="button" className="icon-button" onClick={toggleTheme} aria-label={state.theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={state.theme === "light" ? "Dark mode" : "Light mode"}>{state.theme === "light" ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}</button>
             <button type="button" className="icon-button notification-button" onClick={handleReminderBell} aria-label="View reminders" title="Reminders"><Bell size={18} aria-hidden="true" />{state.reminderEnabled && dueCards.length > 0 && <span aria-hidden="true" />}</button>
             <button type="button" className={`sync-button${syncing ? " sync-button--syncing" : ""}`} onClick={() => void handleSync()} disabled={syncing}><Cloud size={16} aria-hidden="true" />{syncing ? "Syncing..." : syncConfigured ? "Sync now" : "Set up sync"}</button>
-            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileDisplayName}`} title="Profile settings"><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} preference={avatarPreference} config={avatarConfig} size={34} /></button>
+            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileDisplayName}`} title="Profile settings"><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} preference={avatarPreference} config={avatarConfig} size={34} photoFailed={googlePhotoFailed} onPhotoError={handleGooglePhotoError} /></button>
           </div>
         </header>
 
@@ -5911,9 +5964,11 @@ export default function App() {
       {cardPendingDeletion && <DeleteCardModal card={cardPendingDeletion} onClose={() => setDeleteCardId(null)} onConfirm={handleConfirmDeleteCard} />}
       {profileOpen && <ProfileModal
         name={profileDisplayName}
+        avatarDayKey={todayKey}
         avatarPreference={avatarPreference}
         avatarConfig={avatarConfig}
         googlePhotoURL={firebaseUser?.photoURL}
+        googlePhotoFailed={googlePhotoFailed}
         theme={state.theme}
         dailyGoal={state.dailyGoal}
         reminderEnabled={state.reminderEnabled}
@@ -5929,6 +5984,7 @@ export default function App() {
         isMobile={installPrompt.isMobile}
         onClose={() => setProfileOpen(false)}
         onSave={handleSaveProfile}
+        onGooglePhotoError={handleGooglePhotoError}
         onAvatarPreferenceChange={setAvatarPreference}
         onAvatarConfigChange={setAvatarConfig}
         onThemeChange={handleThemeChange}

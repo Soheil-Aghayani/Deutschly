@@ -1,4 +1,4 @@
-const CACHE_NAME = "deutschly-shell-v15";
+const CACHE_NAME = "deutschly-shell-v16";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,6 +11,10 @@ const APP_SHELL = [
   "./achievements/week-streak.webp",
   "./achievements/daily-goal.webp",
   "./achievements/momentum-maker.webp",
+  "./achievements/ten-reviews.webp",
+  "./achievements/fifty-reviews.webp",
+  "./achievements/month-streak.webp",
+  "./achievements/bright-mind.webp",
 ];
 
 self.addEventListener("install", (event) => {
