@@ -4,7 +4,7 @@ import worker from "./worker.js";
 
 const env = {
   AI_MODEL: "@cf/meta/llama-3.1-8b-instruct-fast",
-  ALLOWED_ORIGINS: "https://soheil-aghayani.github.io",
+  ALLOWED_ORIGINS: "https://soheil-aghayani.github.io,http://tauri.localhost,https://tauri.localhost",
   AI: {
     async run(model, request) {
       assert.equal(model, env.AI_MODEL);
@@ -104,4 +104,14 @@ test("rejects an origin outside the allowlist", async () => {
     existingWords: [],
   }, "10.0.0.4", "https://not-allowed.example"), env);
   assert.equal(response.status, 403);
+});
+
+test("accepts the Android Tauri origin", async () => {
+  const response = await worker.fetch(request("/api/gemini/word-batch", {
+    level: "A1",
+    count: 1,
+    existingWords: [],
+  }, "10.0.0.5", "http://tauri.localhost"), env);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Access-Control-Allow-Origin"), "http://tauri.localhost");
 });

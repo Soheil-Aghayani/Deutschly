@@ -225,5 +225,5 @@ Before delivering any UI code, verify:
 - [ ] Focus states visible for keyboard navigation
 - [ ] `prefers-reduced-motion` respected
 - [ ] Responsive: 375px, 768px, 1024px, 1440px
-- [ ] No content hidden behind fixed navbars
+- [x] No content hidden behind fixed navbars
 - [ ] No horizontal scroll on mobile
