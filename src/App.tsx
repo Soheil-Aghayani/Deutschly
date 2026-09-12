@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import {
   Activity,
@@ -384,14 +384,51 @@ interface ProfileAvatarProps {
   onPhotoError?: () => void;
 }
 
+function namespaceAvatarSvgIds(root: Element, namespace: string) {
+  const ids = new Map<string, string>();
+
+  root.querySelectorAll<Element>("[id]").forEach((element) => {
+    const currentId = element.id;
+    if (!currentId) return;
+    if (currentId.endsWith(namespace)) {
+      ids.set(currentId, currentId);
+      return;
+    }
+    const nextId = `${currentId}${namespace}`;
+    ids.set(currentId, nextId);
+    element.id = nextId;
+  });
+
+  root.querySelectorAll<Element>("*").forEach((element) => {
+    element.getAttributeNames().forEach((attribute) => {
+      const value = element.getAttribute(attribute);
+      if (!value) return;
+      let nextValue = value;
+      ids.forEach((nextId, currentId) => {
+        nextValue = nextValue.split(`url(#${currentId})`).join(`url(#${nextId})`);
+      });
+      if (nextValue !== value) element.setAttribute(attribute, nextValue);
+    });
+  });
+}
+
 function ProfileAvatar({ name, dayKey, photoURL, preference = "nice", config, size, className = "", photoFailed = false, onPhotoError }: ProfileAvatarProps) {
   const avatarConfig = config ?? getNiceAvatarConfig(`${name.trim() || PROFILE_DISPLAY_FALLBACK}:${dayKey}`);
   const imageURL = photoURL?.trim();
   const source = preference === "google" && imageURL && !photoFailed ? "google" : "nice";
+  const avatarInstanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "") || "avatar";
+  const avatarRenderKey = source === "google" ? `google:${imageURL}` : `nice:${JSON.stringify(avatarConfig)}`;
+  const avatarRootRef = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    if (source === "nice" && avatarRootRef.current) {
+      namespaceAvatarSvgIds(avatarRootRef.current, `--${avatarInstanceId}`);
+    }
+  }, [avatarInstanceId, avatarRenderKey, source]);
 
   return (
-    <span className={`profile-avatar${className ? ` ${className}` : ""}`} style={{ width: size, height: size }} data-avatar-source={source} aria-hidden="true">
-      {source === "google" ? <img src={imageURL} alt="" referrerPolicy="no-referrer" onError={onPhotoError} /> : <NiceAvatar className="profile-avatar__nice" shape="circle" {...avatarConfig} style={{ width: "100%", height: "100%" }} />}
+    <span ref={avatarRootRef} className={`profile-avatar${className ? ` ${className}` : ""}`} style={{ width: size, height: size }} data-avatar-source={source} aria-hidden="true">
+      {source === "google" ? <img key={avatarRenderKey} src={imageURL} alt="" referrerPolicy="no-referrer" onError={onPhotoError} /> : <NiceAvatar key={avatarRenderKey} id={`nice-avatar-${avatarInstanceId}`} className="profile-avatar__nice" shape="circle" {...avatarConfig} style={{ width: "100%", height: "100%" }} />}
     </span>
   );
 }
@@ -450,11 +487,11 @@ function AvatarEditor({ name, dayKey, photoURL, preference, config, onPreference
                 <span>{label}</span>
                 <div className="avatar-editor__select-wrap">
                   <select value={value} onChange={(event) => onConfigChange({ ...config, [key]: event.target.value } as NiceAvatarConfig)}>
-                    {NICE_AVATAR_OPTIONS[key].map((option) => <option value={option} key={option}>{isColor ? `${getAvatarColorName(option)} · ${option}` : option}</option>)}
+                    {NICE_AVATAR_OPTIONS[key].map((option) => <option value={option} key={option}>{isColor ? getAvatarColorName(option) : option}</option>)}
                   </select>
                   {isColor && <span className="avatar-editor__swatch" style={{ backgroundColor: value }} aria-hidden="true" />}
                 </div>
-                {isColor && <small className="avatar-editor__color-caption"><span>{getAvatarColorName(value)}</span><code>{value}</code></small>}
+                {isColor && <small className="avatar-editor__color-caption">{getAvatarColorName(value)}</small>}
               </label>
             );
           })}
