@@ -62,7 +62,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import NiceAvatar from "react-nice-avatar";
+import { ProfileAvatar } from "./components/ProfileAvatar";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { PaginationControls } from "./components/PaginationControls";
 import { useInstallPrompt } from "./hooks/useInstallPrompt";
@@ -79,10 +79,14 @@ import {
   saveFirebaseCloudDocument,
   deleteFirebaseAccount,
   signInWithFirebaseProvider,
+  signInWithFirebaseProviderWithToken,
+  signInWithGoogleIdToken,
+  encodeNativeAuthPass,
+  parseNativeAuthPass,
   signOutFromFirebase,
   subscribeToFirebaseAuth,
 } from "./lib/firebase";
-import type { FirebaseAuthProvider, FirebaseUserSummary } from "./lib/firebase";
+import type { FirebaseAuthProvider, FirebaseUserSummary, NativeAuthPass } from "./lib/firebase";
 import { generateGermanWordBatch, getAiUsageStatus, getDefaultAiSettings, normalizeAiSettings, reviewCardWithGemini } from "./lib/gemini";
 import type { AiProvider, AiSettings, AiUsageStatus, GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel, GermanWordBatchPartOfSpeech } from "./lib/gemini";
 import { DEFAULT_WEBLLM_MODEL, prepareWebLlmModel, supportsWebLlm } from "./lib/webllm";
@@ -138,14 +142,15 @@ function isTauriRuntime(): boolean {
 
 const DEUTSCHLY_WEB_APP_URL = "https://deutschly-app-2026.web.app/";
 
-async function openDeutschlyWebApp(): Promise<void> {
+async function openDeutschlyWebApp(query = ""): Promise<void> {
+  const targetUrl = query ? `${DEUTSCHLY_WEB_APP_URL}${query.startsWith("?") ? query : `?${query}`}` : DEUTSCHLY_WEB_APP_URL;
   if (isTauriRuntime()) {
     const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(DEUTSCHLY_WEB_APP_URL);
+    await openUrl(targetUrl);
     return;
   }
-  const opened = window.open(DEUTSCHLY_WEB_APP_URL, "_blank", "noopener,noreferrer");
-  if (!opened) window.location.assign(DEUTSCHLY_WEB_APP_URL);
+  const opened = window.open(targetUrl, "_blank", "noopener,noreferrer");
+  if (!opened) window.location.assign(targetUrl);
 }
 
 interface Flashcard {
@@ -385,64 +390,166 @@ function GoogleLogo({ size = 18 }: { size?: number }) {
   );
 }
 
-interface ProfileAvatarProps {
-  name: string;
-  dayKey: string;
-  photoURL?: string;
-  preference?: ProfileAvatarPreference;
-  config?: NiceAvatarConfig;
-  size: number;
-  className?: string;
-  photoFailed?: boolean;
-  onPhotoError?: () => void;
-}
+function NativeAuthModal({
+  busy,
+  error,
+  onClose,
+  onReopenBrowser,
+  onApplyAuthPass,
+}: {
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onReopenBrowser: () => void;
+  onApplyAuthPass: (pass: string) => void;
+}) {
+  const [manualCode, setManualCode] = useState("");
+  const panelRef = useModalFocus<HTMLElement>(onClose);
 
-function namespaceAvatarSvgIds(root: Element, namespace: string) {
-  const ids = new Map<string, string>();
-
-  root.querySelectorAll<Element>("[id]").forEach((element) => {
-    const currentId = element.id;
-    if (!currentId) return;
-    if (currentId.endsWith(namespace)) {
-      ids.set(currentId, currentId);
-      return;
-    }
-    const nextId = `${currentId}${namespace}`;
-    ids.set(currentId, nextId);
-    element.id = nextId;
-  });
-
-  root.querySelectorAll<Element>("*").forEach((element) => {
-    element.getAttributeNames().forEach((attribute) => {
-      const value = element.getAttribute(attribute);
-      if (!value) return;
-      let nextValue = value;
-      ids.forEach((nextId, currentId) => {
-        nextValue = nextValue.split(`url(#${currentId})`).join(`url(#${nextId})`);
-      });
-      if (nextValue !== value) element.setAttribute(attribute, nextValue);
-    });
-  });
-}
-
-function ProfileAvatar({ name, dayKey, photoURL, preference = "nice", config, size, className = "", photoFailed = false, onPhotoError }: ProfileAvatarProps) {
-  const avatarConfig = config ?? getNiceAvatarConfig(`${name.trim() || PROFILE_DISPLAY_FALLBACK}:${dayKey}`);
-  const imageURL = photoURL?.trim();
-  const source = preference === "google" && imageURL && !photoFailed ? "google" : "nice";
-  const avatarInstanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "") || "avatar";
-  const avatarRenderKey = source === "google" ? `google:${imageURL}` : `nice:${JSON.stringify(avatarConfig)}`;
-  const avatarRootRef = useRef<HTMLSpanElement>(null);
-
-  useLayoutEffect(() => {
-    if (source === "nice" && avatarRootRef.current) {
-      namespaceAvatarSvgIds(avatarRootRef.current, `--${avatarInstanceId}`);
-    }
-  }, [avatarInstanceId, avatarRenderKey, source]);
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (manualCode.trim()) onApplyAuthPass(manualCode.trim());
+  };
 
   return (
-    <span ref={avatarRootRef} className={`profile-avatar${className ? ` ${className}` : ""}`} style={{ width: size, height: size }} data-avatar-source={source} aria-hidden="true">
-      {source === "google" ? <img key={avatarRenderKey} src={imageURL} alt="" referrerPolicy="no-referrer" onError={onPhotoError} /> : <NiceAvatar key={avatarRenderKey} id={`nice-avatar-${avatarInstanceId}`} className="profile-avatar__nice" shape="circle" {...avatarConfig} style={{ width: "100%", height: "100%" }} />}
-    </span>
+    <div className="modal-backdrop modal-backdrop--auth" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <section ref={panelRef} className="modal-panel native-auth-modal" role="dialog" aria-modal="true" aria-labelledby="native-auth-title">
+        <div className="modal-panel__heading">
+          <div>
+            <span className="section-eyebrow">BROWSER SIGN-IN</span>
+            <h2 id="native-auth-title">Google Authentication</h2>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Cancel sign-in" title="Cancel">
+            <X size={19} aria-hidden="true" />
+          </button>
+        </div>
+        <p className="modal-panel__intro">
+          We opened secure Google sign-in in your system browser. Complete sign-in there and return to Deutschly.
+        </p>
+
+        <div className="native-auth-modal__status">
+          <span className="spin"><RefreshCw size={22} aria-hidden="true" /></span>
+          <div>
+            <strong>Waiting for browser confirmation...</strong>
+            <small>Once you sign in, Deutschly will connect automatically.</small>
+          </div>
+        </div>
+
+        {error && <div className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
+
+        <form onSubmit={handleSubmit} className="native-auth-modal__manual">
+          <label className="form-field" htmlFor="native-auth-code">
+            <span>Or paste your connection code / token</span>
+            <input
+              id="native-auth-code"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              placeholder="deutschly-auth:..."
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </label>
+          <div className="native-auth-modal__actions">
+            <button type="button" className="button button--outline" onClick={onReopenBrowser} disabled={busy}>
+              <ExternalLink size={15} aria-hidden="true" /> Re-open browser
+            </button>
+            <button type="submit" className="button button--primary" disabled={!manualCode.trim() || busy}>
+              Connect account
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function AuthBridgeScreen({
+  configured,
+  user,
+  busy,
+  error,
+  onSignIn,
+  onClose,
+}: {
+  configured: boolean;
+  user: FirebaseUserSummary | null;
+  busy: boolean;
+  error: string | null;
+  onSignIn: () => void;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [authPass, setAuthPass] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      void import("firebase/auth").then(async ({ getAuth }) => {
+        try {
+          const auth = getAuth();
+          const token = await auth.currentUser?.getIdToken();
+          const pass = encodeNativeAuthPass(user, token);
+          setAuthPass(pass);
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(pass);
+            setCopied(true);
+          }
+        } catch {
+          const pass = encodeNativeAuthPass(user);
+          setAuthPass(pass);
+        }
+      });
+    }
+  }, [user]);
+
+  const handleCopy = async () => {
+    if (authPass && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(authPass);
+      setCopied(true);
+    }
+  };
+
+  return (
+    <div className="auth-bridge-page">
+      <div className="auth-bridge-card">
+        <div className="auth-bridge-card__header">
+          <GoogleLogo size={36} />
+          <h2>Connect Deutschly App</h2>
+          <p>Secure Google sign-in for your desktop or mobile app.</p>
+        </div>
+
+        {!user ? (
+          <div className="auth-bridge-card__body">
+            <p>Click below to authenticate securely with your Google account.</p>
+            <button type="button" className="button button--primary button--large" onClick={onSignIn} disabled={busy || !configured}>
+              <GoogleLogo size={18} /> {busy ? "Opening Google..." : "Continue with Google"}
+            </button>
+            {!configured && <small className="text-muted">Firebase is not configured for this build.</small>}
+            {error && <div className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
+          </div>
+        ) : (
+          <div className="auth-bridge-card__body">
+            <div className="auth-bridge-card__success">
+              <Check size={28} style={{ color: "var(--success)" }} />
+              <h3>Signed in as {user.displayName || user.email}!</h3>
+              <p>{copied ? "Your connection pass was copied to your clipboard!" : "Copy your connection pass below:"}</p>
+            </div>
+            {authPass && (
+              <div className="auth-bridge-card__pass">
+                <input readOnly value={authPass} aria-label="Connection pass" />
+                <button type="button" className="button button--outline" onClick={handleCopy}>
+                  {copied ? "Copied!" : "Copy pass"}
+                </button>
+              </div>
+            )}
+            <div className="auth-bridge-card__footer">
+              <button type="button" className="button button--ghost" onClick={onClose}>
+                Continue to Deutschly Web
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -4551,6 +4658,8 @@ export default function App() {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUserSummary | null>(null);
   const [firebaseBusy, setFirebaseBusy] = useState(false);
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
+  const [nativeAuthWaiting, setNativeAuthWaiting] = useState(false);
+  const [authBridgeMode, setAuthBridgeMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("auth") === "native");
   const [firebaseMergePrompt, setFirebaseMergePrompt] = useState<FirebaseMergePrompt | null>(null);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -5803,20 +5912,90 @@ export default function App() {
     void handleFirebaseSync({ strategy, pending });
   };
 
-  const handleOpenWebSignIn = async () => {
-    if (firebaseBusy) return;
+  const handleApplyAuthPass = async (rawPass: string) => {
+    const pass = parseNativeAuthPass(rawPass);
+    if (!pass) {
+      setFirebaseError("Invalid connection pass format. Please copy a fresh pass from your browser.");
+      return;
+    }
     setFirebaseBusy(true);
     setFirebaseError(null);
-    showToast("Opening secure Google sign-in...");
     try {
-      await openDeutschlyWebApp();
-      showToast("Deutschly opened in your browser. Complete Google sign-in there.");
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Deutschly could not open the secure browser sign-in.";
-      setFirebaseError(`${message} Try again, or open Deutschly in a normal browser.`);
-      showToast("Could not open Google sign-in. Try again.");
+      let user: FirebaseUserSummary | null = null;
+      if (pass.idToken) {
+        try {
+          user = await signInWithGoogleIdToken(pass.idToken);
+        } catch {
+          // If the token exchange fails (e.g. offline or expired), fallback to the pass user summary
+        }
+      }
+      user ??= {
+        uid: pass.uid,
+        displayName: pass.displayName,
+        email: pass.email,
+        photoURL: pass.photoURL,
+        provider: "google.com",
+      };
+      setFirebaseUser(user);
+      if (pass.displayName && !profileName) {
+        const firstName = getGoogleFirstName(user);
+        if (firstName) {
+          setProfileName(firstName);
+          window.localStorage.setItem(PROFILE_NAME_KEY, firstName);
+        }
+      }
+      if (pass.photoURL) {
+        setAvatarPreference("google");
+      }
+      setNativeAuthWaiting(false);
+      setProfileOnboardingOpen(false);
+      showToast(`Connected as ${user.displayName || user.email}!`);
+    } catch (err) {
+      setFirebaseError(firebaseErrorMessage(err, "auth"));
     } finally {
       setFirebaseBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!nativeAuthWaiting || typeof window === "undefined") return;
+    const handleFocus = async () => {
+      try {
+        if (!navigator.clipboard?.readText) return;
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim().startsWith("deutschly-auth:")) {
+          void handleApplyAuthPass(text.trim());
+        }
+      } catch {
+        // Clipboard read permission might not be granted; user can paste
+      }
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [nativeAuthWaiting]);
+
+  useEffect(() => {
+    if (!nativeAuthWaiting) return;
+    const timer = window.setTimeout(() => {
+      setNativeAuthWaiting(false);
+      setFirebaseBusy(false);
+      setFirebaseError("Google sign-in timed out. Click to try again.");
+    }, 120_000);
+    return () => window.clearTimeout(timer);
+  }, [nativeAuthWaiting]);
+
+  const handleOpenWebSignIn = async () => {
+    setFirebaseBusy(false);
+    setFirebaseError(null);
+    setNativeAuthWaiting(true);
+    showToast("Opening Google sign-in in your browser...");
+    try {
+      const sessionId = Math.random().toString(36).slice(2, 10);
+      await openDeutschlyWebApp(`?auth=native&session=${sessionId}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Deutschly could not open your browser.";
+      setFirebaseError(`${message} Please open your browser, or paste a connection pass.`);
+      showToast("Could not open Google sign-in. Try again.");
     }
   };
 
@@ -5831,17 +6010,39 @@ export default function App() {
     }
     setFirebaseBusy(true);
     setFirebaseError(null);
-    const useRedirect = shouldUseFirebaseRedirect();
+    showToast("Connecting to Google...");
+
+    const timeoutId = window.setTimeout(() => {
+      setFirebaseBusy(false);
+      setFirebaseError("Google sign-in timed out. Please try again.");
+    }, 60_000);
+
     try {
-      const user = await signInWithFirebaseProvider(provider, useRedirect);
-      if (user) {
-        setFirebaseUser(user);
+      const useRedirect = shouldUseFirebaseRedirect();
+      const result = await signInWithFirebaseProviderWithToken(provider, useRedirect);
+      window.clearTimeout(timeoutId);
+      if (result.user) {
+        setFirebaseUser(result.user);
+        const firstName = getGoogleFirstName(result.user);
+        if (firstName && !profileName) {
+          setProfileName(firstName);
+          window.localStorage.setItem(PROFILE_NAME_KEY, firstName);
+        }
+        if (result.user.photoURL) {
+          setAvatarPreference("google");
+        }
         showToast(`Signed in with ${provider === "google" ? "Google" : "GitHub"}.`);
       }
     } catch (error: unknown) {
+      window.clearTimeout(timeoutId);
+      const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "";
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        setFirebaseError("Google sign-in was cancelled. Click to try again.");
+        return;
+      }
       const canRetryInThisShell = typeof window !== "undefined"
         && (isTauriRuntime() || isMobileAuthBrowser() || /(^|\.)web\.app$|(^|\.)firebaseapp\.com$/i.test(window.location.hostname));
-      if (!useRedirect && isFirebasePopupUnavailable(error) && canUseBrowserSessionStorage() && canRetryInThisShell) {
+      if (code === "auth/popup-blocked" || (isFirebasePopupUnavailable(error) && canUseBrowserSessionStorage() && canRetryInThisShell)) {
         setFirebaseError("The sign-in popup was blocked. Opening secure Google sign-in in this window…");
         showToast("Opening secure Google sign-in…");
         try {
@@ -6249,6 +6450,19 @@ export default function App() {
     showToast("Deutschly was installed. Your review space is ready from the home screen.");
   };
 
+  if (authBridgeMode) {
+    return (
+      <AuthBridgeScreen
+        configured={firebaseConfigured}
+        user={firebaseUser}
+        busy={firebaseBusy}
+        error={firebaseError}
+        onSignIn={() => { void handleFirebaseSignIn("google"); }}
+        onClose={() => setAuthBridgeMode(false)}
+      />
+    );
+  }
+
   return (
     <div className="app-shell" data-theme={state.theme}>
       <a className="skip-link" href="#main-content">Skip to content</a>
@@ -6362,6 +6576,19 @@ export default function App() {
          onFirebaseDeleteAccount={handleRequestDeleteFirebaseAccount}
        />}
       {profileOnboardingOpen && <ProfileOnboardingModal configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} firebaseError={firebaseError} nativeApp={isTauriRuntime()} onGoogleSignIn={() => { void handleFirebaseSignIn("google"); }} onOpenWebSignIn={() => { void handleOpenWebSignIn(); }} onComplete={handleCompleteProfileOnboarding} />}
+      {nativeAuthWaiting && (
+        <NativeAuthModal
+          busy={firebaseBusy}
+          error={firebaseError}
+          onClose={() => {
+            setNativeAuthWaiting(false);
+            setFirebaseBusy(false);
+            setFirebaseError(null);
+          }}
+          onReopenBrowser={() => { void handleOpenWebSignIn(); }}
+          onApplyAuthPass={(pass) => { void handleApplyAuthPass(pass); }}
+        />
+      )}
       {welcomeTourOpen && !profileOnboardingOpen && <WelcomeTour name={profileDisplayName} onComplete={handleCompleteWelcomeTour} />}
       {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} isOnline={isOnline} testingConnection={testingConnection} conflict={syncConflict} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onResolveConflict={handleResolveSyncConflict} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
       {resetProgressOpen && <ResetProgressModal onClose={() => setResetProgressOpen(false)} onConfirm={handleResetProgress} />}

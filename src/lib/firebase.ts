@@ -168,6 +168,11 @@ export async function finishFirebaseRedirectSignIn(): Promise<FirebaseUserSummar
 }
 
 export async function signInWithFirebaseProvider(provider: FirebaseAuthProvider, useRedirect: boolean): Promise<FirebaseUserSummary | null> {
+  const result = await signInWithFirebaseProviderWithToken(provider, useRedirect);
+  return result.user;
+}
+
+export async function signInWithFirebaseProviderWithToken(provider: FirebaseAuthProvider, useRedirect: boolean): Promise<{ user: FirebaseUserSummary | null; idToken?: string }> {
   const [auth, authModule] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
   const authProvider = provider === "google" ? new authModule.GoogleAuthProvider() : new authModule.GithubAuthProvider();
   if (useRedirect) {
@@ -178,10 +183,75 @@ export async function signInWithFirebaseProvider(provider: FirebaseAuthProvider,
       setFirebaseRedirectPending(false);
       throw error;
     }
-    return null;
+    return { user: null };
   }
   const result = await authModule.signInWithPopup(auth, authProvider, authModule.browserPopupRedirectResolver);
+  let idToken: string | undefined;
+  try {
+    const cred = authModule.GoogleAuthProvider.credentialFromResult(result);
+    idToken = cred?.idToken || (await result.user.getIdToken());
+  } catch {
+    idToken = await result.user.getIdToken().catch(() => undefined);
+  }
+  return { user: toUserSummary(result.user), idToken };
+}
+
+export async function signInWithGoogleIdToken(idToken: string): Promise<FirebaseUserSummary | null> {
+  if (!firebaseConfigured) throw new FirebaseSetupError("Firebase is not configured for this build yet.");
+  const [auth, authModule] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
+  const credential = authModule.GoogleAuthProvider.credential(idToken);
+  const result = await authModule.signInWithCredential(auth, credential);
   return toUserSummary(result.user);
+}
+
+export interface NativeAuthPass {
+  version: 1;
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL: string;
+  idToken?: string;
+  createdAt: number;
+}
+
+export function encodeNativeAuthPass(user: FirebaseUserSummary, idToken?: string): string {
+  const payload: NativeAuthPass = {
+    version: 1,
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName,
+    photoURL: user.photoURL,
+    ...(idToken ? { idToken } : {}),
+    createdAt: Date.now(),
+  };
+  try {
+    const jsonStr = JSON.stringify(payload);
+    const b64 = typeof window !== "undefined" && typeof window.btoa === "function"
+      ? window.btoa(unescape(encodeURIComponent(jsonStr)))
+      : Buffer.from(jsonStr).toString("base64");
+    return `deutschly-auth:${b64}`;
+  } catch {
+    return "";
+  }
+}
+
+export function parseNativeAuthPass(raw: string): NativeAuthPass | null {
+  if (!raw || typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("deutschly-auth:")) return null;
+  try {
+    const encoded = trimmed.slice("deutschly-auth:".length);
+    const jsonStr = typeof window !== "undefined" && typeof window.atob === "function"
+      ? decodeURIComponent(escape(window.atob(encoded)))
+      : Buffer.from(encoded, "base64").toString("utf8");
+    const parsed = JSON.parse(jsonStr);
+    if (parsed && typeof parsed === "object" && typeof parsed.uid === "string" && typeof parsed.email === "string") {
+      return parsed as NativeAuthPass;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 export async function signOutFromFirebase(): Promise<void> {
