@@ -140,7 +140,10 @@ function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-const DEUTSCHLY_WEB_APP_URL = "https://deutschly-app-2026.web.app/";
+// The Pages build is deployed from main and contains the native auth bridge.
+// Keep the handoff on a surface that is updated together with the native app;
+// the Firebase hosting site is currently a manually deployed mirror.
+const DEUTSCHLY_WEB_APP_URL = "https://soheil-aghayani.github.io/Deutschly/";
 
 async function openDeutschlyWebApp(query = ""): Promise<void> {
   const targetUrl = query ? `${DEUTSCHLY_WEB_APP_URL}${query.startsWith("?") ? query : `?${query}`}` : DEUTSCHLY_WEB_APP_URL;
@@ -439,16 +442,24 @@ function NativeAuthModal({
 
         <form onSubmit={handleSubmit} className="native-auth-modal__manual">
           <label className="form-field" htmlFor="native-auth-code">
-            <span>Or paste your connection code / token</span>
+            <span className="native-auth-modal__label-row"><span>Connection pass</span><button type="button" className="text-button" onClick={async () => {
+              try {
+                const clipboardText = await navigator.clipboard?.readText();
+                if (clipboardText?.trim()) setManualCode(clipboardText.trim());
+              } catch {
+                // The input still supports the normal Ctrl+V fallback.
+              }
+            }}>Paste from clipboard</button></span>
             <input
               id="native-auth-code"
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value)}
-              placeholder="deutschly-auth:..."
+              placeholder="Copy the pass from the browser, then paste it here"
               spellCheck={false}
               autoComplete="off"
             />
           </label>
+          <small className="native-auth-modal__hint">After Google sign-in, the browser shows a connection pass. It is used only to finish this sign-in on this device.</small>
           <div className="native-auth-modal__actions">
             <button type="button" className="button button--outline" onClick={onReopenBrowser} disabled={busy}>
               <ExternalLink size={15} aria-hidden="true" /> Re-open browser
@@ -5923,19 +5934,9 @@ export default function App() {
     try {
       let user: FirebaseUserSummary | null = null;
       if (pass.idToken) {
-        try {
-          user = await signInWithGoogleIdToken(pass.idToken);
-        } catch {
-          // If the token exchange fails (e.g. offline or expired), fallback to the pass user summary
-        }
+        user = await signInWithGoogleIdToken(pass.idToken);
       }
-      user ??= {
-        uid: pass.uid,
-        displayName: pass.displayName,
-        email: pass.email,
-        photoURL: pass.photoURL,
-        provider: "google.com",
-      };
+      if (!user) throw new Error("The connection pass did not contain a valid Google session. Please sign in again.");
       setFirebaseUser(user);
       if (pass.displayName && !profileName) {
         const firstName = getGoogleFirstName(user);

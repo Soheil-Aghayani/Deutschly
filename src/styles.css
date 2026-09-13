@@ -526,6 +526,13 @@ svg {
 }
 
 .avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 12px;
+}
+
+.icon-button {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 44px;
@@ -10469,6 +10476,26 @@ html {
   flex-direction: column;
   gap: 14px;
   margin-top: 6px;
+}
+
+.native-auth-modal__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.native-auth-modal__label-row .text-button {
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.native-auth-modal__hint {
+  display: block;
+  margin-top: -4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .native-auth-modal__actions {
