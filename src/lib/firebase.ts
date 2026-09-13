@@ -43,6 +43,17 @@ let firebaseDb: Firestore | null = null;
 
 const FIREBASE_REDIRECT_PENDING_KEY = "deutschly:firebase-redirect-pending";
 
+export function isFirebaseRedirectPending(): boolean {
+  if (typeof window === "undefined") return false;
+  return (["sessionStorage", "localStorage"] as const).some((storage) => {
+    try {
+      return window[storage].getItem(FIREBASE_REDIRECT_PENDING_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+}
+
 function setFirebaseRedirectPending(pending: boolean): void {
   if (typeof window === "undefined") return;
   for (const storage of ["sessionStorage", "localStorage"] as const) {

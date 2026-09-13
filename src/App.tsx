@@ -73,6 +73,7 @@ import { getPageSlice } from "./lib/pagination";
 import type { AchievementDefinition, AchievementId } from "./lib/achievements";
 import {
   finishFirebaseRedirectSignIn,
+  isFirebaseRedirectPending,
   isFirebaseConfigured,
   loadFirebaseCloudDocument,
   saveFirebaseCloudDocument,
@@ -4036,7 +4037,7 @@ function FirebaseAccountSection({
     <section className="settings-section" aria-labelledby="settings-account-title">
       <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Cloud size={16} /></span><div><h3 id="settings-account-title">Cloud account</h3><p>Use one account to keep your cards in sync on your phone and computer.</p></div></div>
       {!configured && <div className="settings-notification settings-notification--default" role="status"><span className="settings-notification__copy"><Cloud size={14} aria-hidden="true" /><span><strong>Firebase setup is still needed</strong><small>Add the Firebase web settings to this build, then enable Google sign-in.</small></span></span></div>}
-      {configured && !user && <div className="firebase-account__actions">{nativeApp ? <><button type="button" className="button button--outline firebase-account__connect" onClick={onOpenWebSignIn} disabled={busy} aria-label="Open Google sign-in in your browser" title="Open Google sign-in in your browser"><GoogleLogo size={17} /><span>Open Google in browser</span></button><small className="firebase-account__browser-note">Google blocks sign-in inside embedded app windows. Your local cards stay on this device.</small></> : <button type="button" className="button button--outline firebase-account__connect" onClick={() => onSignIn("google")} disabled={busy} aria-label="Continue with Google" title="Continue with Google"><GoogleLogo size={17} /><span>Continue with Google</span></button>}</div>}
+      {configured && !user && <div className="firebase-account__actions">{nativeApp ? <><button type="button" className="button button--outline firebase-account__connect" onClick={onOpenWebSignIn} disabled={busy} aria-busy={busy} aria-label="Open Google sign-in in your browser" title="Open Google sign-in in your browser"><GoogleLogo size={17} /><span>{busy ? "Opening Google..." : "Open Google in browser"}</span></button><small className="firebase-account__browser-note">{busy ? "Opening secure Google sign-in in your default browser..." : "Google sign-in opens in your default browser. Your local cards stay on this device."}</small></> : <button type="button" className="button button--outline firebase-account__connect" onClick={() => onSignIn("google")} disabled={busy} aria-busy={busy} aria-label="Continue with Google" title="Continue with Google"><GoogleLogo size={17} /><span>{busy ? "Opening Google..." : "Continue with Google"}</span></button>}</div>}
       {configured && user && <div className="firebase-account__signed-in"><div className="firebase-account__identity"><strong>{user.displayName || user.email || "Signed in"}</strong><small>{user.email || "Account connected"}</small></div><div className="firebase-account__actions"><button type="button" className="button button--outline" onClick={onSync} disabled={busy}><Cloud size={15} aria-hidden="true" /> {busy ? "Syncing..." : "Sync now"}</button><button type="button" className="button button--ghost" onClick={onSignOut} disabled={busy}>Sign out</button><button type="button" className="button button--ghost settings-danger-action" onClick={onDeleteAccount} disabled={busy}>Delete cloud account</button></div></div>}
       {error && <div className="onboarding-modal__error firebase-account__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
     </section>
@@ -4755,11 +4756,20 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
     const unsubscribe = subscribeToFirebaseAuth((user) => {
-      if (mounted) setFirebaseUser(user);
+      if (!mounted) return;
+      setFirebaseUser(user);
+      if (user) setFirebaseError(null);
     });
+    const redirectWasPending = isFirebaseRedirectPending();
     void finishFirebaseRedirectSignIn()
       .then((user) => {
-        if (mounted && user) setFirebaseUser(user);
+        if (!mounted) return;
+        if (user) {
+          setFirebaseUser(user);
+          setFirebaseError(null);
+        } else if (redirectWasPending) {
+          setFirebaseError("Google sign-in did not complete. Try again and finish the Google prompt in your browser.");
+        }
       })
       .catch((error: unknown) => {
         if (mounted) setFirebaseError(firebaseErrorMessage(error, "auth"));
@@ -5794,12 +5804,19 @@ export default function App() {
   };
 
   const handleOpenWebSignIn = async () => {
+    if (firebaseBusy) return;
+    setFirebaseBusy(true);
     setFirebaseError(null);
+    showToast("Opening secure Google sign-in...");
     try {
       await openDeutschlyWebApp();
       showToast("Deutschly opened in your browser. Complete Google sign-in there.");
     } catch (error: unknown) {
-      setFirebaseError(error instanceof Error ? error.message : "Deutschly could not open the secure browser sign-in.");
+      const message = error instanceof Error ? error.message : "Deutschly could not open the secure browser sign-in.";
+      setFirebaseError(`${message} Try again, or open Deutschly in a normal browser.`);
+      showToast("Could not open Google sign-in. Try again.");
+    } finally {
+      setFirebaseBusy(false);
     }
   };
 
