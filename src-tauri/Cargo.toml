@@ -1,6 +1,6 @@
 [package]
 name = "deutschly"
-version = "0.1.21"
+version = "0.1.22"
 description = "Deutschly — German flashcards that stick"
 authors = ["Soheil Aghayani"]
 license = "MIT"
@@ -23,6 +23,7 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
+tauri-plugin-opener = "2"
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2"

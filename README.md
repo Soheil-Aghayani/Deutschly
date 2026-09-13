@@ -45,9 +45,9 @@ Native downloads are published on the [latest release page](https://github.com/S
 
 ## Offline data and updates
 
-The native bundle contains the learning experience, so a user can review cards with no internet connection. Cards, progress, profile settings, and selected AI settings live in the app’s local data store. Export a JSON backup before moving devices or changing accounts.
+The native bundle contains the learning experience, so a user can review cards with no internet connection. Cards, progress, profile settings, and selected AI settings live in the app’s local data store. Export a JSON backup before moving devices or changing accounts. Updating Deutschly does not require deleting this data.
 
-Native builds check the signed GitHub release feed in the background. When a new version is ready, Deutschly shows an in-app notice and lets the user install it. The updater replaces the application bundle; it does not reset local cards or progress. Windows restarts after installation; Linux asks the user to relaunch. A Google/Firebase account can sync the learning state and AI configuration across devices when Firebase is configured for that deployment.
+Native builds check the signed GitHub release feed in the background. When a new version is ready, Deutschly shows an in-app notice and lets the user install it. The updater replaces the application bundle; it does not reset local cards or progress. Windows restarts after installation; Linux asks the user to relaunch. Google sign-in opens in the secure system browser because Google blocks OAuth inside embedded app windows; the web edition is the account-sync surface, while native users can keep studying locally or use the private-room sync flow.
 
 ## Support Deutschly
 
@@ -174,7 +174,7 @@ Deutschly/
 <details>
 <summary><strong>Optional Firebase account sync</strong></summary>
 
-Create a Firebase project with Google Authentication and Firestore, copy .env.example to .env.local, and fill the VITE_FIREBASE_* values. Enable the Google provider, publish firestore.rules, add the deployed Pages domain and localhost to Firebase authorized domains, and add the same values as repository variables for GitHub Actions. Current builds use a full-page redirect automatically when a browser blocks the sign-in popup; if Firebase reports an unauthorized domain, add the exact domain shown by the app. Without Firebase, Deutschly stays local and the private-room flow remains available.
+Create a Firebase project with Google Authentication and Firestore, copy .env.example to .env.local, and fill the VITE_FIREBASE_* values. Enable the Google provider, publish firestore.rules, add the deployed Pages domain and localhost to Firebase authorized domains, and add the same values as repository variables for GitHub Actions. Browser/PWA builds use Firebase popup or redirect sign-in; native builds open the hosted web edition in the system browser because Google does not permit OAuth inside an embedded WebView. Without Firebase, Deutschly stays local and the private-room flow remains available.
 
 </details>
 

@@ -135,6 +135,18 @@ function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+const DEUTSCHLY_WEB_APP_URL = "https://deutschly-app-2026.web.app/";
+
+async function openDeutschlyWebApp(): Promise<void> {
+  if (isTauriRuntime()) {
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(DEUTSCHLY_WEB_APP_URL);
+    return;
+  }
+  const opened = window.open(DEUTSCHLY_WEB_APP_URL, "_blank", "noopener,noreferrer");
+  if (!opened) window.location.assign(DEUTSCHLY_WEB_APP_URL);
+}
+
 interface Flashcard {
   id: string;
   german: string;
@@ -631,11 +643,10 @@ function isMobileAuthBrowser(): boolean {
 
 function shouldUseFirebaseRedirect(): boolean {
   if (typeof window === "undefined") return false;
-  // Native shells should use one top-level flow on every device. Android
-  // WebView cannot reliably communicate with a popup, and Windows WebView2
-  // can leave a blocked popup fallback hanging on the onboarding screen.
-  // Redirect keeps the auth state in the app's one browser context.
-  if (isTauriRuntime()) return canUseBrowserSessionStorage();
+  // Native shells route Google sign-in to the system browser before this
+  // helper is called. Keeping this guard makes that boundary explicit and
+  // prevents a future caller from putting OAuth back inside a WebView.
+  if (isTauriRuntime()) return false;
   const firebaseHost = /(^|\.)web\.app$|(^|\.)firebaseapp\.com$/i.test(window.location.hostname);
   return firebaseHost && !isMobileAuthBrowser() && canUseBrowserSessionStorage();
 }
@@ -3823,11 +3834,13 @@ interface ProfileOnboardingModalProps {
   user: FirebaseUserSummary | null;
   busy: boolean;
   firebaseError: string | null;
+  nativeApp: boolean;
   onGoogleSignIn: () => void;
+  onOpenWebSignIn: () => void;
   onComplete: (name: string, mode: ProfileMode) => void;
 }
 
-function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogleSignIn, onComplete }: ProfileOnboardingModalProps) {
+function ProfileOnboardingModal({ configured, user, busy, firebaseError, nativeApp, onGoogleSignIn, onOpenWebSignIn, onComplete }: ProfileOnboardingModalProps) {
   const [step, setStep] = useState<ProfileOnboardingStep>(() => user ? "google-confirm" : "choice");
   const [draftName, setDraftName] = useState("");
   const [error, setError] = useState("");
@@ -3861,6 +3874,10 @@ function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogl
       setError("");
       return;
     }
+    if (nativeApp) {
+      onOpenWebSignIn();
+      return;
+    }
     onGoogleSignIn();
   };
 
@@ -3882,10 +3899,10 @@ function ProfileOnboardingModal({ configured, user, busy, firebaseError, onGoogl
             <h2 id="onboarding-title">How do you want to start?</h2>
             <p id="onboarding-intro" className="onboarding-modal__intro">Choose how you want to save your cards.</p>
             <div className="onboarding-modal__choices">
-              {configured && <button type="button" className="button button--outline onboarding-modal__choice" onClick={handleGoogleAction} disabled={busy}><GoogleLogo size={18} /><span>{busy ? "Opening Google..." : user ? "Review Google name" : "Continue with Google"}</span><ArrowRight size={16} aria-hidden="true" /></button>}
+              {configured && <button type="button" className="button button--outline onboarding-modal__choice" onClick={handleGoogleAction} disabled={busy}><GoogleLogo size={18} /><span>{busy ? "Opening Google..." : user ? "Review Google name" : nativeApp ? "Open Google in browser" : "Continue with Google"}</span><ArrowRight size={16} aria-hidden="true" /></button>}
               <button type="button" className="button button--primary onboarding-modal__choice" onClick={() => { setStep("guest"); setError(""); }} disabled={busy}><span>Continue as guest</span><ArrowRight size={16} aria-hidden="true" /></button>
             </div>
-            {configured && <div className="onboarding-modal__notice onboarding-modal__notice--local" role="status"><Sparkles size={15} aria-hidden="true" /><span><strong>Google is optional.</strong> Start as a guest to enter the app; AI settings are available from your profile afterward.</span></div>}
+            {configured && <div className="onboarding-modal__notice onboarding-modal__notice--local" role="status"><Sparkles size={15} aria-hidden="true" /><span>{nativeApp ? <><strong>Google opens in your browser.</strong> Google does not allow account sign-in inside an embedded app window. You can still study locally in this app.</> : <><strong>Google is optional.</strong> Start as a guest to enter the app; AI settings are available from your profile afterward.</>}</span></div>}
             {!configured && <div className="onboarding-modal__notice" role="status"><Info size={15} aria-hidden="true" /><span>Google sign-in is not available in this build yet. You can start as a guest and connect an account later from Settings.</span></div>}
             {firebaseError && <div className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {firebaseError}</div>}
           </>
@@ -3997,7 +4014,9 @@ function FirebaseAccountSection({
   user,
   busy,
   error,
+  nativeApp,
   onSignIn,
+  onOpenWebSignIn,
   onSignOut,
   onSync,
   onDeleteAccount,
@@ -4006,7 +4025,9 @@ function FirebaseAccountSection({
   user: FirebaseUserSummary | null;
   busy: boolean;
   error: string | null;
+  nativeApp: boolean;
   onSignIn: (provider: FirebaseAuthProvider) => void;
+  onOpenWebSignIn: () => void;
   onSignOut: () => void;
   onSync: () => void;
   onDeleteAccount: () => void;
@@ -4015,7 +4036,7 @@ function FirebaseAccountSection({
     <section className="settings-section" aria-labelledby="settings-account-title">
       <div className="settings-section__heading"><span className="settings-section__icon settings-section__icon--primary" aria-hidden="true"><Cloud size={16} /></span><div><h3 id="settings-account-title">Cloud account</h3><p>Use one account to keep your cards in sync on your phone and computer.</p></div></div>
       {!configured && <div className="settings-notification settings-notification--default" role="status"><span className="settings-notification__copy"><Cloud size={14} aria-hidden="true" /><span><strong>Firebase setup is still needed</strong><small>Add the Firebase web settings to this build, then enable Google sign-in.</small></span></span></div>}
-      {configured && !user && <div className="firebase-account__actions"><button type="button" className="button button--outline firebase-account__connect" onClick={() => onSignIn("google")} disabled={busy} aria-label="Continue with Google" title="Continue with Google"><GoogleLogo size={17} /><span>Continue with Google</span></button></div>}
+      {configured && !user && <div className="firebase-account__actions">{nativeApp ? <><button type="button" className="button button--outline firebase-account__connect" onClick={onOpenWebSignIn} disabled={busy} aria-label="Open Google sign-in in your browser" title="Open Google sign-in in your browser"><GoogleLogo size={17} /><span>Open Google in browser</span></button><small className="firebase-account__browser-note">Google blocks sign-in inside embedded app windows. Your local cards stay on this device.</small></> : <button type="button" className="button button--outline firebase-account__connect" onClick={() => onSignIn("google")} disabled={busy} aria-label="Continue with Google" title="Continue with Google"><GoogleLogo size={17} /><span>Continue with Google</span></button>}</div>}
       {configured && user && <div className="firebase-account__signed-in"><div className="firebase-account__identity"><strong>{user.displayName || user.email || "Signed in"}</strong><small>{user.email || "Account connected"}</small></div><div className="firebase-account__actions"><button type="button" className="button button--outline" onClick={onSync} disabled={busy}><Cloud size={15} aria-hidden="true" /> {busy ? "Syncing..." : "Sync now"}</button><button type="button" className="button button--ghost" onClick={onSignOut} disabled={busy}>Sign out</button><button type="button" className="button button--ghost settings-danger-action" onClick={onDeleteAccount} disabled={busy}>Delete cloud account</button></div></div>}
       {error && <div className="onboarding-modal__error firebase-account__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
     </section>
@@ -4075,6 +4096,7 @@ interface ProfileModalProps {
   firebaseBusy: boolean;
   firebaseError: string | null;
   onFirebaseSignIn: (provider: FirebaseAuthProvider) => void;
+  onOpenWebSignIn: () => void;
   onFirebaseSignOut: () => void;
   onFirebaseSync: () => void;
   onFirebaseDeleteAccount: () => void;
@@ -4133,6 +4155,7 @@ function ProfileModal({
   firebaseBusy,
   firebaseError,
   onFirebaseSignIn,
+  onOpenWebSignIn,
   onFirebaseSignOut,
   onFirebaseSync,
   onFirebaseDeleteAccount,
@@ -4171,7 +4194,7 @@ function ProfileModal({
             <label className="form-field" htmlFor="profile-name"><span>Display name</span><input id="profile-name" value={draftName} onChange={(event) => setDraftName(event.target.value.slice(0, PROFILE_NAME_MAX_LENGTH))} placeholder="e.g. Anna" maxLength={PROFILE_NAME_MAX_LENGTH} autoComplete="name" spellCheck={false} /></label>
           </section>
 
-          <FirebaseAccountSection configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} error={firebaseError} onSignIn={onFirebaseSignIn} onSignOut={onFirebaseSignOut} onSync={onFirebaseSync} onDeleteAccount={onFirebaseDeleteAccount} />
+          <FirebaseAccountSection configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} error={firebaseError} nativeApp={isNativeApp} onSignIn={onFirebaseSignIn} onOpenWebSignIn={onOpenWebSignIn} onSignOut={onFirebaseSignOut} onSync={onFirebaseSync} onDeleteAccount={onFirebaseDeleteAccount} />
 
           <details className="settings-section settings-section--disclosure" open>
             <summary className="settings-section__heading settings-section__summary">
@@ -4585,7 +4608,13 @@ export default function App() {
     ? { name: deleteDeckName, count: state.cards.filter((card) => card.deck === deleteDeckName).length }
     : undefined;
   const profileDisplayName = profileName || PROFILE_DISPLAY_FALLBACK;
-  const handleGooglePhotoError = () => setGooglePhotoFailed(true);
+  const googlePhotoURL = firebaseUser?.photoURL?.trim() || "";
+  const googlePhotoReady = Boolean(googlePhotoURL) && !googlePhotoFailed;
+  const visibleAvatarPreference: ProfileAvatarPreference = avatarPreference === "google" && googlePhotoReady ? "google" : "nice";
+  const handleGooglePhotoError = () => {
+    setGooglePhotoFailed(true);
+    setAvatarPreference("nice");
+  };
   const achievementBackfillKey = [state.totalReviews, state.reviewsToday, state.dailyGoal, state.lastReviewDay, state.bestStreak, state.xp, state.achievements.join("|")].join(":");
   const wordBank = useMemo(() => mergeGermanWordRecords(databaseWords, state.wordBank), [databaseWords, state.wordBank]);
   const wordBankInboxItems = useMemo(() => {
@@ -5764,9 +5793,23 @@ export default function App() {
     void handleFirebaseSync({ strategy, pending });
   };
 
+  const handleOpenWebSignIn = async () => {
+    setFirebaseError(null);
+    try {
+      await openDeutschlyWebApp();
+      showToast("Deutschly opened in your browser. Complete Google sign-in there.");
+    } catch (error: unknown) {
+      setFirebaseError(error instanceof Error ? error.message : "Deutschly could not open the secure browser sign-in.");
+    }
+  };
+
   const handleFirebaseSignIn = async (provider: FirebaseAuthProvider) => {
     if (!firebaseConfigured) {
       setFirebaseError("Firebase setup is still needed for account sign-in.");
+      return;
+    }
+    if (isTauriRuntime()) {
+      await handleOpenWebSignIn();
       return;
     }
     setFirebaseBusy(true);
@@ -6208,7 +6251,7 @@ export default function App() {
           </nav>
         </div>
         <div className="sidebar__bottom">
-          <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileDisplayName} profile avatar`}><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} preference={avatarPreference} config={avatarConfig} size={32} photoFailed={googlePhotoFailed} onPhotoError={handleGooglePhotoError} /></div><div><strong>{profileDisplayName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
+          <div className="sidebar-profile"><div className="avatar" role="img" aria-label={`${profileDisplayName} profile avatar`}><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={googlePhotoURL} preference={visibleAvatarPreference} config={avatarConfig} size={32} photoFailed={googlePhotoFailed} onPhotoError={handleGooglePhotoError} /></div><div><strong>{profileDisplayName}</strong><span>Personal learner</span></div><button type="button" className="icon-button icon-button--small" onClick={() => setProfileOpen(true)} aria-label="Open profile settings" title="Profile settings"><Settings size={16} aria-hidden="true" /></button></div>
         </div>
       </aside>
 
@@ -6219,7 +6262,7 @@ export default function App() {
             <button type="button" className="icon-button" onClick={toggleTheme} aria-label={state.theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={state.theme === "light" ? "Dark mode" : "Light mode"}>{state.theme === "light" ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}</button>
             <button type="button" className="icon-button notification-button" onClick={handleReminderBell} aria-label="View reminders" title="Reminders"><Bell size={18} aria-hidden="true" />{state.reminderEnabled && dueCards.length > 0 && <span aria-hidden="true" />}</button>
             <button type="button" className={`sync-button${syncing ? " sync-button--syncing" : ""}`} onClick={() => void handleSync()} disabled={syncing}><Cloud size={16} aria-hidden="true" />{syncing ? "Syncing..." : syncConfigured ? "Sync now" : "Set up sync"}</button>
-            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileDisplayName}`} title="Profile settings"><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={firebaseUser?.photoURL} preference={avatarPreference} config={avatarConfig} size={34} photoFailed={googlePhotoFailed} onPhotoError={handleGooglePhotoError} /></button>
+            <button type="button" className="topbar__avatar" onClick={() => setProfileOpen(true)} aria-label={`Open profile settings for ${profileDisplayName}`} title="Profile settings"><ProfileAvatar name={profileDisplayName} dayKey={todayKey} photoURL={googlePhotoURL} preference={visibleAvatarPreference} config={avatarConfig} size={34} photoFailed={googlePhotoFailed} onPhotoError={handleGooglePhotoError} /></button>
           </div>
         </header>
 
@@ -6246,9 +6289,9 @@ export default function App() {
       {profileOpen && <ProfileModal
         name={profileDisplayName}
         avatarDayKey={todayKey}
-        avatarPreference={avatarPreference}
+        avatarPreference={visibleAvatarPreference}
         avatarConfig={avatarConfig}
-        googlePhotoURL={firebaseUser?.photoURL}
+        googlePhotoURL={googlePhotoURL}
         googlePhotoFailed={googlePhotoFailed}
         theme={state.theme}
         dailyGoal={state.dailyGoal}
@@ -6295,12 +6338,13 @@ export default function App() {
         firebaseUser={firebaseUser}
         firebaseBusy={firebaseBusy}
         firebaseError={firebaseError}
-         onFirebaseSignIn={(provider) => { void handleFirebaseSignIn(provider); }}
-         onFirebaseSignOut={() => { void handleFirebaseSignOut(); }}
+        onFirebaseSignIn={(provider) => { void handleFirebaseSignIn(provider); }}
+        onOpenWebSignIn={() => { void handleOpenWebSignIn(); }}
+        onFirebaseSignOut={() => { void handleFirebaseSignOut(); }}
          onFirebaseSync={() => { void handleFirebaseSync(); }}
          onFirebaseDeleteAccount={handleRequestDeleteFirebaseAccount}
        />}
-       {profileOnboardingOpen && <ProfileOnboardingModal configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} firebaseError={firebaseError} onGoogleSignIn={() => { void handleFirebaseSignIn("google"); }} onComplete={handleCompleteProfileOnboarding} />}
+      {profileOnboardingOpen && <ProfileOnboardingModal configured={firebaseConfigured} user={firebaseUser} busy={firebaseBusy} firebaseError={firebaseError} nativeApp={isTauriRuntime()} onGoogleSignIn={() => { void handleFirebaseSignIn("google"); }} onOpenWebSignIn={() => { void handleOpenWebSignIn(); }} onComplete={handleCompleteProfileOnboarding} />}
       {welcomeTourOpen && !profileOnboardingOpen && <WelcomeTour name={profileDisplayName} onComplete={handleCompleteWelcomeTour} />}
       {syncOpen && <SyncModal endpoint={syncEndpoint} room={syncRoom} error={syncError} autoSync={autoSync} syncStatus={syncStatus} isOnline={isOnline} testingConnection={testingConnection} conflict={syncConflict} onEndpointChange={(value) => { setSyncEndpoint(value); setSyncError(null); }} onRoomChange={(value) => { setSyncRoom(value); setSyncError(null); }} onAutoSyncChange={setAutoSync} onTestConnection={handleTestConnection} onCopyRoom={handleCopyRoom} onResolveConflict={handleResolveSyncConflict} onClose={() => setSyncOpen(false)} onSave={handleSaveSyncSettings} />}
       {resetProgressOpen && <ResetProgressModal onClose={() => setResetProgressOpen(false)} onConfirm={handleResetProgress} />}
