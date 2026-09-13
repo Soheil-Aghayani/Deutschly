@@ -80,13 +80,13 @@ import {
   deleteFirebaseAccount,
   signInWithFirebaseProvider,
   signInWithFirebaseProviderWithToken,
-  signInWithGoogleIdToken,
+  signInWithGoogleCredential,
   encodeNativeAuthPass,
   parseNativeAuthPass,
   signOutFromFirebase,
   subscribeToFirebaseAuth,
 } from "./lib/firebase";
-import type { FirebaseAuthProvider, FirebaseUserSummary, NativeAuthPass } from "./lib/firebase";
+import type { FirebaseAuthProvider, FirebaseProviderCredential, FirebaseUserSummary, NativeAuthPass } from "./lib/firebase";
 import { generateGermanWordBatch, getAiUsageStatus, getDefaultAiSettings, normalizeAiSettings, reviewCardWithGemini } from "./lib/gemini";
 import type { AiProvider, AiSettings, AiUsageStatus, GeminiCardReview, GeminiCardReviewInput, GermanWordBatchLevel, GermanWordBatchPartOfSpeech } from "./lib/gemini";
 import { DEFAULT_WEBLLM_MODEL, prepareWebLlmModel, supportsWebLlm } from "./lib/webllm";
@@ -477,6 +477,7 @@ function NativeAuthModal({
 function AuthBridgeScreen({
   configured,
   user,
+  credential,
   busy,
   error,
   onSignIn,
@@ -484,6 +485,7 @@ function AuthBridgeScreen({
 }: {
   configured: boolean;
   user: FirebaseUserSummary | null;
+  credential: FirebaseProviderCredential | null;
   busy: boolean;
   error: string | null;
   onSignIn: () => void;
@@ -493,24 +495,18 @@ function AuthBridgeScreen({
   const [authPass, setAuthPass] = useState<string>("");
 
   useEffect(() => {
-    if (user) {
-      void import("firebase/auth").then(async ({ getAuth }) => {
-        try {
-          const auth = getAuth();
-          const token = await auth.currentUser?.getIdToken();
-          const pass = encodeNativeAuthPass(user, token);
-          setAuthPass(pass);
-          if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(pass);
-            setCopied(true);
-          }
-        } catch {
-          const pass = encodeNativeAuthPass(user);
-          setAuthPass(pass);
-        }
-      });
+    if (!user || (!credential?.idToken && !credential?.accessToken)) {
+      setAuthPass("");
+      setCopied(false);
+      return;
     }
-  }, [user]);
+    const pass = encodeNativeAuthPass(user, credential.idToken, credential.accessToken);
+    setAuthPass(pass);
+    setCopied(false);
+    if (navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(pass).then(() => setCopied(true)).catch(() => undefined);
+    }
+  }, [credential?.accessToken, credential?.idToken, user]);
 
   const handleCopy = async () => {
     if (authPass && navigator.clipboard?.writeText) {
@@ -535,6 +531,18 @@ function AuthBridgeScreen({
               <GoogleLogo size={18} /> {busy ? "Opening Google..." : "Continue with Google"}
             </button>
             {!configured && <small className="text-muted">Firebase is not configured for this build.</small>}
+            {error && <div className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
+          </div>
+        ) : !credential ? (
+          <div className="auth-bridge-card__body">
+            <div className="auth-bridge-card__success">
+              <Info size={28} style={{ color: "var(--warning, #d9851f)" }} />
+              <h3>Sign in again to connect the app</h3>
+              <p>This browser already has a saved Google session. Sign in again to create a fresh connection pass for Deutschly.</p>
+            </div>
+            <button type="button" className="button button--primary" onClick={onSignIn} disabled={busy}>
+              <GoogleLogo size={18} /> {busy ? "Opening Google..." : "Sign in again to connect app"}
+            </button>
             {error && <div className="onboarding-modal__error" role="alert"><Info size={15} aria-hidden="true" /> {error}</div>}
           </div>
         ) : (
@@ -4670,6 +4678,7 @@ export default function App() {
   const [firebaseBusy, setFirebaseBusy] = useState(false);
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
   const [nativeAuthWaiting, setNativeAuthWaiting] = useState(false);
+  const [nativeAuthCredential, setNativeAuthCredential] = useState<FirebaseProviderCredential | null>(null);
   const [authBridgeMode, setAuthBridgeMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("auth") === "native");
   const [firebaseMergePrompt, setFirebaseMergePrompt] = useState<FirebaseMergePrompt | null>(null);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
@@ -5933,9 +5942,7 @@ export default function App() {
     setFirebaseError(null);
     try {
       let user: FirebaseUserSummary | null = null;
-      if (pass.idToken) {
-        user = await signInWithGoogleIdToken(pass.idToken);
-      }
+      if (pass.idToken || pass.accessToken) user = await signInWithGoogleCredential({ idToken: pass.idToken, accessToken: pass.accessToken });
       if (!user) throw new Error("The connection pass did not contain a valid Google session. Please sign in again.");
       setFirebaseUser(user);
       if (pass.displayName && !profileName) {
@@ -5952,7 +5959,10 @@ export default function App() {
       setProfileOnboardingOpen(false);
       showToast(`Connected as ${user.displayName || user.email}!`);
     } catch (err) {
-      setFirebaseError(firebaseErrorMessage(err, "auth"));
+      const rawMessage = err instanceof Error ? err.message : "";
+      setFirebaseError(/invalid[ _]id[ _]token|auth\/invalid-credential/i.test(rawMessage)
+        ? "This connection pass is from an older sign-in bridge. Re-open the browser and sign in again to get a fresh pass."
+        : firebaseErrorMessage(err, "auth"));
     } finally {
       setFirebaseBusy(false);
     }
@@ -6011,6 +6021,7 @@ export default function App() {
     }
     setFirebaseBusy(true);
     setFirebaseError(null);
+    if (authBridgeMode && provider === "google") setNativeAuthCredential(null);
     showToast("Connecting to Google...");
 
     const timeoutId = window.setTimeout(() => {
@@ -6022,7 +6033,14 @@ export default function App() {
       const useRedirect = shouldUseFirebaseRedirect();
       const result = await signInWithFirebaseProviderWithToken(provider, useRedirect);
       window.clearTimeout(timeoutId);
+      if (authBridgeMode && provider === "google" && !result.idToken && !result.accessToken) {
+        setFirebaseError("Google signed you in, but did not return a reusable connection credential. Please try again.");
+        return;
+      }
       if (result.user) {
+        if (authBridgeMode && provider === "google") {
+          setNativeAuthCredential({ idToken: result.idToken, accessToken: result.accessToken });
+        }
         setFirebaseUser(result.user);
         const firstName = getGoogleFirstName(result.user);
         if (firstName && !profileName) {
@@ -6456,6 +6474,7 @@ export default function App() {
       <AuthBridgeScreen
         configured={firebaseConfigured}
         user={firebaseUser}
+        credential={nativeAuthCredential}
         busy={firebaseBusy}
         error={firebaseError}
         onSignIn={() => { void handleFirebaseSignIn("google"); }}

@@ -172,7 +172,12 @@ export async function signInWithFirebaseProvider(provider: FirebaseAuthProvider,
   return result.user;
 }
 
-export async function signInWithFirebaseProviderWithToken(provider: FirebaseAuthProvider, useRedirect: boolean): Promise<{ user: FirebaseUserSummary | null; idToken?: string }> {
+export interface FirebaseProviderCredential {
+  idToken?: string;
+  accessToken?: string;
+}
+
+export async function signInWithFirebaseProviderWithToken(provider: FirebaseAuthProvider, useRedirect: boolean): Promise<{ user: FirebaseUserSummary | null; idToken?: string; accessToken?: string }> {
   const [auth, authModule] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
   const authProvider = provider === "google" ? new authModule.GoogleAuthProvider() : new authModule.GithubAuthProvider();
   if (useRedirect) {
@@ -186,22 +191,27 @@ export async function signInWithFirebaseProviderWithToken(provider: FirebaseAuth
     return { user: null };
   }
   const result = await authModule.signInWithPopup(auth, authProvider, authModule.browserPopupRedirectResolver);
-  let idToken: string | undefined;
-  try {
-    const cred = authModule.GoogleAuthProvider.credentialFromResult(result);
-    idToken = cred?.idToken || (await result.user.getIdToken());
-  } catch {
-    idToken = await result.user.getIdToken().catch(() => undefined);
-  }
-  return { user: toUserSummary(result.user), idToken };
+  const credential = provider === "google"
+    ? authModule.GoogleAuthProvider.credentialFromResult(result)
+    : authModule.GithubAuthProvider.credentialFromResult(result);
+  return {
+    user: toUserSummary(result.user),
+    idToken: credential?.idToken,
+    accessToken: credential?.accessToken,
+  };
+}
+
+export async function signInWithGoogleCredential({ idToken, accessToken }: FirebaseProviderCredential): Promise<FirebaseUserSummary | null> {
+  if (!firebaseConfigured) throw new FirebaseSetupError("Firebase is not configured for this build yet.");
+  if (!idToken && !accessToken) throw new Error("No Google provider credential was supplied.");
+  const [auth, authModule] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
+  const credential = authModule.GoogleAuthProvider.credential(idToken ?? null, accessToken ?? null);
+  const result = await authModule.signInWithCredential(auth, credential);
+  return toUserSummary(result.user);
 }
 
 export async function signInWithGoogleIdToken(idToken: string): Promise<FirebaseUserSummary | null> {
-  if (!firebaseConfigured) throw new FirebaseSetupError("Firebase is not configured for this build yet.");
-  const [auth, authModule] = await Promise.all([getFirebaseAuth(), import("firebase/auth")]);
-  const credential = authModule.GoogleAuthProvider.credential(idToken);
-  const result = await authModule.signInWithCredential(auth, credential);
-  return toUserSummary(result.user);
+  return signInWithGoogleCredential({ idToken });
 }
 
 export interface NativeAuthPass {
@@ -211,10 +221,11 @@ export interface NativeAuthPass {
   displayName: string;
   photoURL: string;
   idToken?: string;
+  accessToken?: string;
   createdAt: number;
 }
 
-export function encodeNativeAuthPass(user: FirebaseUserSummary, idToken?: string): string {
+export function encodeNativeAuthPass(user: FirebaseUserSummary, idToken?: string, accessToken?: string): string {
   const payload: NativeAuthPass = {
     version: 1,
     uid: user.uid,
@@ -222,6 +233,7 @@ export function encodeNativeAuthPass(user: FirebaseUserSummary, idToken?: string
     displayName: user.displayName,
     photoURL: user.photoURL,
     ...(idToken ? { idToken } : {}),
+    ...(accessToken ? { accessToken } : {}),
     createdAt: Date.now(),
   };
   try {

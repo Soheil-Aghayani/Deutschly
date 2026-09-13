@@ -13,7 +13,8 @@ describe("NativeAuthPass encoding and decoding", () => {
 
   it("encodes and parses a valid auth pass with idToken", () => {
     const token = "mock-id-token-abc-xyz";
-    const encoded = encodeNativeAuthPass(mockUser, token);
+    const accessToken = "mock-access-token-123";
+    const encoded = encodeNativeAuthPass(mockUser, token, accessToken);
 
     expect(encoded.startsWith("deutschly-auth:")).toBe(true);
 
@@ -23,6 +24,7 @@ describe("NativeAuthPass encoding and decoding", () => {
     expect(parsed?.email).toBe(mockUser.email);
     expect(parsed?.displayName).toBe(mockUser.displayName);
     expect(parsed?.idToken).toBe(token);
+    expect(parsed?.accessToken).toBe(accessToken);
   });
 
   it("handles empty or invalid auth passes safely", () => {
